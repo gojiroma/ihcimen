@@ -178,35 +178,6 @@
       color: #721c24;
     }
 
-    /* Enhanced Button Styling */
-    .theme-button {
-      padding: 12px 20px;
-      margin: 8px;
-      border: 2px solid transparent;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      background-color: #f0f0f0;
-      color: #333;
-    }
-
-    .theme-button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .theme-button:active {
-      transform: translateY(0);
-    }
-
-    .theme-button:focus {
-      outline: none;
-      border-color: #007bff;
-      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-    }
-
     /* Toast Notifications */
     .toast-container {
       position: fixed;
@@ -356,61 +327,22 @@
       font-weight: 700;
     }
 
-    .storage-gauge-container {
-      width: 100%;
-      background-color: #ddd;
-    }
-
-    .storage-gauge {
-      width: 0;
-      background-color: #4caf50;
-      height: 30px;
-    }
-
-    .top-items {
-      padding-top: 10px;
-    }
-
-    .top-items p {
-      word-break: break-all;
-    }
-
     :root {
-      --default-bg-color: #ffffff;
-      --default-text-color: #000000;
-      --dark-bg-color: #000000;
-      --dark-text-color: #ffffff;
-      --blue-bg-color: #e7f3fe;
-      --blue-text-color: #000000;
-      --orange-bg-color: #fff5e6;
-      --orange-text-color: #000000;
-      --green-bg-color: #e6f9e9;
-      --green-text-color: #000000;
+      --bg-color: #ffffff;
+      --text-color: #000000;
     }
 
-    body.default-theme {
-      background-color: var(--default-bg-color);
-      color: var(--default-text-color);
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #000000;
+        --text-color: #ffffff;
+      }
     }
 
-    body.dark-theme {
-      background-color: var(--dark-bg-color);
-      color: var(--dark-text-color);
-    }
-
-    body.blue-theme {
-      background-color: var(--blue-bg-color);
-      color: var(--blue-text-color);
-    }
-
-    body.orange-theme {
-      background-color: var(--orange-bg-color);
-      color: var(--orange-text-color);
-    }
-
-    body.green-theme {
-      background-color: var(--green-bg-color);
-      color: var(--green-text-color);
+    body {
+      color-scheme: light dark;
+      background-color: var(--bg-color);
+      color: var(--text-color);
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -424,7 +356,7 @@
       <span class="weekday" id="weekdayDisplay">EEEE</span>
     </div>
     <div class="date-picker-container" id="datePickerContainer"></div>
-    <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (Alt + / でヘルプ)"></textarea>
+    <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? でヘルプ)"></textarea>
     <div class="markdown-viewer" id="markdownViewer"></div>
   </div>
   <div id="modalTemplate" class="modal-template">
@@ -453,15 +385,16 @@
         </li>
       </ul>
       <h3>ショートカットキー一覧</h3>
+      <p>
+        以下は本文の入力中や検索窓の入力中には反応しません。それ以外の場面でキーを押すと動作します。
+      </p>
       <h4>基本操作</h4>
       <ul>
-        <li><strong>Alt + / :</strong> このヘルプを表示</li>
-        <li><strong>Alt + s :</strong> 今日の日付に移動</li>
-        <li><strong>Alt + k :</strong> 検索ウィンドウを表示</li>
-        <li>
-          <strong>Alt + l :</strong> 保存されているデータの使用状況を表示
-        </li>
-        <li><strong>Alt + o :</strong> バックアップデータを取り込む</li>
+        <li><strong>? :</strong> このヘルプを表示</li>
+        <li><strong>t :</strong> 今日の日付に移動</li>
+        <li><strong>f :</strong> 検索ウィンドウを表示</li>
+        <li><strong>o :</strong> バックアップデータを取り込む</li>
+        <li><strong>b :</strong> バックアップデータをダウンロード</li>
       </ul>
       <h4>日付移動</h4>
       <ul>
@@ -471,8 +404,8 @@
         <li><strong>↓ :</strong> 1週間後に移動</li>
         <li><strong>Shift + ↑ :</strong> 4週間前に移動</li>
         <li><strong>Shift + ↓ :</strong> 4週間後に移動</li>
-        <li><strong>Alt + ↑ :</strong> 前の年に移動</li>
-        <li><strong>Alt + ↓ :</strong> 次の年に移動</li>
+        <li><strong>[ :</strong> 前の年に移動</li>
+        <li><strong>] :</strong> 次の年に移動</li>
       </ul>
       <h4>その他</h4>
       <ul>
@@ -484,8 +417,11 @@
           メモが更新されると、JSONファイルが自動的にダウンロードされます。定期的に不要なファイルを削除するスクリプトを実行してください。
         </li>
         <li>
-          新しいブラウザでJSONを開くには、Alt + o
+          新しいブラウザでJSONを開くには、o
           キーでファイル選択ダイアログを開き、バックアップを選択します。
+        </li>
+        <li>
+          タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
         </li>
       </ul>
     </div>
@@ -494,26 +430,6 @@
     <div class="search-modal-content">
       <input type="text" id="searchInput" placeholder="検索キーワードを入力" />
       <ul id="searchResults"></ul>
-    </div>
-  </div>
-  <div id="storageModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content">
-      <h2>LocalStorage 使用状況</h2>
-      <div id="storageGaugeContainer" class="storage-gauge-container">
-        <div id="storageGauge" class="storage-gauge"></div>
-      </div>
-      <p id="storageText"></p>
-      <div id="topItems" class="top-items"></div>
-    </div>
-  </div>
-  <div id="themeModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content">
-      <h2>テーマカラーの選択</h2>
-      <button id="defaultTheme" class="theme-button">白（デフォルト）</button>
-      <button id="darkTheme" class="theme-button">黒（ダークモード）</button>
-      <button id="blueTheme" class="theme-button">青</button>
-      <button id="orangeTheme" class="theme-button">オレンジ</button>
-      <button id="greenTheme" class="theme-button">緑</button>
     </div>
   </div>
   <div id="saveStatus" class="save-status"></div>
@@ -532,14 +448,10 @@
         "searchModal",
         "searchInput",
         "searchResults",
-        "storageModal",
-        "storageGauge",
-        "storageText",
         "shortcutModal",
-        "themeModal",
-        "topItems",
         "saveStatus",
         "toastContainer",
+        "dateDisplay",
       ].reduce((e, t) => ((e[t] = document.getElementById(t)), e), {}),
         {
           yearDisplay: t,
@@ -552,14 +464,10 @@
           searchModal: c,
           searchInput: i,
           searchResults: d,
-          storageModal: u,
-          storageGauge: g,
-          storageText: h,
           shortcutModal: p,
-          themeModal: y,
-          topItems: m,
           saveStatus: saveStatusEl,
           toastContainer: toastContainerEl,
+          dateDisplay: dd,
         } = e,
         v = {
           currentYear: new Date().getFullYear(),
@@ -837,35 +745,16 @@
           return e.substring(l, n);
         },
         H = () => {
-          const e = parseFloat(
-            (
-              Array.from({ length: localStorage.length }).reduce(
-                (e, t, a) =>
-                  e +
-                  localStorage.key(a).length +
-                  localStorage.getItem(localStorage.key(a)).length,
-                0
-              ) / 1024
-            ).toFixed(2)
-          ),
-            t = (e / 5120) * 100;
-          (g.style.width = t + "%"),
-            (h.textContent = `使用済み: ${e} KB / 5120 KB (${t.toFixed(
-              2
-            )}%)`);
-          const a = [];
-          for (let e = 0; e < localStorage.length; e++) {
-            const t = localStorage.key(e),
-              l = localStorage.getItem(t);
-            a.push({ key: t, size: l.length });
-          }
-          a.sort((e, t) => t.size - e.size);
-          const l = a.slice(0, 10);
-          (m.innerHTML = "<h3>Top 10 Largest Items</h3>"),
-            l.forEach((e) => {
-              const t = document.createElement("p");
-              (t.textContent = `${e.key}: ${e.size} bytes`), m.appendChild(t);
-            });
+          const kb =
+            Array.from({ length: localStorage.length }).reduce(
+              (sum, _, idx) =>
+                sum +
+                localStorage.key(idx).length +
+                localStorage.getItem(localStorage.key(idx)).length,
+              0
+            ) / 1024,
+            percent = ((kb / 5120) * 100).toFixed(1);
+          document.title = `${dd.innerText} (${percent}%)`;
         },
         U = (e) => {
           O(p, e);
@@ -880,6 +769,7 @@
           try {
             localStorage.setItem(t, e);
             showSaveStatus("saved", "保存しました");
+            H();
             // Auto-hide after 2 seconds
             setTimeout(() => hideSaveStatus(), 2000);
           } catch (err) {
@@ -904,6 +794,33 @@
             toast.classList.add("hide");
             setTimeout(() => toast.remove(), 300);
           }, duration);
+        },
+        downloadBackup = () => {
+          const data = Array.from({ length: localStorage.length }).reduce(
+            (acc, _, idx) => (
+              (acc[localStorage.key(idx)] = localStorage.getItem(
+                localStorage.key(idx)
+              )),
+              acc
+            ),
+            {}
+          ),
+            blob = new Blob([JSON.stringify(data, null, 2)], {
+              type: "application/json",
+            }),
+            url = URL.createObjectURL(blob),
+            link = document.createElement("a");
+          (link.href = url),
+            (link.download = `${new Date()
+              .toISOString()
+              .replace(/[:\-T]/g, "")
+              .split(".")[0]
+              }.json`),
+            document.body.appendChild(link),
+            link.click(),
+            document.body.removeChild(link),
+            URL.revokeObjectURL(url),
+            showToast(`バックアップをダウンロードしました (${Object.keys(data).length} 件)`, "success");
         },
         K = (e, t = 0, a = 0, l = !1) => {
           saveCurrentMemo();
@@ -946,12 +863,13 @@
       }),
         document.addEventListener("keydown", (e) => {
           if (e.isComposing || 229 === e.keyCode) return;
-          const { altKey: t, shiftKey: a, key: l, target: n } = e;
-          if ("textarea" !== n.tagName.toLowerCase())
-            if (t)
-              "/" === l && U(!0),
+          const { shiftKey: a, key: l, target: n } = e,
+            tag = (n.tagName || "").toLowerCase();
+          if ("textarea" !== tag) {
+            if ("input" !== tag && !n.isContentEditable)
+              "?" === l && U(!0),
                 "o" === l && r.click(),
-                "s" === l &&
+                "t" === l &&
                 ((f = new Date()),
                   T(f),
                   $(
@@ -961,69 +879,66 @@
                     )
                   ),
                   (D = !0)),
-                "k" === l && (O(c, !0), i.focus()),
-                "l" === l && (O(u, !0), H()),
-                "c" == l && (y.style.display = "block"),
-                "ArrowUp" === l && K(0, 0, -1),
-                "ArrowDown" === l && K(0, 0, 1);
-            else if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
-            else {
-              if ("block" === c.style.display) {
-                if (
-                  (("ArrowDown" !== l && "ArrowUp" !== l) ||
-                    ((b =
-                      (b + ("ArrowDown" === l ? 1 : -1) + E.length) %
-                      E.length),
-                      (() => {
-                        const e =
-                          document.querySelectorAll("#searchResults li");
-                        e.forEach((e, t) => {
-                          e.classList.toggle("selected", t === b);
-                        });
-                        const t = e[b];
-                        t &&
-                          t.scrollIntoView({
-                            block: "center",
-                            behavior: "smooth",
-                          });
-                      })()),
-                    "Enter" === l && b >= 0 && b < E.length)
-                ) {
-                  const e = new Date(E[b].date);
-                  O(c, !1),
-                    (f = e),
-                    T(f),
-                    F(E[b].text),
-                    $(
-                      document.querySelector(
-                        `.date-box[data-date="${f.toISOString().split("T")[0]
-                        }"]`
-                      )
-                    ),
-                    ((e, t) => {
-                      const a = e.innerHTML,
-                        l = new RegExp(`(${X(t)})`, "gi"),
-                        n = a.replace(l, '<span class="highlight">$1</span>');
-                      e.innerHTML = n;
-                      const s = e.querySelector(".highlight");
-                      s &&
-                        s.scrollIntoView({
-                          behavior: "smooth",
+                "f" === l && (O(c, !0), i.focus()),
+                "b" === l && downloadBackup(),
+                "[" === l && ((S -= 1), R(S)),
+                "]" === l && ((S += 1), R(S));
+            if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
+            else if ("block" === c.style.display) {
+              if (
+                (("ArrowDown" !== l && "ArrowUp" !== l) ||
+                  ((b =
+                    (b + ("ArrowDown" === l ? 1 : -1) + E.length) %
+                    E.length),
+                    (() => {
+                      const e =
+                        document.querySelectorAll("#searchResults li");
+                      e.forEach((e, t) => {
+                        e.classList.toggle("selected", t === b);
+                      });
+                      const t = e[b];
+                      t &&
+                        t.scrollIntoView({
                           block: "center",
+                          behavior: "smooth",
                         });
-                    })(o, i.value);
-                }
-              } else
-                "ArrowLeft" === l && K(-1, 0, 0, !0),
-                  "ArrowRight" === l && K(1, 0, 0, !0),
-                  "ArrowUp" === l && K(-7),
-                  "ArrowDown" === l && K(7);
-              "Escape" === l &&
-                (U(!1),
-                  O(c, !1),
-                  O(u, !1),
-                  "block" == s.style.display && (O(s, !1), O(o, !0)));
-            }
+                    })()),
+                  "Enter" === l && b >= 0 && b < E.length)
+              ) {
+                const e = new Date(E[b].date);
+                O(c, !1),
+                  (f = e),
+                  T(f),
+                  F(E[b].text),
+                  $(
+                    document.querySelector(
+                      `.date-box[data-date="${f.toISOString().split("T")[0]
+                      }"]`
+                    )
+                  ),
+                  ((e, t) => {
+                    const a = e.innerHTML,
+                      l = new RegExp(`(${X(t)})`, "gi"),
+                      n = a.replace(l, '<span class="highlight">$1</span>');
+                    e.innerHTML = n;
+                    const s = e.querySelector(".highlight");
+                    s &&
+                      s.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                  })(o, i.value);
+              }
+            } else
+              "ArrowLeft" === l && K(-1, 0, 0, !0),
+                "ArrowRight" === l && K(1, 0, 0, !0),
+                "ArrowUp" === l && K(-7),
+                "ArrowDown" === l && K(7);
+            "Escape" === l &&
+              (U(!1),
+                O(c, !1),
+                "block" == s.style.display && (O(s, !1), O(o, !0)));
+          }
         }),
         i.addEventListener("input", () => {
           const e = i.value;
@@ -1227,7 +1142,6 @@
           "e" === e.key &&
             "none" == s.style.display &&
             "block" !== c.style.display &&
-            "block" !== u.style.display &&
             "block" !== p.style.display &&
             (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
         }),
@@ -1235,49 +1149,12 @@
         document.addEventListener("DOMContentLoaded", () => {
           (w = new Date()), T(w), R(S), q(), O(s, false), O(o, true);
           s.focus();
-          // MacではAltキーがOptionキーとして表記されるようにする
-          if (/Mac|iPhone|iPad|iPod/.test(navigator.userAgent)) {
-            p.innerHTML = p.innerHTML.replace(/Alt/g, "Option");
-            const placeholder = s.getAttribute("placeholder");
-            if (placeholder) {
-              s.setAttribute("placeholder", placeholder.replace("Alt", "Option"));
-            }
-          }
-          // 配列の定義方法を修正
-          ["default", "dark", "blue", "orange", "green"].forEach((e) => {
-            document
-              .getElementById(`${e}Theme`)
-              .addEventListener("click", () => {
-                z(e);
-                showToast(`テーマを「${e}」に変更しました`, "success");
-              });
-          });
-          const dateDisplay = document.getElementById("dateDisplay");
-
-          function setTitle() {
-            document.title = dateDisplay.innerText;
-          }
-
           // 初回設定
-          setTitle();
-
+          H();
           // 日付表示内容が変更されたときに title を更新する
-          const observer = new MutationObserver(setTitle);
-          observer.observe(dateDisplay, { childList: true, subtree: true });
+          const observer = new MutationObserver(H);
+          observer.observe(dd, { childList: true, subtree: true });
         });
-      const N = localStorage.getItem("theme");
-      function z(e) {
-        const t = document.body;
-        t.classList.remove(
-          ...["default", "dark", "blue", "orange", "green"].map(
-            (e) => `${e}-theme`
-          )
-        ),
-          t.classList.add(`${e}-theme`),
-          localStorage.setItem("theme", e);
-      }
-      N && ((document.body.className = N), z(N));
-
       // Expose moveToToday as global function
       window.moveToToday = function () {
         f = new Date();
@@ -1288,36 +1165,6 @@
         showToast("今日に移動しました", "info");
       };
     })();
-    document.addEventListener("keydown", (e) => {
-      const { altKey: t, key: l } = e;
-      if (t && "a" === l) {
-        // JSONをダウンロードする処理をここに移動
-        const e = Array.from({ length: localStorage.length }).reduce(
-          (e, t, a) => (
-            (e[localStorage.key(a)] = localStorage.getItem(
-              localStorage.key(a)
-            )),
-            e
-          ),
-          {}
-        ),
-          t = new Blob([JSON.stringify(e, null, 2)], {
-            type: "application/json",
-          }),
-          a = URL.createObjectURL(t),
-          l = document.createElement("a");
-        (l.href = a),
-          (l.download = `${new Date()
-            .toISOString()
-            .replace(/[:\-T]/g, "")
-            .split(".")[0]
-            }.json`),
-          document.body.appendChild(l),
-          l.click(),
-          document.body.removeChild(l),
-          showToast(`バックアップをダウンロードしました (${Object.keys(e).length} 件)`, "success");
-      }
-    });
   </script>
 </body>
 
