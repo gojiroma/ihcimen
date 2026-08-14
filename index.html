@@ -1,0 +1,1007 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Daily Notes</title>
+    <style>
+      ::-webkit-scrollbar {
+        display: none;
+      }
+      h1 {
+        font-size: x-large;
+        margin-top: 43px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 20px;
+      }
+      .date-display {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .date-display .year {
+        font-size: 24px;
+        margin-right: 10px;
+      }
+      .date-display .month-day {
+        font-size: 36px;
+        margin-right: 10px;
+      }
+      .date-display .weekday {
+        font-size: 18px;
+        line-height: 1.2;
+      }
+      .date-picker-container {
+        display: flex; /*flexだった*/
+        width: 100%;
+        height: 30px;
+        border: 1px solid #000;
+      }
+      .date-box {
+        flex: 1;
+        height: 30px;
+        border-right: 1px solid #ddd;
+        cursor: pointer;
+        box-sizing: border-box;
+      }
+      .date-box.selected {
+        background-color: #00f !important;
+      }
+      .date-box.has-entry {
+        background-color: #ff0;
+      }
+      .date-box.today {
+        background-color: red;
+      }
+      .date-box.saturday {
+        background-color: #add8e6;
+      }
+      .date-box.sunday {
+        background-color: #ffb6c1;
+      }
+      .date-box.closed,
+      .date-box.holiday {
+        background-color: gray;
+        position: relative;
+      }
+      .date-box.closed::after,
+      .date-box.holiday::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        background-color: #333;
+        color: #fff;
+        padding: 5px;
+        border-radius: 5px;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        display: none;
+        white-space: nowrap;
+      }
+      .date-box.closed:hover::after,
+      .date-box.holiday:hover::after {
+        display: block;
+        z-index: 10;
+      }
+      .text-box {
+        height: 3500px;
+      }
+      textarea {
+        border: none;
+        outline: 0;
+        box-sizing: border-box;
+        width: 100%;
+        color: inherit;
+        background-color: inherit;
+        line-height: 200%;
+      }
+      a {
+        color: rgb(127, 197, 255);
+      }
+      .markdown-viewer,
+      .text-box {
+        font-family: "BIZ UDGothic";
+        width: 700px;
+        margin-top: 20px;
+        border: none;
+        padding: 5px;
+        letter-spacing: 150%;
+        font-size: large;
+        line-height: 200%;
+        word-break: break-all;
+      }
+      .markdown-viewer {
+        display: none;
+      }
+      .search-modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(226, 226, 226, 0.4);
+      }
+      .search-modal-content {
+        background-color: #fafad2;
+        color: green;
+        margin: 15% auto;
+        padding: 20px;
+        border: 1px solid #d8d8d8;
+        width: 80%;
+      }
+      #searchInput {
+        width: 100%;
+        padding: 15px;
+        font-size: 20px;
+        box-sizing: border-box;
+      }
+      #searchResults {
+        list-style: none;
+        padding: 0;
+      }
+      #searchResults li {
+        cursor: pointer;
+        padding: 10px;
+        font-size: 18px;
+      }
+      #searchResults li.selected,
+      #searchResults li:hover {
+        background-color: #ddd;
+      }
+      #searchResults li span.date {
+        display: block;
+        font-weight: 700;
+      }
+      #searchResults li span.text {
+        display: block;
+        margin-top: 5px;
+      }
+      .highlight {
+        background-color: #ff0;
+        font-weight: 700;
+      }
+      .storage-gauge-container {
+        width: 100%;
+        background-color: #ddd;
+      }
+      .storage-gauge {
+        width: 0;
+        background-color: #4caf50;
+        height: 30px;
+      }
+      .top-items {
+        padding-top: 10px;
+      }
+      .top-items p {
+        word-break: break-all;
+      }
+      :root {
+        --default-bg-color: #ffffff;
+        --default-text-color: #000000;
+        --dark-bg-color: #000000;
+        --dark-text-color: #ffffff;
+        --blue-bg-color: #e7f3fe;
+        --blue-text-color: #000000;
+        --orange-bg-color: #fff5e6;
+        --orange-text-color: #000000;
+        --green-bg-color: #e6f9e9;
+        --green-text-color: #000000;
+      }
+      body.default-theme {
+        background-color: var(--default-bg-color);
+        color: var(--default-text-color);
+      }
+      body.dark-theme {
+        background-color: var(--dark-bg-color);
+        color: var(--dark-text-color);
+      }
+      body.blue-theme {
+        background-color: var(--blue-bg-color);
+        color: var(--blue-text-color);
+      }
+      body.orange-theme {
+        background-color: var(--orange-bg-color);
+        color: var(--orange-text-color);
+      }
+      body.green-theme {
+        background-color: var(--green-bg-color);
+        color: var(--green-text-color);
+      }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="date-display" id="dateDisplay" onclick="moveToToday()">
+        <span class="year" id="yearDisplay">YYYY</span>
+        <span class="month-day" id="monthDayDisplay">MM/DD</span>
+        <span class="weekday" id="weekdayDisplay">EEEE</span>
+      </div>
+      <div class="date-picker-container" id="datePickerContainer"></div>
+      <textarea
+        class="text-box"
+        id="textBox"
+        placeholder="メモを入力してください... (Alt + / でヘルプ)"
+      ></textarea>
+      <div class="markdown-viewer" id="markdownViewer"></div>
+    </div>
+    <div id="modalTemplate" class="modal-template">
+      <div class="modal-content">
+        <h2 class="modal-title"></h2>
+        <div class="modal-body"></div>
+        <div class="modal-footer"></div>
+      </div>
+    </div>
+    <div id="shortcutModal" class="search-modal close-on-click-outside">
+      <div class="search-modal-content">
+        <h2>ヘルプ</h2>
+        <h3>マウス操作</h3>
+        <ul>
+          <li>
+            <strong>日付パラパラ:</strong>
+            日付の下にある「帯」にカーソルを置くと、素早く日付が変わり、その日のメモを「チラ見」できます。クリックすると日付が固定されます。
+          </li>
+          <li>
+            <strong>ホイールくるくる:</strong>
+            カレンダー上でマウスのホイールを回すと、年を移動できます。
+          </li>
+          <li>
+            <strong>本文クリック:</strong>
+            表示されている本文をクリックすると、編集モードになります。
+          </li>
+        </ul>
+        <h3>ショートカットキー一覧</h3>
+        <h4>基本操作</h4>
+        <ul>
+          <li><strong>Alt + / :</strong> このヘルプを表示</li>
+          <li><strong>Alt + s :</strong> 今日の日付に移動</li>
+          <li><strong>Alt + k :</strong> 検索ウィンドウを表示</li>
+          <li>
+            <strong>Alt + l :</strong> 保存されているデータの使用状況を表示
+          </li>
+          <li><strong>Alt + o :</strong> バックアップデータを取り込む</li>
+        </ul>
+        <h4>日付移動</h4>
+        <ul>
+          <li><strong>← :</strong> 前の日に移動</li>
+          <li><strong>→ :</strong> 次の日に移動</li>
+          <li><strong>↑ :</strong> 1週間前に移動</li>
+          <li><strong>↓ :</strong> 1週間後に移動</li>
+          <li><strong>Shift + ↑ :</strong> 4週間前に移動</li>
+          <li><strong>Shift + ↓ :</strong> 4週間後に移動</li>
+          <li><strong>Alt + ↑ :</strong> 前の年に移動</li>
+          <li><strong>Alt + ↓ :</strong> 次の年に移動</li>
+        </ul>
+        <h4>その他</h4>
+        <ul>
+          <li><strong>Esc :</strong> このウィンドウを閉じる</li>
+        </ul>
+        <h3>データのバックアップと復元</h3>
+        <ul>
+          <li>
+            メモが更新されると、JSONファイルが自動的にダウンロードされます。定期的に不要なファイルを削除するスクリプトを実行してください。
+          </li>
+          <li>
+            新しいブラウザでJSONを開くには、Alt + o
+            キーでファイル選択ダイアログを開き、バックアップを選択します。
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div id="searchModal" class="search-modal close-on-click-outside">
+      <div class="search-modal-content">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="検索キーワードを入力"
+        />
+        <ul id="searchResults"></ul>
+      </div>
+    </div>
+    <div id="storageModal" class="search-modal close-on-click-outside">
+      <div class="search-modal-content">
+        <h2>LocalStorage 使用状況</h2>
+        <div id="storageGaugeContainer" class="storage-gauge-container">
+          <div id="storageGauge" class="storage-gauge"></div>
+        </div>
+        <p id="storageText"></p>
+        <div id="topItems" class="top-items"></div>
+      </div>
+    </div>
+    <div id="themeModal" class="search-modal close-on-click-outside">
+      <div class="search-modal-content">
+        <h2>テーマカラーの選択</h2>
+        <button id="defaultTheme">白（デフォルト）</button>
+        <button id="darkTheme">黒（ダークモード）</button>
+        <button id="blueTheme">青</button>
+        <button id="orangeTheme">オレンジ</button>
+        <button id="greenTheme">緑</button>
+      </div>
+    </div>
+    <input type="file" id="fileInput" style="display: none" />
+    <script>
+      (() => {
+        const e = [
+            "yearDisplay",
+            "monthDayDisplay",
+            "weekdayDisplay",
+            "datePickerContainer",
+            "textBox",
+            "markdownViewer",
+            "fileInput",
+            "searchModal",
+            "searchInput",
+            "searchResults",
+            "storageModal",
+            "storageGauge",
+            "storageText",
+            "shortcutModal",
+            "themeModal",
+            "topItems",
+          ].reduce((e, t) => ((e[t] = document.getElementById(t)), e), {}),
+          {
+            yearDisplay: t,
+            monthDayDisplay: a,
+            weekdayDisplay: l,
+            datePickerContainer: n,
+            textBox: s,
+            markdownViewer: o,
+            fileInput: r,
+            searchModal: c,
+            searchInput: i,
+            searchResults: d,
+            storageModal: u,
+            storageGauge: g,
+            storageText: h,
+            shortcutModal: p,
+            themeModal: y,
+            topItems: m,
+          } = e,
+          v = {
+            currentYear: new Date().getFullYear(),
+            selectedDate: new Date(),
+            clickedDate: void 0,
+            hoveredDate: void 0,
+            revertToToday: !1,
+            saveTimer: void 0,
+            searchResultsData: [],
+            currentSearchResultIndex: -1,
+            wheelTimeout: void 0,
+          };
+        let {
+          currentYear: S,
+          selectedDate: f,
+          clickedDate: w,
+          hoveredDate: k,
+          revertToToday: D,
+          saveTimer: L,
+          searchResultsData: E,
+          currentSearchResultIndex: b,
+          wheelTimeout: x,
+        } = v;
+        const I = 864e5,
+          T = (e) => {
+            t.textContent = e.getFullYear();
+            a.textContent = `${String(e.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}/${String(e.getDate()).padStart(2, "0")}`;
+            l.textContent = e.toLocaleDateString("ja-JP", { weekday: "long" });
+            A(e);
+          },
+          A = (e) => {
+            const t = e.toISOString().split("T")[0];
+            let a = localStorage.getItem(t) || "";
+            if (!a && new Date().toISOString().split("T")[0] === t) {
+              a = "# ";
+              localStorage.setItem(t, a);
+            }
+            s.value = a;
+            o.innerHTML = marked.parse(a);
+            o.style.display = a ? "block" : "none";
+            s.style.display = a ? "none" : "block";
+          },
+          $ = (e) => {
+            document
+              .querySelectorAll(".date-box")
+              .forEach((e) => e.classList.remove("selected")),
+              e && e.classList.add("selected");
+          },
+          O = (e, t) => {
+            e.style.display = t ? "block" : "none";
+          },
+          M = {
+            2023: {
+              "2023-01-01": "元旦",
+              "2023-01-09": "成人の日",
+              "2023-02-11": "建国記念の日",
+              "2023-02-23": "天皇誕生日",
+              "2023-03-21": "春分の日",
+              "2023-04-29": "昭和の日",
+              "2023-05-03": "憲法記念日",
+              "2023-05-04": "みどりの日",
+              "2023-05-05": "こどもの日",
+              "2023-07-17": "海の日",
+              "2023-08-11": "山の日",
+              "2023-09-18": "敬老の日",
+              "2023-09-23": "秋分の日",
+              "2023-10-09": "スポーツの日",
+              "2023-11-03": "文化の日",
+              "2023-11-23": "勤労感謝の日",
+            },
+            2024: {
+              "2024-01-01": "元旦",
+              "2024-01-08": "成人の日",
+              "2024-02-11": "建国記念の日",
+              "2024-02-12": "振替休日",
+              "2024-02-23": "天皇誕生日",
+              "2024-03-20": "春分の日",
+              "2024-04-29": "昭和の日",
+              "2024-05-03": "憲法記念日",
+              "2024-05-04": "みどりの日",
+              "2024-05-05": "こどもの日",
+              "2024-05-06": "振替休日",
+              "2024-07-15": "海の日",
+              "2024-08-11": "山の日",
+              "2024-08-12": "振替休日",
+              "2024-09-16": "敬老の日",
+              "2024-09-22": "秋分の日",
+              "2024-09-23": "振替休日",
+              "2024-10-14": "スポーツの日",
+              "2024-11-03": "文化の日",
+              "2024-11-04": "振替休日",
+              "2024-11-23": "勤労感謝の日",
+            },
+            2025: {
+              "2025-01-01": "元旦",
+              "2025-01-13": "成人の日",
+              "2025-02-11": "建国記念の日",
+              "2025-02-23": "天皇誕生日",
+              "2025-02-24": "振替休日",
+              "2025-03-20": "春分の日",
+              "2025-04-29": "昭和の日",
+              "2025-05-03": "憲法記念日",
+              "2025-05-04": "みどりの日",
+              "2025-05-05": "こどもの日",
+              "2025-05-06": "振替休日",
+              "2025-07-21": "海の日",
+              "2025-08-11": "山の日",
+              "2025-09-15": "敬老の日",
+              "2025-09-23": "秋分の日",
+              "2025-10-13": "スポーツの日",
+              "2025-11-03": "文化の日",
+              "2025-11-23": "勤労感謝の日",
+              "2025-11-24": "振替休日",
+            },
+          },
+          C = {
+            2024: {
+              "2024-12-28": "年末年始休暇",
+              "2024-12-29": "年末年始休暇",
+              "2024-12-30": "年末年始休暇",
+              "2024-12-31": "年末年始休暇",
+            },
+            2025: {
+              "2025-01-01": "年末年始休暇",
+              "2025-01-02": "年末年始休暇",
+              "2025-01-03": "年末年始休暇",
+              "2025-01-04": "年末年始休暇",
+              "2025-01-05": "年末年始休暇",
+            },
+          },
+          R = (e) => {
+            const t = new Date(e, 0, 1),
+              a = new Date(e, 11, 31),
+              l = Math.ceil((a - t + I) / I);
+            n.innerHTML = "";
+            for (let a = 0; a < l; a++) {
+              const s = document.createElement("div");
+              s.classList.add("date-box");
+              const o = new Date(t.getTime() + a * I),
+                r = o.toISOString().split("T")[0];
+              (s.dataset.date = r),
+                (s.style.width = `calc(100% / ${l})`),
+                n.appendChild(s);
+              const c = o.getDay();
+              6 === c
+                ? s.classList.add("saturday")
+                : 0 === c && s.classList.add("sunday"),
+                M[e] &&
+                  M[e][r] &&
+                  (s.classList.add("holiday"),
+                  s.setAttribute("data-tooltip", M[e][r])),
+                C[e] &&
+                  C[e][r] &&
+                  (s.classList.add("closed"),
+                  s.setAttribute("data-tooltip", C[e][r])),
+                s.addEventListener("mouseover", () => {
+                  (k = new Date(s.dataset.date)),
+                    T(k),
+                    s.classList.add("hovered");
+                }),
+                s.addEventListener("mouseout", () => {
+                  s.classList.remove("hovered");
+                }),
+                s.addEventListener("click", () => {
+                  (w = new Date(s.dataset.date)),
+                    (f = w),
+                    (S = w.getFullYear()),
+                    R(S),
+                    T(w),
+                    $(s);
+                }),
+                o.toISOString().split("T")[0] ===
+                  new Date().toISOString().split("T")[0] &&
+                  s.classList.add("today");
+            }
+            n.addEventListener("mouseleave", j), q();
+          },
+          j = () => {
+            D || !w
+              ? ((f = new Date()), T(f), (D = !1))
+              : w &&
+                k !== w &&
+                (T(w),
+                $(
+                  document.querySelector(
+                    `.date-box[data-date="${w.toISOString().split("T")[0]}"]`
+                  )
+                ));
+          },
+          q = () => {
+            document.querySelectorAll(".date-box").forEach((e) => {
+              const t = e.dataset.date;
+              localStorage.getItem(t) && localStorage.getItem(t).length > 0
+                ? e.classList.add("has-entry")
+                : e.classList.remove("has-entry");
+            });
+          },
+          F = (e) => {
+            const t = i.value,
+              a = s.value.replace(
+                new RegExp(t, "g"),
+                `<span class="highlight">${t}</span>`
+              );
+            (o.innerHTML = marked.parse(a)), (s.value = a);
+          },
+          Y = (e, t) => {
+            const a = e.indexOf(t),
+              l = Math.max(a - 20, 0),
+              n = Math.min(a + t.length + 20, e.length);
+            return e.substring(l, n);
+          },
+          H = () => {
+            const e = parseFloat(
+                (
+                  Array.from({ length: localStorage.length }).reduce(
+                    (e, t, a) =>
+                      e +
+                      localStorage.key(a).length +
+                      localStorage.getItem(localStorage.key(a)).length,
+                    0
+                  ) / 1024
+                ).toFixed(2)
+              ),
+              t = (e / 5120) * 100;
+            (g.style.width = t + "%"),
+              (h.textContent = `使用済み: ${e} KB / 5120 KB (${t.toFixed(
+                2
+              )}%)`);
+            const a = [];
+            for (let e = 0; e < localStorage.length; e++) {
+              const t = localStorage.key(e),
+                l = localStorage.getItem(t);
+              a.push({ key: t, size: l.length });
+            }
+            a.sort((e, t) => t.size - e.size);
+            const l = a.slice(0, 10);
+            (m.innerHTML = "<h3>Top 10 Largest Items</h3>"),
+              l.forEach((e) => {
+                const t = document.createElement("p");
+                (t.textContent = `${e.key}: ${e.size} bytes`), m.appendChild(t);
+              });
+          },
+          U = (e) => {
+            O(p, e);
+          },
+          saveCurrentMemo = () => {
+            const e = s.value;
+            const t = f.toISOString().split("T")[0];
+            localStorage.setItem(t, e);
+          },
+          K = (e, t = 0, a = 0, l = !1) => {
+            saveCurrentMemo();
+            const n = f.getFullYear(),
+              s = Object.keys(localStorage)
+                .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e))
+                .sort(),
+              o = new Date(s[0]),
+              r = new Date(s[s.length - 1]),
+              c = (e) => e.toISOString().split("T")[0];
+            for (;;) {
+              if (
+                (f.setDate(f.getDate() + e),
+                f.setMonth(f.getMonth() + t),
+                f.setFullYear(f.getFullYear() + a),
+                !l)
+              )
+                break;
+              const n = c(f);
+              if (localStorage.getItem(n)) break;
+              if (f < o || f > r) {
+                f = new Date(n);
+                break;
+              }
+            }
+            const i = f.getFullYear();
+            n !== i && R(i);
+            const d = c(f);
+            T(f), $(document.querySelector(`.date-box[data-date="${d}"]`));
+          };
+        document.addEventListener("click", (e) => {
+          document
+            .querySelectorAll(".search-modal.close-on-click-outside")
+            .forEach((t) => {
+              const a = t.querySelector(".search-modal-content");
+              "block" !== t.style.display ||
+                a.contains(e.target) ||
+                (t.style.display = "none");
+            });
+        }),
+          document.addEventListener("keydown", (e) => {
+            const { altKey: t, shiftKey: a, key: l, target: n } = e;
+            if ("textarea" !== n.tagName.toLowerCase())
+              if (t)
+                "/" === l && U(!0),
+                  "o" === l && r.click(),
+                  "s" === l &&
+                    ((f = new Date()),
+                    T(f),
+                    $(
+                      document.querySelector(
+                        `.date-box[data-date="${
+                          f.toISOString().split("T")[0]
+                        }"]`
+                      )
+                    ),
+                    (D = !0)),
+                  "k" === l && (O(c, !0), i.focus()),
+                  "l" === l && (O(u, !0), H()),
+                  "c" == l && (y.style.display = "block"),
+                  "ArrowUp" === l && K(0, 0, -1),
+                  "ArrowDown" === l && K(0, 0, 1);
+              else if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
+              else {
+                if ("block" === c.style.display) {
+                  if (
+                    (("ArrowDown" !== l && "ArrowUp" !== l) ||
+                      ((b =
+                        (b + ("ArrowDown" === l ? 1 : -1) + E.length) %
+                        E.length),
+                      (() => {
+                        const e =
+                          document.querySelectorAll("#searchResults li");
+                        e.forEach((e, t) => {
+                          e.classList.toggle("selected", t === b);
+                        });
+                        const t = e[b];
+                        t &&
+                          t.scrollIntoView({
+                            block: "center",
+                            behavior: "smooth",
+                          });
+                      })()),
+                    "Enter" === l && b >= 0 && b < E.length)
+                  ) {
+                    const e = new Date(E[b].date);
+                    O(c, !1),
+                      (f = e),
+                      T(f),
+                      F(E[b].text),
+                      $(
+                        document.querySelector(
+                          `.date-box[data-date="${
+                            f.toISOString().split("T")[0]
+                          }"]`
+                        )
+                      ),
+                      ((e, t) => {
+                        const a = e.innerHTML,
+                          l = new RegExp(`(${t})`, "gi"),
+                          n = a.replace(l, '<span class="highlight">$1</span>');
+                        e.innerHTML = n;
+                        const s = e.querySelector(".highlight");
+                        s &&
+                          s.scrollIntoView({
+                            behavior: "smooth",
+                            block: "center",
+                          });
+                      })(o, i.value);
+                  }
+                } else
+                  "ArrowLeft" === l && K(-1, 0, 0, !0),
+                    "ArrowRight" === l && K(1, 0, 0, !0),
+                    "ArrowUp" === l && K(-7),
+                    "ArrowDown" === l && K(7);
+                "Escape" === l &&
+                  (U(!1),
+                  O(c, !1),
+                  O(u, !1),
+                  "block" == s.style.display && (O(s, !1), O(o, !0)));
+              }
+          }),
+          i.addEventListener("input", () => {
+            const e = i.value;
+            (E =
+              e.length > 0
+                ? ((e) =>
+                    Array.from({ length: localStorage.length })
+                      .map((t, a) => {
+                        const l = localStorage.key(a),
+                          n = localStorage.getItem(l);
+                        return n.includes(e)
+                          ? { date: l, text: Y(n, e) }
+                          : null;
+                      })
+                      .filter(Boolean))(e)
+                : []),
+              ((e) => {
+                const t = i.value,
+                  a = new RegExp(`(${t})`, "gi");
+                (d.innerHTML = e
+                  .map((e, t) => {
+                    const l = e.text.replace(
+                      a,
+                      '<span class="highlight">$1</span>'
+                    );
+                    return `<li class="${
+                      0 === t ? "selected" : ""
+                    }">\n            <span class="date">${new Date(
+                      e.date
+                    ).toLocaleDateString("ja-JP", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      weekday: "long",
+                    })}</span>\n            <span class="text">...${l}...</span>\n          </li>`;
+                  })
+                  .join("")),
+                  (b = e.length ? 0 : -1);
+              })(E);
+          }),
+          d.addEventListener("click", (e) => {
+            if ("li" === e.target.tagName.toLowerCase()) {
+              const t = Array.prototype.indexOf.call(
+                  d.children,
+                  e.target.closest("li")
+                ),
+                a = new Date(E[t].date);
+              O(c, !1),
+                (f = a),
+                T(f),
+                F(E[t].text),
+                $(
+                  document.querySelector(
+                    `.date-box[data-date="${f.toISOString().split("T")[0]}"]`
+                  )
+                );
+            }
+          }),
+          s.addEventListener("input", () => {
+            const e = f.toISOString().split("T")[0];
+            (s.value = s.value.replace(/^\s*$[\n\r]{1,}/gm, "")),
+              localStorage.setItem(e, s.value),
+              q(),
+              clearTimeout(L),
+              (L = setTimeout(B, 3e3));
+          }),
+          s.addEventListener("blur", () => {
+            saveCurrentMemo();
+            const e = s.value;
+            O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
+          }),
+          s.addEventListener("focus", () => {
+            O(s, !0), O(o, !1);
+          }),
+          s.addEventListener("keydown", (e) => {
+            const t = s.selectionStart,
+              a = s.value.substring(0, t),
+              l = a.split("\n"),
+              n = l.length - 1,
+              o = l[n],
+              r = o.match(/^(\s*)- /),
+              c = o.match(/^#\s/);
+            if ("Tab" === e.key) {
+              e.preventDefault();
+              const t = s.selectionStart,
+                a = s.selectionEnd,
+                l = s.value.slice(0, t),
+                n = (s.value.slice(t, a), s.value.slice(a)),
+                o = l.lastIndexOf("\n") + 1,
+                r = a + n.indexOf("\n"),
+                c = s.value.slice(o, r).split("\n");
+              if (e.shiftKey) {
+                const e = c
+                  .map((e) => (e.startsWith("  ") ? e.slice(2) : e))
+                  .join("\n");
+                s.value = s.value.slice(0, o) + e + s.value.slice(r);
+                const a = t - 2 * c.filter((e) => e.startsWith("  ")).length;
+                (s.selectionStart = a), (s.selectionEnd = a);
+              } else {
+                const e = c.map((e) => "  " + e).join("\n");
+                s.value = s.value.slice(0, o) + e + s.value.slice(r);
+                const a = t + 2 * c.length;
+                (s.selectionStart = a), (s.selectionEnd = a);
+              }
+            }
+            if (e.altKey && ("ArrowUp" === e.key || "ArrowDown" === e.key)) {
+              e.preventDefault();
+              const t = s.selectionStart,
+                a = s.selectionEnd,
+                l = s.value.slice(0, t),
+                n = (s.value.slice(t, a), s.value.slice(a)),
+                o = l.lastIndexOf("\n") + 1,
+                r = a + n.indexOf("\n"),
+                c = s.value.slice(o, r),
+                i = s.value;
+              if ("ArrowUp" === e.key) {
+                const e = i.lastIndexOf("\n", o - 2) + 1;
+                if (-1 !== e) {
+                  const t = o - 1,
+                    a = i.slice(e, t);
+                  (s.value = i.slice(0, e) + c + "\n" + a + i.slice(r + 1)),
+                    (s.selectionStart = e),
+                    (s.selectionEnd = e + c.length - 1);
+                }
+              } else if ("ArrowDown" === e.key) {
+                const e = r + 1,
+                  t = i.indexOf("\n", e);
+                if (-1 !== t) {
+                  const a = i.slice(e, t);
+                  (s.value = i.slice(0, o) + a + "\n" + c + i.slice(t + 1)),
+                    (s.selectionStart = o + a.length + 1),
+                    (s.selectionEnd = s.selectionStart + c.length - 1);
+                }
+              }
+            }
+            if ("Enter" === e.key) {
+              if (r) {
+                e.preventDefault();
+                const n = r[1],
+                  c = s.value.substring(t);
+                if ("-" === o.trim()) {
+                  l.pop();
+                  const e = l.join("\n") + "\n" + c;
+                  (s.value = e),
+                    (s.selectionStart = s.selectionEnd = t - o.length + 1);
+                } else {
+                  const e = a + "\n" + n + "- " + c;
+                  (s.value = e),
+                    (s.selectionStart = s.selectionEnd = t + n.length + 3);
+                }
+              } else if (c && o.trim().length > 2) {
+                e.preventDefault();
+                const l = a + "\n- " + s.value.substring(t);
+                (s.value = l), (s.selectionStart = s.selectionEnd = t + 4);
+              } else if (n > 1) {
+                e.preventDefault();
+                const l = a + "\n\n# " + s.value.substring(t);
+                (s.value = l), (s.selectionStart = s.selectionEnd = t + 6);
+              }
+            } else if ("Backspace" === e.key) {
+              if ("-" === o.trim()) {
+                e.preventDefault(), l.pop();
+                const a = l.join("\n") + s.value.substring(t);
+                (s.value = a),
+                  (s.selectionStart = s.selectionEnd = t - o.length);
+              }
+            } else if ("#" === e.key && "" === o) {
+              e.preventDefault();
+              const l = a + "# " + s.value.substring(t);
+              (s.value = l), (s.selectionStart = s.selectionEnd = t + 2);
+            }
+          }),
+          o.addEventListener("click", () => {
+            O(s, !0), O(o, !1), s.focus();
+          }),
+          r.addEventListener("change", (e) => {
+            const t = e.target.files[0];
+            if (t) {
+              const e = new FileReader();
+              (e.onload = (e) => {
+                const t = JSON.parse(e.target.result);
+                Object.keys(t).forEach((e) => localStorage.setItem(e, t[e])),
+                  location.reload();
+                q();
+              }),
+                e.readAsText(t);
+            }
+          }),
+          n.addEventListener("wheel", (e) => {
+            clearTimeout(x), (S += e.deltaY < 0 ? -1 : 1), R(S);
+          }),
+          document.addEventListener("keydown", function (e) {
+            "e" === e.key &&
+              "none" == s.style.display &&
+              "block" !== c.style.display &&
+              "block" !== u.style.display &&
+              "block" !== p.style.display &&
+              (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
+          }),
+          // 修正後のコード
+          document.addEventListener("DOMContentLoaded", () => {
+            (w = new Date()), T(w), R(S), q(), O(s, false), O(o, true);
+            s.focus();
+            // 配列の定義方法を修正
+            ["default", "dark", "blue", "orange", "green"].forEach((e) => {
+              document
+                .getElementById(`${e}Theme`)
+                .addEventListener("click", () => z(e));
+            });
+            const dateDisplay = document.getElementById("dateDisplay");
+
+            function setTitle() {
+              document.title = dateDisplay.innerText;
+            }
+
+            // 初回設定
+            setTitle();
+
+            // 日付表示内容が変更されたときに title を更新する
+            const observer = new MutationObserver(setTitle);
+            observer.observe(dateDisplay, { childList: true, subtree: true });
+          });
+        const N = localStorage.getItem("theme");
+        function z(e) {
+          const t = document.body;
+          t.classList.remove(
+            ...["default", "dark", "blue", "orange", "green"].map(
+              (e) => `${e}-theme`
+            )
+          ),
+            t.classList.add(`${e}-theme`),
+            localStorage.setItem("theme", e);
+        }
+        N && ((document.body.className = N), z(N));
+      })();
+      document.addEventListener("keydown", (e) => {
+        const { altKey: t, key: l } = e;
+        if (t && "a" === l) {
+          // JSONをダウンロードする処理をここに移動
+          const e = Array.from({ length: localStorage.length }).reduce(
+              (e, t, a) => (
+                (e[localStorage.key(a)] = localStorage.getItem(
+                  localStorage.key(a)
+                )),
+                e
+              ),
+              {}
+            ),
+            t = new Blob([JSON.stringify(e, null, 2)], {
+              type: "application/json",
+            }),
+            a = URL.createObjectURL(t),
+            l = document.createElement("a");
+          (l.href = a),
+            (l.download = `${
+              new Date()
+                .toISOString()
+                .replace(/[:\-T]/g, "")
+                .split(".")[0]
+            }.json`),
+            document.body.appendChild(l),
+            l.click(),
+            document.body.removeChild(l);
+        }
+      });
+    </script>
+  </body>
+</html>
