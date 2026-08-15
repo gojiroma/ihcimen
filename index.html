@@ -10,6 +10,12 @@
       display: none;
     }
 
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+
     h1 {
       font-size: x-large;
       margin-top: 43px;
@@ -19,13 +25,38 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 20px;
+      height: 100%;
+      box-sizing: border-box;
+      padding-right: 160px;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        padding-right: 0;
+      }
+
+      .week-pane {
+        display: none;
+      }
+    }
+
+    .content-area {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       padding-bottom: 120px;
+      box-sizing: border-box;
     }
 
     .date-display {
       display: flex;
       align-items: center;
+      flex-shrink: 0;
+      margin-top: 20px;
       margin-bottom: 20px;
     }
 
@@ -42,6 +73,29 @@
     .date-display .weekday {
       font-size: 18px;
       line-height: 1.2;
+    }
+
+    .privacy-banner {
+      width: 700px;
+      max-width: 100%;
+      margin-top: 10px;
+      font-size: 12px;
+      opacity: 0.7;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .privacy-banner button {
+      font: inherit;
+      font-size: 12px;
+      background: none;
+      border: none;
+      color: inherit;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
     }
 
     .schedule-cell[data-tooltip]::after {
@@ -65,6 +119,7 @@
 
     .text-box {
       height: 3500px;
+      flex-shrink: 0;
     }
 
     textarea {
@@ -85,12 +140,14 @@
     .text-box {
       font-family: "BIZ UDGothic";
       width: 700px;
+      max-width: 100%;
       margin-top: 20px;
       border: none;
       padding: 5px;
       font-size: large;
       line-height: 200%;
       word-break: break-all;
+      flex-shrink: 0;
     }
 
     .markdown-viewer {
@@ -283,6 +340,21 @@
       font-weight: 700;
     }
 
+    #syncQrCanvas {
+      max-width: 100%;
+    }
+
+    #syncScanVideo {
+      width: 100%;
+      max-width: 280px;
+    }
+
+    #syncSeedText,
+    #syncSeedInput {
+      width: 240px;
+      max-width: 60%;
+    }
+
     :root {
       --bg-color: #ffffff;
       --text-color: #000000;
@@ -362,16 +434,76 @@
       flex: 1;
       width: 100%;
       min-width: 0;
+      min-height: 0;
       border: none;
       outline: 0;
       background-color: transparent;
       color: inherit;
       font-size: 13px;
       font-family: inherit;
+      line-height: 1.3;
       padding: 0;
+      resize: none;
+      overflow-y: auto;
+    }
+
+    .week-pane {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 160px;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      overflow-x: hidden;
+      border-left: 1px solid #ddd;
+      background-color: var(--bg-color);
+      z-index: 400;
+    }
+
+    .week-cell {
+      position: relative;
+      flex: 0 0 auto;
+      min-height: 80px;
+      box-sizing: border-box;
+      border-bottom: 1px solid #ddd;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .week-cell.selected {
+      background-color: rgba(127, 127, 127, 0.15);
+    }
+
+    .week-label {
+      font-size: 11px;
+      cursor: pointer;
+      line-height: 1.3;
+    }
+
+    .week-note {
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+      min-height: 40px;
+      border: none;
+      outline: 0;
+      background-color: transparent;
+      color: inherit;
+      font-size: 13px;
+      font-family: inherit;
+      line-height: 1.3;
+      padding: 0;
+      resize: none;
+      overflow-y: auto;
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1/dist/jsQR.js"></script>
 </head>
 
 <body>
@@ -381,8 +513,15 @@
       <span class="month-day" id="monthDayDisplay">MM/DD</span>
       <span class="weekday" id="weekdayDisplay">EEEE</span>
     </div>
-    <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? でヘルプ)"></textarea>
-    <div class="markdown-viewer" id="markdownViewer"></div>
+    <div class="content-area">
+      <p id="privacyBanner" class="privacy-banner">
+        同期を使う場合、内容は端末上で暗号化されます。詳しくは
+        <strong>?</strong> でヘルプを表示。
+        <button id="privacyBannerDismiss" type="button">閉じる</button>
+      </p>
+      <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? でヘルプ)"></textarea>
+      <div class="markdown-viewer" id="markdownViewer"></div>
+    </div>
   </div>
   <div id="modalTemplate" class="modal-template">
     <div class="modal-content">
@@ -412,6 +551,10 @@
           <strong>下段カレンダー:</strong>
           画面下部のバーは選択中の日付を中心に横スクロールできます。日付をクリックするとその日の本文に移動し、各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
         </li>
+        <li>
+          <strong>右側のWeek pane:</strong>
+          画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」をクリックするとその週の月曜日に移動し、各セルの入力欄には週単位の簡易メモを書き込めます。
+        </li>
       </ul>
       <h3>ショートカットキー一覧</h3>
       <p>
@@ -424,6 +567,7 @@
         <li><strong>f :</strong> 検索ウィンドウを表示</li>
         <li><strong>o :</strong> バックアップデータを取り込む</li>
         <li><strong>b :</strong> バックアップデータをダウンロード</li>
+        <li><strong>s :</strong> 同期設定を表示</li>
       </ul>
       <h4>日付移動</h4>
       <ul>
@@ -453,6 +597,22 @@
           タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
         </li>
       </ul>
+      <h3>同期とプライバシー</h3>
+      <ul>
+        <li>
+          同期は初期状態では無効です。<strong>s</strong>
+          キーで設定を開き、「同期を有効にする」を押すと使えるようになります。
+        </li>
+        <li>
+          同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
+        </li>
+        <li>
+          別の端末で同じデータを見るには、QRコードを読み取るか、シードの文字列を貼り付けて引き継いでください。シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
+        </li>
+        <li>
+          7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。
+        </li>
+      </ul>
     </div>
   </div>
   <div id="searchModal" class="search-modal close-on-click-outside">
@@ -461,9 +621,36 @@
       <ul id="searchResults"></ul>
     </div>
   </div>
+  <div id="syncModal" class="search-modal close-on-click-outside">
+    <div class="search-modal-content">
+      <h2>同期設定</h2>
+      <p id="syncStatus">同期は無効です</p>
+      <button id="syncEnableBtn">同期を有効にする</button>
+      <button id="syncDisableBtn">同期を無効にする</button>
+      <div id="syncQrContainer">
+        <canvas id="syncQrCanvas"></canvas>
+      </div>
+      <p>
+        シード:
+        <input type="text" id="syncSeedText" readonly />
+        <button id="syncCopyBtn">コピー</button>
+      </p>
+      <h3>別の端末から引き継ぐ</h3>
+      <p>
+        <input type="text" id="syncSeedInput" placeholder="シードを貼り付け" />
+        <button id="syncImportBtn">読み込む</button>
+      </p>
+      <p>
+        <button id="syncScanBtn">カメラでQRを読み取る</button>
+      </p>
+      <video id="syncScanVideo" playsinline style="display: none"></video>
+      <canvas id="syncScanCanvas" style="display: none"></canvas>
+    </div>
+  </div>
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
+  <div id="weekPane" class="week-pane"></div>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -482,6 +669,7 @@
         "toastContainer",
         "dateDisplay",
         "scheduleBar",
+        "weekPane",
       ].reduce((e, t) => ((e[t] = document.getElementById(t)), e), {}),
         {
           yearDisplay: t,
@@ -498,7 +686,22 @@
           toastContainer: toastContainerEl,
           dateDisplay: dd,
           scheduleBar: sb,
+          weekPane: wp,
         } = e,
+        syncEls = {
+          modal: document.getElementById("syncModal"),
+          status: document.getElementById("syncStatus"),
+          enableBtn: document.getElementById("syncEnableBtn"),
+          disableBtn: document.getElementById("syncDisableBtn"),
+          qrCanvas: document.getElementById("syncQrCanvas"),
+          seedText: document.getElementById("syncSeedText"),
+          copyBtn: document.getElementById("syncCopyBtn"),
+          seedInput: document.getElementById("syncSeedInput"),
+          importBtn: document.getElementById("syncImportBtn"),
+          scanBtn: document.getElementById("syncScanBtn"),
+          scanVideo: document.getElementById("syncScanVideo"),
+          scanCanvas: document.getElementById("syncScanCanvas"),
+        },
         v = {
           selectedDate: new Date(),
           saveTimer: void 0,
@@ -510,7 +713,11 @@
         saveTimer: L,
         searchResultsData: E,
         currentSearchResultIndex: b,
-      } = v;
+      } = v,
+        sDirty = !1,
+        syncPushTimer = null,
+        syncScanStream = null,
+        syncHealthy = !0;
       const I = 864e5,
         T = (e) => {
           t.textContent = e.getFullYear();
@@ -532,7 +739,8 @@
           o.innerHTML = marked.parse(a);
           const l = Z(a);
           (o.style.display = l ? "block" : "none"),
-            (s.style.display = l ? "none" : "block");
+            (s.style.display = l ? "none" : "block"),
+            (sDirty = !1);
         },
         O = (e, t) => {
           e.style.display = t ? "block" : "none";
@@ -718,6 +926,7 @@
             localStorage.setItem(t, e);
             showSaveStatus("saved", "保存しました");
             H();
+            maybeSyncPush();
             // Auto-hide after 2 seconds
             setTimeout(() => hideSaveStatus(), 2000);
           } catch (err) {
@@ -731,6 +940,93 @@
         },
         hideSaveStatus = () => {
           saveStatusEl.className = "save-status";
+        },
+        fetchWithTimeout = (url, options, timeoutMs) => {
+          const controller = new AbortController(),
+            timer = setTimeout(() => controller.abort(), timeoutMs);
+          return fetch(url, { ...options, signal: controller.signal }).finally(
+            () => clearTimeout(timer)
+          );
+        },
+        markSyncHealthy = (healthy) => {
+          healthy === syncHealthy ||
+            ((syncHealthy = healthy),
+              healthy ||
+              showToast(
+                "同期サーバーに接続できません(オフラインでも編集は続けられます)",
+                "info"
+              ));
+        },
+        pullAndMerge = async () => {
+          const seed = getSyncSeed();
+          if (!seed || !navigator.onLine) return;
+          try {
+            const syncId = await deriveSyncId(seed),
+              res = await fetchWithTimeout(
+                `/api/pull?sync_id=${syncId}`,
+                {},
+                8000
+              );
+            if (!res.ok) throw new Error("pull failed: " + res.status);
+            const body = await res.json();
+            if (!body.found) return void markSyncHealthy(!0);
+            const localUpdatedAt = localStorage.getItem("syncLastUpdatedAt");
+            if (
+              localUpdatedAt &&
+              new Date(body.updated_at) <= new Date(localUpdatedAt)
+            )
+              return void markSyncHealthy(!0);
+            const aesKey = await deriveAesKey(seed),
+              data = await decryptBlob(body.ciphertext, body.iv, aesKey);
+            applySyncedData(data),
+              localStorage.setItem("syncLastUpdatedAt", body.updated_at),
+              !sDirty && A(f),
+              renderScheduleBar(),
+              markSyncHealthy(!0);
+          } catch (err) {
+            markSyncHealthy(!1);
+          }
+        },
+        doSyncPush = async (seed) => {
+          try {
+            const syncId = await deriveSyncId(seed),
+              aesKey = await deriveAesKey(seed),
+              data = collectSyncableData(),
+              updatedAt = new Date().toISOString(),
+              { ciphertext, iv } = await encryptBlob(
+                { version: 1, updatedAt, ...data },
+                aesKey
+              ),
+              res = await fetchWithTimeout(
+                "/api/push",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    sync_id: syncId,
+                    ciphertext,
+                    iv,
+                    updated_at: updatedAt,
+                  }),
+                },
+                8000
+              );
+            if (!res.ok) throw new Error("push failed: " + res.status);
+            const body = await res.json();
+            body.applied
+              ? (localStorage.setItem("syncLastUpdatedAt", body.updated_at),
+                markSyncHealthy(!0))
+              : (await pullAndMerge(),
+                showToast("別の端末の内容と同期しました", "info"));
+          } catch (err) {
+            markSyncHealthy(!1);
+          }
+        },
+        maybeSyncPush = () => {
+          const seed = getSyncSeed();
+          if (!seed || !navigator.onLine) return;
+          clearTimeout(syncPushTimer),
+            (syncPushTimer = setTimeout(() => doSyncPush(seed), 5000));
         },
         showToast = (message, type = "info", duration = 3000) => {
           const toast = document.createElement("div");
@@ -770,12 +1066,252 @@
             URL.revokeObjectURL(url),
             showToast(`バックアップをダウンロードしました (${Object.keys(data).length} 件)`, "success");
         },
+        // --- 同期: シード / 暗号化 / QRコード ---
+        SYNC_ID_INFO = new TextEncoder().encode("ihcimen-sync-id-v1"),
+        AES_INFO = new TextEncoder().encode("ihcimen-aes-key-v1"),
+        HKDF_SALT = new TextEncoder().encode("ihcimen-fixed-salt-v1"),
+        bytesToBase64 = (bytes) => {
+          let binary = "";
+          const chunkSize = 0x8000;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          return btoa(binary);
+        },
+        base64ToBytes = (str) =>
+          Uint8Array.from(atob(str), (c) => c.charCodeAt(0)),
+        bytesToBase64Url = (bytes) =>
+          bytesToBase64(bytes)
+            .replace(/\+/g, "-")
+            .replace(/\//g, "_")
+            .replace(/=+$/, ""),
+        base64UrlToBytes = (str) => {
+          const b64 =
+            str.replace(/-/g, "+").replace(/_/g, "/") +
+            "=".repeat((4 - (str.length % 4)) % 4);
+          return base64ToBytes(b64);
+        },
+        bytesToHex = (bytes) =>
+          Array.from(bytes)
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join(""),
+        generateSeed = () =>
+          bytesToBase64Url(crypto.getRandomValues(new Uint8Array(16))),
+        deriveSyncId = async (seed) => {
+          const seedBytes = base64UrlToBytes(seed),
+            combined = new Uint8Array(seedBytes.length + SYNC_ID_INFO.length);
+          combined.set(seedBytes), combined.set(SYNC_ID_INFO, seedBytes.length);
+          const digest = await crypto.subtle.digest("SHA-256", combined);
+          return bytesToHex(new Uint8Array(digest));
+        },
+        deriveAesKey = async (seed) => {
+          const seedBytes = base64UrlToBytes(seed),
+            keyMaterial = await crypto.subtle.importKey(
+              "raw",
+              seedBytes,
+              "HKDF",
+              !1,
+              ["deriveKey"]
+            );
+          return crypto.subtle.deriveKey(
+            { name: "HKDF", hash: "SHA-256", salt: HKDF_SALT, info: AES_INFO },
+            keyMaterial,
+            { name: "AES-GCM", length: 256 },
+            !1,
+            ["encrypt", "decrypt"]
+          );
+        },
+        encryptBlob = async (plaintextObj, aesKey) => {
+          const iv = crypto.getRandomValues(new Uint8Array(12)),
+            plaintextBytes = new TextEncoder().encode(
+              JSON.stringify(plaintextObj)
+            ),
+            ciphertextBuf = await crypto.subtle.encrypt(
+              { name: "AES-GCM", iv },
+              aesKey,
+              plaintextBytes
+            );
+          return {
+            ciphertext: bytesToBase64(new Uint8Array(ciphertextBuf)),
+            iv: bytesToBase64(iv),
+          };
+        },
+        decryptBlob = async (ciphertextB64, ivB64, aesKey) => {
+          const ciphertextBytes = base64ToBytes(ciphertextB64),
+            ivBytes = base64ToBytes(ivB64),
+            plaintextBuf = await crypto.subtle.decrypt(
+              { name: "AES-GCM", iv: ivBytes },
+              aesKey,
+              ciphertextBytes
+            );
+          return JSON.parse(new TextDecoder().decode(plaintextBuf));
+        },
+        collectSyncableData = () => {
+          const entries = {},
+            notes = {},
+            weekNotes = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            /^\d{4}-\d{2}-\d{2}$/.test(key)
+              ? (entries[key] = localStorage.getItem(key))
+              : key.startsWith("note:")
+                ? (notes[key.slice(5)] = localStorage.getItem(key))
+                : key.startsWith("weeknote:") &&
+                (weekNotes[key.slice(9)] = localStorage.getItem(key));
+          }
+          return { entries, notes, weekNotes };
+        },
+        applySyncedData = (data) => {
+          Object.entries(data.entries || {}).forEach(([k, v]) =>
+            localStorage.setItem(k, v)
+          ),
+            Object.entries(data.notes || {}).forEach(([k, v]) =>
+              localStorage.setItem(`note:${k}`, v)
+            ),
+            Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
+              localStorage.setItem(`weeknote:${k}`, v)
+            );
+        },
+        getSyncSeed = () => localStorage.getItem("syncSeed"),
+        setSyncSeed = (seed) => localStorage.setItem("syncSeed", seed),
+        clearSyncSeed = () => localStorage.removeItem("syncSeed"),
+        renderSyncQr = (seed) => {
+          window.QRCode &&
+            QRCode.toCanvas(syncEls.qrCanvas, seed, { width: 200 }, (err) => {
+              err && console.error(err);
+            });
+        },
+        refreshSyncUI = () => {
+          const seed = getSyncSeed();
+          seed
+            ? ((syncEls.status.textContent = "同期は有効です"),
+              (syncEls.seedText.value = seed),
+              renderSyncQr(seed))
+            : ((syncEls.status.textContent = "同期は無効です"),
+              (syncEls.seedText.value = ""));
+        },
+        enableSync = () => {
+          getSyncSeed() || setSyncSeed(generateSeed()),
+            refreshSyncUI(),
+            showToast("同期を有効にしました", "success");
+        },
+        disableSync = () => {
+          clearSyncSeed(),
+            refreshSyncUI(),
+            showToast("同期を無効にしました。ローカルの日誌はそのまま残ります", "info");
+        },
+        importSyncSeed = (seed) => {
+          (seed = (seed || "").trim()),
+            seed &&
+            (setSyncSeed(seed),
+              refreshSyncUI(),
+              showToast("シードを読み込みました", "success"));
+        },
+        stopQrScan = () => {
+          syncScanStream &&
+            (syncScanStream.getTracks().forEach((t) => t.stop()),
+              (syncScanStream = null)),
+            (syncEls.scanVideo.style.display = "none");
+        },
+        startQrScan = async () => {
+          try {
+            syncScanStream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: "environment" },
+            });
+          } catch (err) {
+            showToast(
+              "カメラを利用できませんでした。シードを直接貼り付けてください",
+              "error"
+            );
+            return;
+          }
+          (syncEls.scanVideo.srcObject = syncScanStream),
+            (syncEls.scanVideo.style.display = "block"),
+            await syncEls.scanVideo.play();
+          const ctx = syncEls.scanCanvas.getContext("2d"),
+            scanFrame = () => {
+              if (!syncScanStream) return;
+              if (
+                syncEls.scanVideo.readyState === syncEls.scanVideo.HAVE_ENOUGH_DATA
+              ) {
+                (syncEls.scanCanvas.width = syncEls.scanVideo.videoWidth),
+                  (syncEls.scanCanvas.height = syncEls.scanVideo.videoHeight);
+                const w = syncEls.scanCanvas.width,
+                  h = syncEls.scanCanvas.height;
+                ctx.drawImage(syncEls.scanVideo, 0, 0, w, h);
+                const imageData = ctx.getImageData(0, 0, w, h),
+                  code =
+                    window.jsQR && jsQR(imageData.data, w, h);
+                if (code && code.data) {
+                  stopQrScan(), importSyncSeed(code.data);
+                  return;
+                }
+              }
+              requestAnimationFrame(scanFrame);
+            };
+          requestAnimationFrame(scanFrame);
+        },
         scheduleWindowDays = 30,
+        weekPaneWindowWeeks = 8,
+        getISOWeekInfo = (date) => {
+          const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()),
+            dayNum = (d.getDay() + 6) % 7;
+          d.setDate(d.getDate() - dayNum + 3);
+          const isoYear = d.getFullYear(),
+            jan1 = new Date(isoYear, 0, 1),
+            weekNum = Math.ceil(((d - jan1) / I + 1) / 7),
+            monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+          return monday.setDate(monday.getDate() - dayNum), { isoYear, weekNum, monday };
+        },
         selectScheduleDate = (d) => {
           (f = d), T(f), renderScheduleBar();
         },
         previewScheduleDate = (d) => {
           T(d);
+        },
+        renderWeekPane = () => {
+          wp.innerHTML = "";
+          const {
+            isoYear: selYear,
+            weekNum: selWeek,
+            monday: centerMonday,
+          } = getISOWeekInfo(f),
+            selectedKey = `${selYear}-W${String(selWeek).padStart(2, "0")}`;
+          let selectedCell = null;
+          for (let i = -weekPaneWindowWeeks; i <= weekPaneWindowWeeks; i++) {
+            const monday = new Date(centerMonday.getTime() + i * 7 * I),
+              { isoYear, weekNum } = getISOWeekInfo(monday),
+              weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
+              sunday = new Date(monday.getTime() + 6 * I),
+              cell = document.createElement("div");
+            cell.className = "week-cell";
+            weekKey === selectedKey &&
+              (cell.classList.add("selected"), (selectedCell = cell));
+            cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
+            const weekLabel = document.createElement("div");
+            (weekLabel.className = "week-label"),
+              (weekLabel.textContent = `${isoYear}-Week ${String(weekNum).padStart(
+                2,
+                "0"
+              )} (${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1
+              }/${sunday.getDate()})`),
+              weekLabel.addEventListener("click", () => selectScheduleDate(monday));
+            const noteInput = document.createElement("textarea");
+            (noteInput.className = "week-note"),
+              (noteInput.placeholder = "週のメモ"),
+              (noteInput.value = localStorage.getItem(`weeknote:${weekKey}`) || "");
+            noteInput.addEventListener("input", () => {
+              const v = noteInput.value;
+              v
+                ? localStorage.setItem(`weeknote:${weekKey}`, v)
+                : localStorage.removeItem(`weeknote:${weekKey}`);
+            }),
+              cell.appendChild(weekLabel),
+              cell.appendChild(noteInput),
+              wp.appendChild(cell);
+          }
+          selectedCell &&
+            selectedCell.scrollIntoView({ inline: "nearest", block: "center" });
         },
         renderScheduleBar = () => {
           sb.innerHTML = "";
@@ -809,9 +1345,8 @@
               (holidayLabel.className = "schedule-holiday"),
                 (holidayLabel.textContent = holidayName);
             }
-            const noteInput = document.createElement("input");
+            const noteInput = document.createElement("textarea");
             (noteInput.className = "schedule-note"),
-              (noteInput.type = "text"),
               (noteInput.placeholder = "予定を入力"),
               (noteInput.value = localStorage.getItem(`note:${key}`) || "");
             noteInput.addEventListener("input", () => {
@@ -826,7 +1361,8 @@
               sb.appendChild(cell);
           }
           selectedCell &&
-            selectedCell.scrollIntoView({ inline: "center", block: "nearest" });
+            selectedCell.scrollIntoView({ inline: "center", block: "nearest" }),
+            renderWeekPane();
         },
         K = (e, t = 0, a = 0, l = !1) => {
           saveCurrentMemo();
@@ -854,6 +1390,15 @@
           T(f), renderScheduleBar();
         };
       sb.addEventListener("mouseleave", () => T(f)),
+        sb.addEventListener(
+          "wheel",
+          (e) => {
+            e.preventDefault();
+            sb.scrollLeft += e.deltaX + e.deltaY;
+          },
+          { passive: false }
+        ),
+        wp.addEventListener("mouseleave", () => T(f)),
         document.addEventListener("click", (e) => {
         document
           .querySelectorAll(".search-modal.close-on-click-outside")
@@ -861,7 +1406,7 @@
             const a = t.querySelector(".search-modal-content");
             "block" !== t.style.display ||
               a.contains(e.target) ||
-              (t.style.display = "none");
+              ((t.style.display = "none"), stopQrScan());
           });
       }),
         document.addEventListener("keydown", (e) => {
@@ -877,7 +1422,8 @@
                 "f" === l && (O(c, !0), i.focus()),
                 "b" === l && downloadBackup(),
                 "[" === l && K(0, 0, -1),
-                "]" === l && K(0, 0, 1);
+                "]" === l && K(0, 0, 1),
+                "s" === l && (O(syncEls.modal, !0), refreshSyncUI());
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
             else if ("block" === c.style.display) {
               if (
@@ -927,6 +1473,8 @@
             "Escape" === l &&
               (U(!1),
                 O(c, !1),
+                O(syncEls.modal, !1),
+                stopQrScan(),
                 "block" == s.style.display && (O(s, !1), O(o, !0)));
           }
         }),
@@ -987,7 +1535,8 @@
         }),
         s.addEventListener("input", () => {
           const e = f.toISOString().split("T")[0];
-          localStorage.setItem(e, s.value),
+          (sDirty = !0),
+            localStorage.setItem(e, s.value),
             clearTimeout(L),
             (L = setTimeout(saveCurrentMemo, 3e3));
         }),
@@ -1102,6 +1651,26 @@
         o.addEventListener("click", () => {
           O(s, !0), O(o, !1), s.focus();
         }),
+        syncEls.enableBtn.addEventListener("click", enableSync),
+        syncEls.disableBtn.addEventListener("click", disableSync),
+        syncEls.copyBtn.addEventListener("click", () => {
+          const seed = getSyncSeed();
+          seed &&
+            navigator.clipboard
+              .writeText(seed)
+              .then(() => showToast("シードをコピーしました", "success"))
+              .catch(() => showToast("コピーに失敗しました", "error"));
+        }),
+        syncEls.importBtn.addEventListener("click", () => {
+          importSyncSeed(syncEls.seedInput.value), (syncEls.seedInput.value = "");
+        }),
+        syncEls.scanBtn.addEventListener("click", startQrScan),
+        document
+          .getElementById("privacyBannerDismiss")
+          .addEventListener("click", () => {
+            localStorage.setItem("privacyNoticeDismissed", "1"),
+              (document.getElementById("privacyBanner").style.display = "none");
+          }),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
           if (t) {
@@ -1119,15 +1688,22 @@
           }
         }),
         document.addEventListener("keydown", function (e) {
+          const tag = (e.target.tagName || "").toLowerCase();
           "e" === e.key &&
+            "textarea" !== tag &&
+            "input" !== tag &&
+            !e.target.isContentEditable &&
             "none" == s.style.display &&
             "block" !== c.style.display &&
             "block" !== p.style.display &&
+            "block" !== syncEls.modal.style.display &&
             (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
         }),
         document.addEventListener("DOMContentLoaded", () => {
           T(f);
           renderScheduleBar();
+          localStorage.getItem("privacyNoticeDismissed") &&
+            (document.getElementById("privacyBanner").style.display = "none");
           // ページを開いたときは常に編集モードでカーソルをアクティブにする
           O(s, !0), O(o, !1);
           s.focus();
@@ -1137,7 +1713,12 @@
           // 日付表示内容が変更されたときに title を更新する
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
+          // 同期が有効なら読み込み時にバックグラウンドで取得する
+          pullAndMerge();
         });
+      window.addEventListener("online", () => {
+        pullAndMerge(), maybeSyncPush();
+      });
       // Expose moveToToday as global function
       window.moveToToday = function () {
         f = new Date();
