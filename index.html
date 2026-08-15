@@ -66,6 +66,52 @@
       right: 0;
     }
 
+    body.schedule-bar-collapsed .schedule-bar {
+      display: none;
+    }
+
+    body.schedule-bar-collapsed .content-area {
+      padding-bottom: 24px;
+    }
+
+    .schedule-bar-toggle {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translate(-50%, 50%);
+      z-index: 460;
+      width: 44px;
+      height: 18px;
+      box-sizing: border-box;
+      background-color: var(--bg-color);
+      border: 1px solid #ccc;
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      opacity: 0.55;
+    }
+
+    .schedule-bar-toggle:hover {
+      opacity: 1;
+    }
+
+    .schedule-bar-toggle .knob {
+      width: 26px;
+      height: 4px;
+      border-radius: 2px;
+      background-color: currentColor;
+      opacity: 0.6;
+    }
+
+    body.schedule-bar-collapsed .schedule-bar-toggle {
+      bottom: 0;
+      transform: translate(-50%, 0);
+    }
+
     .content-area {
       flex: 1;
       width: 100%;
@@ -146,10 +192,6 @@
       opacity: 1;
     }
 
-    .menu-modal-content {
-      max-width: 420px;
-    }
-
     .menu-actions {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -190,13 +232,13 @@
       opacity: 0.6;
     }
 
-    .menu-modal-content details {
+    .menu-drawer details {
       margin-top: 10px;
       padding: 6px 0;
-      border-top: 1px solid #ddd;
+      border-top: 1px solid rgba(128, 128, 128, 0.3);
     }
 
-    .menu-modal-content summary {
+    .menu-drawer summary {
       cursor: pointer;
       font-weight: 700;
       padding: 4px 0;
@@ -417,12 +459,32 @@
     }
 
     .search-modal-content {
-      background-color: #fafad2;
-      color: green;
+      background-color: var(--bg-color);
+      color: var(--text-color);
       margin: 15% auto;
       padding: 20px;
-      border: 1px solid #d8d8d8;
+      border: 1px solid rgba(128, 128, 128, 0.4);
       width: 80%;
+    }
+
+    .menu-drawer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      margin: 0;
+      width: 280px;
+      max-width: 85%;
+      height: 100%;
+      box-sizing: border-box;
+      overflow-y: auto;
+      border: none;
+      border-right: 1px solid rgba(128, 128, 128, 0.4);
+      transform: translateX(-100%);
+      transition: transform 0.25s ease;
+    }
+
+    .menu-drawer.open {
+      transform: translateX(0);
     }
 
     #searchInput {
@@ -598,7 +660,7 @@
     }
 
     .week-cell.selected {
-      background-color: rgba(127, 127, 127, 0.15);
+      box-shadow: inset 0 0 0 2px rgba(80, 80, 80, 0.6);
     }
 
     .week-label {
@@ -662,7 +724,7 @@
     </div>
   </div>
   <div id="shortcutModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content menu-modal-content">
+    <div class="search-modal-content menu-drawer">
       <h2>メニュー</h2>
       <div class="menu-actions">
         <button id="menuTodayBtn" type="button">
@@ -832,6 +894,9 @@
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
+  <button id="scheduleBarToggle" class="schedule-bar-toggle" type="button" aria-label="下段カレンダーの折りたたみ">
+    <span class="knob"></span>
+  </button>
   <div id="weekPane" class="week-pane"></div>
   <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
@@ -900,7 +965,8 @@
         sDirty = !1,
         syncPushTimer = null,
         syncScanStream = null,
-        syncHealthy = !0;
+        syncHealthy = !0,
+        audioCtx = null;
       const I = 864e5,
         T = (e) => {
           t.textContent = e.getFullYear();
@@ -1135,8 +1201,15 @@
             percent = ((kb / 5120) * 100).toFixed(1);
           document.title = `${dd.innerText} (${percent}%)`;
         },
-        U = (e) => {
-          O(p, e);
+        U = (show) => {
+          const drawer = p.querySelector(".menu-drawer");
+          show
+            ? (O(p, !0),
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => drawer.classList.add("open"))
+              ))
+            : (drawer.classList.remove("open"),
+              setTimeout(() => O(p, !1), 250));
         },
         saveCurrentMemo = () => {
           const e = s.value;
@@ -1486,11 +1559,53 @@
             monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
           return monday.setDate(monday.getDate() - dayNum), { isoYear, weekNum, monday };
         },
+        getWeekCharCount = (monday) => {
+          let total = 0;
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(monday.getTime() + i * I),
+              key = d.toISOString().split("T")[0],
+              entry = localStorage.getItem(key);
+            entry && (total += entry.length);
+          }
+          return total;
+        },
+        // 日ごとの本文の相対的な文字数を、短いビープ音のピッチで表現する
+        playPitchForDate = (date) => {
+          try {
+            const key = date.toISOString().split("T")[0],
+              len = (localStorage.getItem(key) || "").length,
+              allLens = Object.keys(localStorage)
+                .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
+                .map((k) => localStorage.getItem(k).length),
+              maxLen = Math.max(1, ...allLens),
+              ratio = Math.min(1, len / maxLen),
+              freq = 220 + ratio * 660;
+            audioCtx ||
+              (audioCtx = new (window.AudioContext ||
+                window.webkitAudioContext)());
+            const now = audioCtx.currentTime,
+              osc = audioCtx.createOscillator(),
+              gain = audioCtx.createGain();
+            (osc.type = "sine"),
+              (osc.frequency.value = freq),
+              gain.gain.setValueAtTime(0.0001, now),
+              gain.gain.exponentialRampToValueAtTime(0.15, now + 0.02),
+              gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3),
+              osc.connect(gain),
+              gain.connect(audioCtx.destination),
+              osc.start(now),
+              osc.stop(now + 0.3);
+          } catch (err) { }
+        },
         selectScheduleDate = (d) => {
-          (f = d), T(f), renderScheduleBar();
+          (f = d), T(f), renderScheduleBar(), pullAndMerge();
         },
         previewScheduleDate = (d) => {
-          T(d);
+          // 編集中(テキストエリアにフォーカスがある間)はプレビューで
+          // s.value を書き換えない。書き換えると f(実際の選択日)と
+          // 表示内容がズレたまま入力が保存され、元の日付のテキストが
+          // 別の日付の内容で上書きされてしまう。
+          document.activeElement !== s && (T(d), playPitchForDate(d));
         },
         renderWeekPane = () => {
           wp.innerHTML = "";
@@ -1501,13 +1616,28 @@
           } = getISOWeekInfo(f),
             selectedKey = `${selYear}-W${String(selWeek).padStart(2, "0")}`;
           let selectedCell = null;
+          // 1周目: 各週の合計文字数を集計し、ヒートマップの基準となる最大値を求める
+          const weekTotals = [];
+          for (let i = -weekPaneWindowWeeks; i <= weekPaneWindowWeeks; i++) {
+            const monday = new Date(centerMonday.getTime() + i * 7 * I);
+            weekTotals.push(getWeekCharCount(monday));
+          }
+          const maxWeekTotal = Math.max(1, ...weekTotals);
+          // 2周目: セルを実際に描画する
           for (let i = -weekPaneWindowWeeks; i <= weekPaneWindowWeeks; i++) {
             const monday = new Date(centerMonday.getTime() + i * 7 * I),
               { isoYear, weekNum } = getISOWeekInfo(monday),
               weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
               sunday = new Date(monday.getTime() + 6 * I),
+              weekTotal = weekTotals[i + weekPaneWindowWeeks],
+              heat = (weekTotal / maxWeekTotal) * 0.5,
               cell = document.createElement("div");
-            cell.className = "week-cell";
+            (cell.className = "week-cell"),
+              (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`),
+              cell.setAttribute(
+                "title",
+                weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
+              );
             weekKey === selectedKey &&
               (cell.classList.add("selected"), (selectedCell = cell));
             cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
@@ -1629,7 +1759,9 @@
             const a = t.querySelector(".search-modal-content");
             "block" !== t.style.display ||
               a.contains(e.target) ||
-              ((t.style.display = "none"), stopQrScan());
+              (t === p
+                ? U(!1)
+                : ((t.style.display = "none"), stopQrScan()));
           });
       }),
         document.addEventListener("keydown", (e) => {
@@ -1688,8 +1820,8 @@
                   })(o, i.value);
               }
             } else
-              "ArrowLeft" === l && K(-1, 0, 0, !0),
-                "ArrowRight" === l && K(1, 0, 0, !0),
+              "ArrowLeft" === l && (K(-1, 0, 0, !0), playPitchForDate(f)),
+                "ArrowRight" === l && (K(1, 0, 0, !0), playPitchForDate(f)),
                 "ArrowUp" === l && K(-7),
                 "ArrowDown" === l && K(7);
             "Escape" === l &&
@@ -1765,7 +1897,10 @@
           O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
         }),
         s.addEventListener("focus", () => {
-          O(s, !0), O(o, !1);
+          // ホバープレビューなどで表示中の内容が f(実際の選択日)と
+          // ズレている可能性があるため、未編集(sDirty=false)なら
+          // 編集開始前に必ず f の内容へ再同期しておく。
+          sDirty || A(f), O(s, !0), O(o, !1);
         }),
         s.addEventListener("keydown", (e) => {
           if (e.isComposing || 229 === e.keyCode) return;
@@ -1898,6 +2033,17 @@
             localStorage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
           }),
         document
+          .getElementById("scheduleBarToggle")
+          .addEventListener("click", () => {
+            const collapsed = document.body.classList.toggle(
+              "schedule-bar-collapsed"
+            );
+            localStorage.setItem(
+              "scheduleBarCollapsed",
+              collapsed ? "1" : "0"
+            );
+          }),
+        document
           .getElementById("menuTrigger")
           .addEventListener("click", (e) => {
             e.stopPropagation(), U(!0);
@@ -1962,6 +2108,11 @@
               shouldCollapse
             );
           }
+          // 下段カレンダーはユーザーが折りたたむまで常に表示する
+          document.body.classList.toggle(
+            "schedule-bar-collapsed",
+            "1" === localStorage.getItem("scheduleBarCollapsed")
+          );
           // ページを開いたときは常に編集モードでカーソルをアクティブにする
           O(s, !0), O(o, !1);
           s.focus();
@@ -1982,6 +2133,7 @@
         f = new Date();
         T(f);
         renderScheduleBar();
+        pullAndMerge();
         showToast("今日に移動しました", "info");
       };
     })();
