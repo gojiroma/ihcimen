@@ -12,3 +12,16 @@ CREATE TABLE IF NOT EXISTS sync_blobs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_sync_blobs_last_synced_at ON sync_blobs (last_synced_at);
+
+-- Short-lived table for the camera-less "6-digit code" seed handoff.
+-- The server never sees the PIN itself, only a hash of it (code_hash) and
+-- the seed encrypted with a PIN-derived key. Rows expire after
+-- HANDOFF_TTL_SECONDS (10 minutes) and are deleted immediately after a
+-- successful single read.
+CREATE TABLE IF NOT EXISTS seed_handoff (
+    code_hash  TEXT PRIMARY KEY,
+    ciphertext TEXT NOT NULL,
+    iv         TEXT NOT NULL,
+    salt       TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

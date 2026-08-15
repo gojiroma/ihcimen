@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
+  <meta name="app-version" content="1" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -439,6 +440,48 @@
       margin-bottom: 8px;
     }
 
+    .sync-handoff-code-display {
+      display: none;
+      align-items: baseline;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .sync-handoff-code-display.active {
+      display: flex;
+    }
+
+    .sync-handoff-code-text {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 4px;
+    }
+
+    .sync-handoff-code-timer {
+      font-size: 12px;
+      opacity: 0.65;
+    }
+
+    .sync-code-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    #syncHandoffCodeInput {
+      flex: 1;
+      min-width: 0;
+      font: inherit;
+      font-size: 13px;
+      letter-spacing: 2px;
+      padding: 5px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 4px;
+      background-color: var(--bg-color);
+      color: inherit;
+      box-sizing: border-box;
+    }
+
     .sync-sub-detail {
       margin-top: 12px;
       padding: 6px 0 0;
@@ -573,6 +616,7 @@
 
     .markdown-viewer {
       display: none;
+      touch-action: pan-y;
     }
 
     .markdown-viewer pre {
@@ -993,10 +1037,20 @@
       color: inherit;
       cursor: pointer;
       padding: 6px;
+      transition: right 0.25s ease, opacity 0.2s ease;
     }
 
     .history-btn:hover {
       opacity: 1;
+    }
+
+    /* 操作がしばらくないと、ノブ/アイコン類を控えめにフェードする */
+    body.ui-idle .menu-trigger,
+    body.ui-idle .history-btn,
+    body.ui-idle .schedule-bar-toggle,
+    body.ui-idle .week-pane-toggle,
+    body.ui-idle .search-pane-toggle {
+      opacity: 0.12;
     }
 
     body.week-pane-collapsed .history-btn {
@@ -1377,14 +1431,28 @@
             </button>
           </div>
           <div id="syncOnPanel">
-            <canvas id="syncQrCanvas"></canvas>
-            <p class="sync-seed-row">
-              シード:
-              <input type="text" id="syncSeedText" readonly />
-              <button id="syncCopyBtn" type="button" class="menu-inline-btn">
-                コピー
+            <p class="sync-note">同期は有効です。</p>
+            <details class="sync-sub-detail">
+              <summary>別の端末に引き継ぐ(QRコード・シードを表示)</summary>
+              <canvas id="syncQrCanvas"></canvas>
+              <p class="sync-seed-row">
+                シード:
+                <input type="text" id="syncSeedText" readonly />
+                <button id="syncCopyBtn" type="button" class="menu-inline-btn">
+                  コピー
+                </button>
+              </p>
+              <p class="sync-note">
+                カメラのない端末には、6桁のコードでも引き継げます(10分間だけ有効)。
+              </p>
+              <button id="syncIssueCodeBtn" type="button" class="menu-inline-btn">
+                6桁コードを発行
               </button>
-            </p>
+              <div id="syncHandoffCodeDisplay" class="sync-handoff-code-display">
+                <span id="syncHandoffCodeText" class="sync-handoff-code-text"></span>
+                <span id="syncHandoffCodeTimer" class="sync-handoff-code-timer"></span>
+              </div>
+            </details>
           </div>
           <div id="syncContinuePanel">
             <p>
@@ -1394,6 +1462,15 @@
             <button id="syncImportBtn" type="button" class="menu-inline-btn">
               読み込む
             </button>
+            <p class="sync-note">
+              カメラがない場合は、相手の端末で発行した6桁コードでも引き継げます。
+            </p>
+            <div class="sync-code-row">
+              <input type="text" id="syncHandoffCodeInput" placeholder="6桁コード" inputmode="numeric" maxlength="6" />
+              <button id="syncRedeemCodeBtn" type="button" class="menu-inline-btn">
+                コードで読み込む
+              </button>
+            </div>
           </div>
           <details class="sync-sub-detail">
             <summary>同期の仕組み</summary>
@@ -1494,6 +1571,18 @@
         syncScanCanvasEl = document.getElementById("syncScanCanvas"),
         syncScanCancelBtnEl = document.getElementById("syncScanCancelBtn"),
         syncScanManualBtnEl = document.getElementById("syncScanManualBtn"),
+        syncIssueCodeBtnEl = document.getElementById("syncIssueCodeBtn"),
+        syncHandoffCodeDisplayEl = document.getElementById(
+          "syncHandoffCodeDisplay"
+        ),
+        syncHandoffCodeTextEl = document.getElementById("syncHandoffCodeText"),
+        syncHandoffCodeTimerEl = document.getElementById(
+          "syncHandoffCodeTimer"
+        ),
+        syncHandoffCodeInputEl = document.getElementById(
+          "syncHandoffCodeInput"
+        ),
+        syncRedeemCodeBtnEl = document.getElementById("syncRedeemCodeBtn"),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -1520,6 +1609,7 @@
         sessionSnapshotDone = !1,
         syncPushTimer = null,
         syncScanStream = null,
+        handoffCountdownTimer = null,
         syncHealthy = !0,
         audioCtx = null,
         scheduleEarliest = null,
@@ -1531,6 +1621,14 @@
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0,
         I = 864e5,
+        // 日付キー(YYYY-MM-DD)は必ずローカルタイムゾーンで求める。
+        // Date#toISOString() はUTC基準のため、JST(UTC+9)では深夜0時〜
+        // 9時の間、実際の日付より1日前のキーになってしまう不具合があった。
+        toDateKey = (date) =>
+          `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}-${String(date.getDate()).padStart(2, "0")}`,
         T = (e) => {
           t.textContent = e.getFullYear();
           a.textContent = `${String(e.getMonth() + 1).padStart(
@@ -1566,7 +1664,7 @@
           return "" !== t && "#" !== t;
         },
         A = (e) => {
-          const t = e.toISOString().split("T")[0],
+          const t = toDateKey(e),
             a = localStorage.getItem(t) || "# ";
           s.value = a;
           editBaseline = a;
@@ -1830,7 +1928,7 @@
           localStorage.setItem(getHistoryKey(dateKey), JSON.stringify(hist));
         },
         openHistoryModal = () => {
-          const hist = loadHistory(f.toISOString().split("T")[0]);
+          const hist = loadHistory(toDateKey(f));
           if (!hist.length)
             return void showToast("この日にはまだ履歴がありません", "info");
           (historySliderEl.min = 0),
@@ -1840,7 +1938,7 @@
             O(historyModalEl, !0);
         },
         renderHistoryPreview = () => {
-          const dateKey = f.toISOString().split("T")[0],
+          const dateKey = toDateKey(f),
             hist = loadHistory(dateKey),
             idx = Number(historySliderEl.value),
             entry = hist[idx];
@@ -1851,7 +1949,7 @@
               (historyPreviewEl.textContent = entry.content));
         },
         restoreHistoryVersion = () => {
-          const dateKey = f.toISOString().split("T")[0],
+          const dateKey = toDateKey(f),
             hist = loadHistory(dateKey),
             idx = Number(historySliderEl.value),
             entry = hist[idx];
@@ -2057,6 +2155,30 @@
             percent = ((kb / 5120) * 100).toFixed(1);
           document.title = `${dd.innerText} (${percent}%)`;
         },
+        // 配信中のHTMLに埋め込まれたバージョンが手元より新しければリロードする。
+        checkForUpdate = async () => {
+          try {
+            const res = await fetchWithTimeout(
+              location.pathname + "?_=" + Date.now(),
+              { cache: "no-store" },
+              8000
+            );
+            if (!res.ok) return;
+            const html = await res.text(),
+              m = html.match(
+                /<meta\s+name="app-version"\s+content="([^"]+)"/
+              );
+            if (!m) return;
+            const remoteVersion = Number(m[1]),
+              localVersionEl = document.querySelector(
+                'meta[name="app-version"]'
+              ),
+              localVersion = localVersionEl
+                ? Number(localVersionEl.content)
+                : 0;
+            remoteVersion > localVersion && location.reload();
+          } catch (err) { }
+        },
         U = (show) => {
           const drawer = p.querySelector(".menu-drawer");
           show
@@ -2068,14 +2190,17 @@
               setTimeout(() => O(p, !1), 250));
         },
         saveCurrentMemo = () => {
+          // 実際の編集がなければ、保存もサーバーへの同期アクセスも不要。
+          if (!sDirty) return;
           const e = s.value;
-          const t = f.toISOString().split("T")[0];
+          const t = toDateKey(f);
 
           // Show saving indicator
           showSaveStatus("saving", "保存中...");
 
           try {
             localStorage.setItem(t, e);
+            sDirty = !1;
             showSaveStatus("saved", "保存しました");
             H();
             maybeSyncPush();
@@ -2332,6 +2457,116 @@
             );
           return JSON.parse(new TextDecoder().decode(plaintextBuf));
         },
+        // --- カメラのない端末同士のための、時間限定6桁コード引き継ぎ ---
+        HANDOFF_CODE_INFO = new TextEncoder().encode("ihcimen-handoff-code-v1"),
+        generateHandoffPin = () =>
+          String(Math.floor(1e6 * Math.random())).padStart(6, "0"),
+        deriveHandoffCodeHash = async (pin) => {
+          const pinBytes = new TextEncoder().encode(pin),
+            combined = new Uint8Array(
+              pinBytes.length + HANDOFF_CODE_INFO.length
+            );
+          combined.set(pinBytes),
+            combined.set(HANDOFF_CODE_INFO, pinBytes.length);
+          const digest = await crypto.subtle.digest("SHA-256", combined);
+          return bytesToHex(new Uint8Array(digest));
+        },
+        deriveHandoffKey = async (pin, saltBytes) => {
+          const keyMaterial = await crypto.subtle.importKey(
+            "raw",
+            new TextEncoder().encode(pin),
+            "PBKDF2",
+            !1,
+            ["deriveKey"]
+          );
+          return crypto.subtle.deriveKey(
+            {
+              name: "PBKDF2",
+              hash: "SHA-256",
+              salt: saltBytes,
+              iterations: 200000,
+            },
+            keyMaterial,
+            { name: "AES-GCM", length: 256 },
+            !1,
+            ["encrypt", "decrypt"]
+          );
+        },
+        startHandoffCountdown = (totalSeconds) => {
+          let remaining = totalSeconds;
+          clearInterval(handoffCountdownTimer);
+          const tick = () => {
+            if (remaining <= 0)
+              return (
+                clearInterval(handoffCountdownTimer),
+                void syncHandoffCodeDisplayEl.classList.remove("active")
+              );
+            const m = Math.floor(remaining / 60),
+              sec = remaining % 60;
+            (syncHandoffCodeTimerEl.textContent = `残り ${m}:${String(
+              sec
+            ).padStart(2, "0")}`),
+              remaining--;
+          };
+          tick(), (handoffCountdownTimer = setInterval(tick, 1000));
+        },
+        issueHandoffCode = async () => {
+          const seed = getSyncSeed();
+          if (!seed) return;
+          const pin = generateHandoffPin(),
+            saltBytes = crypto.getRandomValues(new Uint8Array(16));
+          try {
+            const codeHash = await deriveHandoffCodeHash(pin),
+              aesKey = await deriveHandoffKey(pin, saltBytes),
+              { ciphertext, iv } = await encryptBlob({ seed }, aesKey),
+              res = await fetchWithTimeout(
+                "/api/handoff",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    code_hash: codeHash,
+                    ciphertext,
+                    iv,
+                    salt: bytesToBase64(saltBytes),
+                  }),
+                },
+                8000
+              );
+            if (!res.ok) throw new Error("handoff push failed: " + res.status);
+            const body = await res.json();
+            (syncHandoffCodeTextEl.textContent = pin),
+              syncHandoffCodeDisplayEl.classList.add("active"),
+              startHandoffCountdown(body.expires_in || 600);
+          } catch (err) {
+            showToast("コードの発行に失敗しました", "error");
+          }
+        },
+        redeemHandoffCode = async (pin) => {
+          if (((pin = (pin || "").trim()), !/^\d{6}$/.test(pin)))
+            return void showToast("6桁の数字を入力してください", "error");
+          try {
+            const codeHash = await deriveHandoffCodeHash(pin),
+              res = await fetchWithTimeout(
+                `/api/handoff?code_hash=${codeHash}`,
+                {},
+                8000
+              );
+            if (!res.ok) throw new Error("handoff pull failed: " + res.status);
+            const body = await res.json();
+            if (!body.found)
+              return void showToast(
+                "コードが見つからないか、期限切れです",
+                "error"
+              );
+            const saltBytes = base64ToBytes(body.salt),
+              aesKey = await deriveHandoffKey(pin, saltBytes),
+              data = await decryptBlob(body.ciphertext, body.iv, aesKey);
+            importSyncSeed(data.seed);
+          } catch (err) {
+            showToast("コードの読み込みに失敗しました", "error");
+          }
+        },
         collectSyncableData = () => {
           const entries = {},
             notes = {},
@@ -2461,7 +2696,7 @@
           let total = 0;
           for (let i = 0; i < 7; i++) {
             const d = new Date(monday.getTime() + i * I),
-              key = d.toISOString().split("T")[0],
+              key = toDateKey(d),
               entry = localStorage.getItem(key);
             entry && (total += entry.length);
           }
@@ -2470,7 +2705,7 @@
         // 日ごとの本文の相対的な文字数を、短いビープ音のピッチで表現する
         playPitchForDate = (date) => {
           try {
-            const key = date.toISOString().split("T")[0],
+            const key = toDateKey(date),
               len = (localStorage.getItem(key) || "").length,
               allLens = Object.keys(localStorage)
                 .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
@@ -2568,7 +2803,7 @@
           return Math.max(1, ...Object.values(totals));
         },
         createScheduleCell = (d, maxDayLen) => {
-          const key = d.toISOString().split("T")[0],
+          const key = toDateKey(d),
             year = d.getFullYear(),
             day = d.getDay(),
             holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
@@ -2724,7 +2959,7 @@
         },
         renderScheduleBar = () => {
           sb.innerHTML = "";
-          const selectedKey = f.toISOString().split("T")[0],
+          const selectedKey = toDateKey(f),
             maxDayLen = getGlobalMaxDayLen();
           (scheduleEarliest = new Date(f.getTime() - scheduleWindowDays * I)),
             (scheduleLatest = new Date(f.getTime() + scheduleWindowDays * I));
@@ -2890,7 +3125,7 @@
               localStorage.setItem("searchPaneCollapsed", "1"));
         }),
         s.addEventListener("input", () => {
-          const e = f.toISOString().split("T")[0];
+          const e = toDateKey(f);
           sessionSnapshotDone || (snapshotHistory(e, editBaseline), (sessionSnapshotDone = !0)),
             (sDirty = !0),
             localStorage.setItem(e, s.value),
@@ -3018,11 +3253,6 @@
             (s.value = l), (s.selectionStart = s.selectionEnd = t + 2);
           }
         }),
-        o.addEventListener("click", (e) => {
-          const pos = findSourcePositionForClick(e.clientX, e.clientY);
-          O(s, !0), O(o, !1), s.focus();
-          s.selectionStart = s.selectionEnd = pos;
-        }),
         syncToggleBtnEl.addEventListener("click", () => {
           getSyncSeed()
             ? disableSync()
@@ -3049,6 +3279,11 @@
         syncScanManualBtnEl.addEventListener("click", () => {
           stopQrScan(), syncSeedInputEl.focus();
         }),
+        syncIssueCodeBtnEl.addEventListener("click", issueHandoffCode),
+        syncRedeemCodeBtnEl.addEventListener("click", () => {
+          redeemHandoffCode(syncHandoffCodeInputEl.value),
+            (syncHandoffCodeInputEl.value = "");
+        }),
         document
           .getElementById("privacyBannerDismiss")
           .addEventListener("click", () => {
@@ -3068,47 +3303,64 @@
                   .catch(() => { }));
           }),
         (() => {
-          // タッチデバイスでは日付表示を左右にドラッグすると日付を移動できる
-          // (パラパラめくる感覚)。なぞった距離に応じて連続的に移動する
-          // (STEP_PX ごとに1日、指を戻せば逆方向にも戻る)。クリックは今日へ移動。
+          // タッチデバイスでは日付表示・本文(閲覧モード)を左右にドラッグ
+          // すると日付を移動できる(パラパラめくる感覚。日付表示だけだと
+          // 指で日付を覆ってしまうため、本文エリアでも同じ操作を使えるように
+          // している)。なぞった距離に応じて連続的に移動する(STEP_PXごとに
+          // 1日、指を戻せば逆方向にも戻る)。ドラッグでなければ、それぞれの
+          // 本来のタップ動作(日付→今日へ移動、本文→編集モードへ)を行う。
           const SWIPE_THRESHOLD = 40,
-            STEP_PX = 28;
-          let startX = null,
-            startY = null,
-            dragMoved = !1,
-            dragging = !1,
-            lastStep = 0;
-          dd.addEventListener("pointerdown", (e) => {
-            "touch" === e.pointerType &&
-              ((startX = e.clientX),
-                (startY = e.clientY),
-                (dragMoved = !1),
-                (dragging = !1),
-                (lastStep = 0));
-          }),
-            dd.addEventListener("pointermove", (e) => {
-              if (null === startX || "touch" !== e.pointerType) return;
-              const dx = e.clientX - startX,
-                dy = e.clientY - startY;
-              if (!dragging) {
-                if (Math.abs(dx) <= SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy))
-                  return;
-                dragging = !0;
-              }
-              const step = Math.trunc(dx / STEP_PX),
-                delta = step - lastStep;
-              delta &&
-                ((lastStep = step),
-                  (dragMoved = !0),
-                  K(-delta),
-                  playPitchForDate(f));
-            }),
-            dd.addEventListener("pointerup", () => {
-              startX = null;
-            }),
-            dd.addEventListener("click", () => {
-              if (dragMoved) return void (dragMoved = !1);
-              window.moveToToday();
+            STEP_PX = 28,
+            setupDaySwipe = (el, onTap) => {
+              let startX = null,
+                startY = null,
+                dragMoved = !1,
+                dragging = !1,
+                lastStep = 0;
+              el.addEventListener("pointerdown", (e) => {
+                "touch" === e.pointerType &&
+                  ((startX = e.clientX),
+                    (startY = e.clientY),
+                    (dragMoved = !1),
+                    (dragging = !1),
+                    (lastStep = 0));
+              }),
+                el.addEventListener("pointermove", (e) => {
+                  if (null === startX || "touch" !== e.pointerType) return;
+                  const dx = e.clientX - startX,
+                    dy = e.clientY - startY;
+                  if (!dragging) {
+                    if (
+                      Math.abs(dx) <= SWIPE_THRESHOLD ||
+                      Math.abs(dx) <= Math.abs(dy)
+                    )
+                      return;
+                    dragging = !0;
+                  }
+                  const step = Math.trunc(dx / STEP_PX),
+                    delta = step - lastStep;
+                  delta &&
+                    ((lastStep = step),
+                      (dragMoved = !0),
+                      K(-delta),
+                      playPitchForDate(f));
+                }),
+                el.addEventListener("pointerup", () => {
+                  startX = null;
+                }),
+                el.addEventListener("pointercancel", () => {
+                  (startX = null), (dragMoved = !1);
+                }),
+                el.addEventListener("click", (e) => {
+                  if (dragMoved) return void (dragMoved = !1);
+                  onTap(e);
+                });
+            };
+          setupDaySwipe(dd, () => window.moveToToday()),
+            setupDaySwipe(o, (e) => {
+              const pos = findSourcePositionForClick(e.clientX, e.clientY);
+              O(s, !0), O(o, !1), s.focus();
+              s.selectionStart = s.selectionEnd = pos;
             });
         })(),
         (() => {
@@ -3116,19 +3368,21 @@
           // ノブからPane自体へマウスを移動する間も消えないよう、少し遅延して隠す。
           const setupPeek = (toggleEl, paneEl, peekClass) => {
             let hideTimer = null;
-            const show = () => {
+            const show = (e) => {
+              if (e.pointerType && "mouse" !== e.pointerType) return;
               clearTimeout(hideTimer), document.body.classList.add(peekClass);
             },
-              scheduleHide = () => {
+              scheduleHide = (e) => {
+                if (e.pointerType && "mouse" !== e.pointerType) return;
                 hideTimer = setTimeout(
                   () => document.body.classList.remove(peekClass),
                   200
                 );
               };
-            toggleEl.addEventListener("mouseenter", show),
-              toggleEl.addEventListener("mouseleave", scheduleHide),
-              paneEl.addEventListener("mouseenter", show),
-              paneEl.addEventListener("mouseleave", scheduleHide);
+            toggleEl.addEventListener("pointerenter", show),
+              toggleEl.addEventListener("pointerleave", scheduleHide),
+              paneEl.addEventListener("pointerenter", show),
+              paneEl.addEventListener("pointerleave", scheduleHide);
           };
           setupPeek(
             document.getElementById("weekPaneToggle"),
@@ -3198,8 +3452,16 @@
                 (document.body.classList.remove("schedule-bar-fullscreen"),
                   (dragTriggered = !0));
             }),
-            el.addEventListener("pointerup", () => {
-              dragStartY = null;
+            el.addEventListener("pointerup", (e) => {
+              (dragStartY = null),
+                el.hasPointerCapture(e.pointerId) &&
+                el.releasePointerCapture(e.pointerId);
+            }),
+            el.addEventListener("pointercancel", (e) => {
+              (dragStartY = null),
+                (dragMoved = !1),
+                el.hasPointerCapture(e.pointerId) &&
+                el.releasePointerCapture(e.pointerId);
             }),
             el.addEventListener("click", () => {
               if (dragMoved) return void (dragMoved = !1);
@@ -3233,7 +3495,7 @@
           e.preventDefault();
           const headers = Array.from(o.querySelectorAll("h1")),
             idx = headers.indexOf(h1);
-          addH1Shortcut(f.toISOString().split("T")[0], idx, h1.textContent);
+          addH1Shortcut(toDateKey(f), idx, h1.textContent);
         }),
         document
           .getElementById("menuTrigger")
@@ -3327,9 +3589,11 @@
         pullAndMerge(), maybeSyncPush();
       });
       // ページ/タブが再びアクティブになったとき、サーバー側が新しければ取り込む
-      // (オンラインで未保存の変更がない前提。競合解決は行わない)
+      // (オンラインで未保存の変更がない前提。競合解決は行わない)。
+      // 併せて、配信されているHTML自体が新しければ再読み込みする。
       document.addEventListener("visibilitychange", () => {
-        "visible" === document.visibilityState && pullAndMerge();
+        "visible" === document.visibilityState &&
+          (pullAndMerge(), checkForUpdate());
       });
       // 全画面カレンダー表示中にウィンドウが広がった場合も、
       // スクロール可能になるまでセルを補充する。
@@ -3337,6 +3601,27 @@
         document.body.classList.contains("schedule-bar-fullscreen") &&
           fillScheduleBarFullscreen();
       });
+      // しばらく操作がないと、ノブ/アイコン類を控えめにフェードする。
+      (() => {
+        const IDLE_MS = 3000;
+        let idleTimer = null;
+        const clearIdle = () => {
+          document.body.classList.remove("ui-idle"),
+            clearTimeout(idleTimer),
+            (idleTimer = setTimeout(
+              () => document.body.classList.add("ui-idle"),
+              IDLE_MS
+            ));
+        };
+        ["mousemove", "touchstart", "click", "keydown", "scroll"].forEach(
+          (ev) =>
+            document.addEventListener(ev, clearIdle, {
+              passive: !0,
+              capture: !0,
+            })
+        ),
+          clearIdle();
+      })();
       // Expose moveToToday as global function
       window.moveToToday = function () {
         f = new Date();
@@ -3345,6 +3630,29 @@
         pullAndMerge();
         showToast("今日に移動しました", "info");
       };
+      // 日付をまたいだら(0時になったら)、それまで今日のページを見ていた
+      // 場合は保存してから新しい今日へ移動する。他の日を見ている場合は
+      // そのままにしておく。
+      const scheduleNextMidnightRollover = () => {
+        const now = new Date(),
+          nextMidnight = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() + 1,
+            0,
+            0,
+            5
+          ),
+          ms = nextMidnight.getTime() - now.getTime();
+        setTimeout(() => {
+          const yesterdayKey = toDateKey(new Date(Date.now() - I)),
+            currentFKey = toDateKey(f);
+          currentFKey === yesterdayKey &&
+            (saveCurrentMemo(), window.moveToToday()),
+            scheduleNextMidnightRollover();
+        }, ms);
+      };
+      scheduleNextMidnightRollover();
     })();
   </script>
 </body>
