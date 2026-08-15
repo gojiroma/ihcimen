@@ -186,10 +186,15 @@
       color: inherit;
       cursor: pointer;
       padding: 6px;
+      transition: left 0.2s ease, opacity 0.2s ease;
     }
 
     .menu-trigger:hover {
       opacity: 1;
+    }
+
+    body:not(.search-pane-collapsed) .menu-trigger {
+      left: 250px;
     }
 
     .menu-actions {
@@ -487,44 +492,6 @@
       transform: translateX(0);
     }
 
-    #searchInput {
-      width: 100%;
-      padding: 15px;
-      font-size: 20px;
-      box-sizing: border-box;
-    }
-
-    #searchResults {
-      list-style: none;
-      padding: 0;
-    }
-
-    #searchResults li {
-      cursor: pointer;
-      padding: 10px;
-      font-size: 18px;
-    }
-
-    #searchResults li.selected,
-    #searchResults li:hover {
-      background-color: #ddd;
-    }
-
-    #searchResults li span.date {
-      display: block;
-      font-weight: 700;
-    }
-
-    #searchResults li span.text {
-      display: block;
-      margin-top: 5px;
-    }
-
-    .highlight {
-      background-color: #ff0;
-      font-weight: 700;
-    }
-
     #syncQrCanvas {
       max-width: 100%;
     }
@@ -685,6 +652,297 @@
       resize: none;
       overflow-y: auto;
     }
+
+    /* 目次パネル */
+    .toc-panel {
+      position: fixed;
+      right: 176px;
+      bottom: 130px;
+      z-index: 410;
+      max-width: 220px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-size: 12px;
+      background-color: var(--bg-color);
+      border: 1px solid rgba(128, 128, 128, 0.3);
+      border-radius: 6px;
+      padding: 6px 10px;
+      opacity: 0.55;
+      transition: opacity 0.2s ease;
+    }
+
+    .toc-panel:hover {
+      opacity: 1;
+    }
+
+    .toc-panel.toc-empty {
+      display: none;
+    }
+
+    body.week-pane-collapsed .toc-panel {
+      right: 20px;
+    }
+
+    .toc-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+      opacity: 0.7;
+    }
+
+    .toc-panel ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .toc-panel li {
+      padding: 3px 0;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .toc-panel li:hover {
+      text-decoration: underline;
+    }
+
+    /* バージョン履歴 */
+    .history-btn {
+      position: fixed;
+      top: 10px;
+      right: 176px;
+      z-index: 450;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.55;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 6px;
+    }
+
+    .history-btn:hover {
+      opacity: 1;
+    }
+
+    body.week-pane-collapsed .history-btn {
+      right: 10px;
+    }
+
+    #historySlider {
+      width: 100%;
+      margin: 10px 0;
+    }
+
+    #historyMeta {
+      font-size: 13px;
+      opacity: 0.7;
+    }
+
+    .history-preview {
+      white-space: pre-wrap;
+      word-break: break-all;
+      border: 1px solid rgba(128, 128, 128, 0.3);
+      border-radius: 4px;
+      padding: 10px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 14px;
+      margin: 10px 0;
+    }
+
+    /* h1ショートカット */
+    .h1-shortcut-bar {
+      position: fixed;
+      top: 44px;
+      right: 176px;
+      z-index: 450;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      max-width: 260px;
+      justify-content: flex-end;
+    }
+
+    body.week-pane-collapsed .h1-shortcut-bar {
+      right: 10px;
+    }
+
+    .h1-shortcut-chip {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      padding: 4px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 12px;
+      background-color: var(--bg-color);
+      color: inherit;
+      opacity: 0.6;
+      max-width: 160px;
+    }
+
+    .h1-shortcut-chip:hover {
+      opacity: 1;
+    }
+
+    .h1-shortcut-chip .chip-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .h1-shortcut-chip .chip-remove {
+      flex-shrink: 0;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1;
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.5;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .h1-shortcut-chip .chip-remove:hover {
+      opacity: 1;
+    }
+
+    /* 検索パネル(左側) */
+    .container {
+      padding-left: 240px;
+    }
+
+    body.search-pane-collapsed .container {
+      padding-left: 0;
+    }
+
+    .search-pane {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 240px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid #ddd;
+      background-color: var(--bg-color);
+      z-index: 400;
+    }
+
+    body.search-pane-collapsed .search-pane {
+      display: none;
+    }
+
+    .search-pane-toggle {
+      position: fixed;
+      top: 50%;
+      left: 240px;
+      transform: translateY(-50%);
+      z-index: 460;
+      font: inherit;
+      font-size: 12px;
+      opacity: 0.55;
+      background-color: var(--bg-color);
+      color: inherit;
+      border: 1px solid #ccc;
+      border-left: none;
+      border-radius: 0 4px 4px 0;
+      cursor: pointer;
+      padding: 10px 4px;
+      writing-mode: vertical-rl;
+    }
+
+    .search-pane-toggle:hover {
+      opacity: 1;
+    }
+
+    body.search-pane-collapsed .search-pane-toggle {
+      left: 0;
+    }
+
+    .search-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+
+    .search-input-wrap svg {
+      flex-shrink: 0;
+      opacity: 0.6;
+    }
+
+    #searchPaneInput {
+      flex: 1;
+      min-width: 0;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 14px;
+      padding: 6px 12px;
+      font: inherit;
+      font-size: 14px;
+      background-color: var(--bg-color);
+      color: inherit;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #searchPaneInput:focus {
+      border-color: rgba(80, 80, 80, 0.8);
+    }
+
+    #searchPaneResults {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .search-pane-result {
+      padding: 10px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .search-pane-result:hover {
+      background-color: rgba(128, 128, 128, 0.1);
+    }
+
+    .search-result-date {
+      font-weight: 700;
+      font-size: 11px;
+      opacity: 0.7;
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .search-result-snippet {
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .search-result-snippet u {
+      text-decoration: underline;
+    }
+
+    .search-pane-empty {
+      padding: 10px;
+      font-size: 13px;
+      opacity: 0.6;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
@@ -700,6 +958,26 @@
       <line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   </button>
+  <button id="historyBtn" class="history-btn" type="button" aria-label="バージョン履歴" title="バージョン履歴">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 16 14" />
+    </svg>
+  </button>
+  <div id="h1ShortcutBar" class="h1-shortcut-bar"></div>
+  <div id="searchPane" class="search-pane">
+    <div class="search-input-wrap">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="10" cy="10" r="7" />
+        <line x1="21" y1="21" x2="15.5" y2="15.5" />
+      </svg>
+      <input type="text" id="searchPaneInput" placeholder="検索" />
+    </div>
+    <ul id="searchPaneResults"></ul>
+  </div>
+  <button id="searchPaneToggle" class="search-pane-toggle" type="button">検索</button>
   <div class="container">
     <div class="date-display" id="dateDisplay" onclick="moveToToday()">
       <span class="year" id="yearDisplay">YYYY</span>
@@ -714,6 +992,10 @@
       </p>
       <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? またはメニューから)"></textarea>
       <div class="markdown-viewer" id="markdownViewer"></div>
+      <div id="tocPanel" class="toc-panel toc-empty">
+        <div class="toc-title">目次</div>
+        <ul id="tocList"></ul>
+      </div>
     </div>
   </div>
   <div id="modalTemplate" class="modal-template">
@@ -794,6 +1076,22 @@
             <strong>右側のWeek pane:</strong>
             画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。端の「週」タブをクリックすると折りたたみ/展開できます。
           </li>
+          <li>
+            <strong>左側の検索パネル:</strong>
+            画面左端の「検索」タブをクリックすると検索パネルが開きます。キーワードを入力すると、見出し(h1)単位で該当箇所が一覧表示されます。結果にカーソルを合わせるとその見出しへプレビュー移動し、クリックするとその日付に移動して見出し直後にカーソルが入ります。
+          </li>
+          <li>
+            <strong>目次:</strong>
+            本文内に見出し(# で始まる行)があると、右下に目次が表示されます。項目にカーソルを合わせると、閲覧モードならその見出しへスクロール、編集モードならその位置へカーソルが移動します。
+          </li>
+          <li>
+            <strong>見出しのショートカット:</strong>
+            閲覧モードで見出し(h1)を右クリックすると、本文エリア右上にショートカットを追加できます。カーソルを合わせるとその日の見出しへ移動します。×で削除できます。
+          </li>
+          <li>
+            <strong>バージョン履歴:</strong>
+            左上の時計アイコンから、その日の過去のバージョンをスライダーで遡って確認し、必要であれば上書きできます。
+          </li>
         </ul>
       </details>
       <details>
@@ -805,7 +1103,7 @@
         <ul>
           <li><strong>? :</strong> このメニューを表示</li>
           <li><strong>t :</strong> 今日の日付に移動</li>
-          <li><strong>f :</strong> 検索ウィンドウを表示</li>
+          <li><strong>f :</strong> 検索パネルを開く</li>
           <li><strong>o :</strong> バックアップデータを取り込む</li>
           <li><strong>b :</strong> バックアップデータをダウンロード</li>
           <li><strong>s :</strong> 同期設定を表示</li>
@@ -859,10 +1157,13 @@
       </details>
     </div>
   </div>
-  <div id="searchModal" class="search-modal close-on-click-outside">
+  <div id="historyModal" class="search-modal close-on-click-outside">
     <div class="search-modal-content">
-      <input type="text" id="searchInput" placeholder="検索キーワードを入力" />
-      <ul id="searchResults"></ul>
+      <h2>バージョン履歴</h2>
+      <div id="historyMeta"></div>
+      <input type="range" id="historySlider" min="0" max="0" value="0" />
+      <div id="historyPreview" class="history-preview"></div>
+      <button id="historyRestoreBtn" type="button">このバージョンで上書き</button>
     </div>
   </div>
   <div id="syncModal" class="search-modal close-on-click-outside">
@@ -909,9 +1210,6 @@
         "textBox",
         "markdownViewer",
         "fileInput",
-        "searchModal",
-        "searchInput",
-        "searchResults",
         "shortcutModal",
         "saveStatus",
         "toastContainer",
@@ -926,9 +1224,6 @@
           textBox: s,
           markdownViewer: o,
           fileInput: r,
-          searchModal: c,
-          searchInput: i,
-          searchResults: d,
           shortcutModal: p,
           saveStatus: saveStatusEl,
           toastContainer: toastContainerEl,
@@ -951,19 +1246,29 @@
           scanCanvas: document.getElementById("syncScanCanvas"),
         },
         contentAreaEl = document.querySelector(".content-area"),
+        tocPanelEl = document.getElementById("tocPanel"),
+        tocListEl = document.getElementById("tocList"),
+        historyBtnEl = document.getElementById("historyBtn"),
+        historyModalEl = document.getElementById("historyModal"),
+        historySliderEl = document.getElementById("historySlider"),
+        historyMetaEl = document.getElementById("historyMeta"),
+        historyPreviewEl = document.getElementById("historyPreview"),
+        historyRestoreBtnEl = document.getElementById("historyRestoreBtn"),
+        h1ShortcutBarEl = document.getElementById("h1ShortcutBar"),
+        searchPaneToggleEl = document.getElementById("searchPaneToggle"),
+        searchPaneInputEl = document.getElementById("searchPaneInput"),
+        searchPaneResultsEl = document.getElementById("searchPaneResults"),
         v = {
           selectedDate: new Date(),
           saveTimer: void 0,
-          searchResultsData: [],
-          currentSearchResultIndex: -1,
         };
       let {
         selectedDate: f,
         saveTimer: L,
-        searchResultsData: E,
-        currentSearchResultIndex: b,
       } = v,
         sDirty = !1,
+        editBaseline = "",
+        sessionSnapshotDone = !1,
         syncPushTimer = null,
         syncScanStream = null,
         syncHealthy = !0,
@@ -1013,11 +1318,14 @@
           const t = e.toISOString().split("T")[0],
             a = localStorage.getItem(t) || "# ";
           s.value = a;
+          editBaseline = a;
+          sessionSnapshotDone = !1;
           o.innerHTML = marked.parse(a);
           const l = Z(a);
           (o.style.display = l ? "block" : "none"),
             (s.style.display = l ? "none" : "block"),
             (sDirty = !1);
+          renderToc();
         },
         O = (e, t) => {
           e.style.display = t ? "block" : "none";
@@ -1169,32 +1477,298 @@
             .replace(/[ァ-ヶ]/g, (c) =>
               String.fromCharCode(c.charCodeAt(0) - 0x60)
             ),
-        highlightMatches = (text, query) => {
+        escapeHtml = (str) =>
+          str
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;"),
+        // 本文中の見出し(h1: "# " で始まる行)を、開始/終了位置つきで列挙する
+        getHeadings = (text) => {
+          const re = /^#\s(.+)$/gm,
+            headings = [];
+          let m;
+          for (; null !== (m = re.exec(text));)
+            headings.push({
+              text: m[1],
+              start: m.index,
+              end: m.index + m[0].length,
+            });
+          return headings;
+        },
+        // --- 目次 ---
+        renderToc = () => {
+          const headings = getHeadings(s.value);
+          tocListEl.innerHTML = "";
+          headings.forEach((h, idx) => {
+            const li = document.createElement("li");
+            (li.textContent = h.text),
+              li.addEventListener("mouseenter", () =>
+                scrollToHeading(idx, h.end)
+              ),
+              tocListEl.appendChild(li);
+          }),
+            tocPanelEl.classList.toggle("toc-empty", 0 === headings.length);
+        },
+        scrollToHeading = (idx, pos) => {
+          if ("block" === s.style.display) {
+            (s.selectionStart = s.selectionEnd = pos), centerCaretInView();
+          } else {
+            const el = o.querySelectorAll("h1")[idx];
+            el && el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        },
+        // キャレット位置を .content-area の縦方向中央に来るようスクロールする
+        centerCaretInView = () => {
+          const caretOffset = getCaretOffsetInTextarea(),
+            style = getComputedStyle(s),
+            paddingTop = parseFloat(style.paddingTop) || 0,
+            lineHeight = parseFloat(style.lineHeight) || 24,
+            sRect = s.getBoundingClientRect(),
+            caretTop = sRect.top + paddingTop + caretOffset,
+            caRect = contentAreaEl.getBoundingClientRect(),
+            delta = caretTop - caRect.top - caRect.height / 2 + lineHeight / 2;
+          contentAreaEl.scrollTo({
+            top: contentAreaEl.scrollTop + delta,
+            behavior: "smooth",
+          });
+        },
+        // --- バージョン履歴(localStorageのみ、日付ごと) ---
+        MAX_HISTORY_VERSIONS = 30,
+        getHistoryKey = (dateKey) => `history:${dateKey}`,
+        loadHistory = (dateKey) => {
+          try {
+            return JSON.parse(localStorage.getItem(getHistoryKey(dateKey)) || "[]");
+          } catch (err) {
+            return [];
+          }
+        },
+        snapshotHistory = (dateKey, content) => {
+          if (!Z(content)) return;
+          const hist = loadHistory(dateKey);
+          if (hist.length && hist[hist.length - 1].content === content) return;
+          for (
+            hist.push({ content, ts: new Date().toISOString() });
+            hist.length > MAX_HISTORY_VERSIONS;
+
+          )
+            hist.shift();
+          localStorage.setItem(getHistoryKey(dateKey), JSON.stringify(hist));
+        },
+        openHistoryModal = () => {
+          const hist = loadHistory(f.toISOString().split("T")[0]);
+          if (!hist.length)
+            return void showToast("この日にはまだ履歴がありません", "info");
+          (historySliderEl.min = 0),
+            (historySliderEl.max = hist.length - 1),
+            (historySliderEl.value = hist.length - 1),
+            renderHistoryPreview(),
+            O(historyModalEl, !0);
+        },
+        renderHistoryPreview = () => {
+          const dateKey = f.toISOString().split("T")[0],
+            hist = loadHistory(dateKey),
+            idx = Number(historySliderEl.value),
+            entry = hist[idx];
+          entry &&
+            ((historyMetaEl.textContent = `${idx + 1} / ${hist.length}  ${new Date(
+              entry.ts
+            ).toLocaleString("ja-JP")}  (${entry.content.length} 文字)`),
+              (historyPreviewEl.textContent = entry.content));
+        },
+        restoreHistoryVersion = () => {
+          const dateKey = f.toISOString().split("T")[0],
+            hist = loadHistory(dateKey),
+            idx = Number(historySliderEl.value),
+            entry = hist[idx];
+          if (!entry) return;
+          const current = localStorage.getItem(dateKey) || "";
+          current !== entry.content && snapshotHistory(dateKey, current),
+            localStorage.setItem(dateKey, entry.content),
+            A(f),
+            renderScheduleBar(),
+            H(),
+            O(historyModalEl, !1),
+            showToast("このバージョンで上書きしました", "success"),
+            maybeSyncPush();
+        },
+        // --- h1ショートカット(閲覧モードで見出しを右クリックして追加) ---
+        loadH1Shortcuts = () => {
+          try {
+            return JSON.parse(localStorage.getItem("h1Shortcuts") || "[]");
+          } catch (err) {
+            return [];
+          }
+        },
+        saveH1Shortcuts = (list) =>
+          localStorage.setItem("h1Shortcuts", JSON.stringify(list)),
+        addH1Shortcut = (date, headingIdx, text) => {
+          const list = loadH1Shortcuts();
+          if (
+            list.some((sc) => sc.date === date && sc.headingIdx === headingIdx)
+          )
+            return void showToast("すでに追加されています", "info");
+          list.push({ date, headingIdx, text }),
+            saveH1Shortcuts(list),
+            renderH1ShortcutBar(),
+            showToast("ショートカットを追加しました", "success");
+        },
+        removeH1Shortcut = (date, headingIdx) => {
+          saveH1Shortcuts(
+            loadH1Shortcuts().filter(
+              (sc) => !(sc.date === date && sc.headingIdx === headingIdx)
+            )
+          ),
+            renderH1ShortcutBar();
+        },
+        jumpToH1Shortcut = (sc) => {
+          if (document.activeElement === s) return;
+          const d = new Date(sc.date);
+          T(d);
+          const el = o.querySelectorAll("h1")[sc.headingIdx];
+          el
+            ? el.scrollIntoView({ behavior: "smooth", block: "center" })
+            : showToast("この見出しが見つかりませんでした", "info");
+        },
+        renderH1ShortcutBar = () => {
+          h1ShortcutBarEl.innerHTML = "";
+          loadH1Shortcuts().forEach((sc) => {
+            const chip = document.createElement("span"),
+              label = document.createElement("span"),
+              removeBtn = document.createElement("button");
+            (chip.className = "h1-shortcut-chip"), (chip.title = sc.text);
+            (label.className = "chip-label"), (label.textContent = sc.text);
+            (removeBtn.type = "button"),
+              (removeBtn.className = "chip-remove"),
+              (removeBtn.textContent = "×"),
+              (removeBtn.title = "削除"),
+              removeBtn.addEventListener("click", (e) => {
+                e.stopPropagation(), removeH1Shortcut(sc.date, sc.headingIdx);
+              });
+            chip.appendChild(label),
+              chip.appendChild(removeBtn),
+              chip.addEventListener("mouseenter", () => jumpToH1Shortcut(sc)),
+              h1ShortcutBarEl.appendChild(chip);
+          });
+        },
+        // --- 左側の検索パネル(見出し単位で該当箇所を表示) ---
+        buildSnippet = (sourceText, query, contextChars = 15) => {
+          const nq = normalizeForSearch(query),
+            nt = normalizeForSearch(sourceText),
+            idx = nt.indexOf(nq);
+          if (-1 === idx) return escapeHtml(sourceText.slice(0, 40));
+          const start = Math.max(0, idx - contextChars),
+            end = Math.min(sourceText.length, idx + nq.length + contextChars),
+            before = sourceText.slice(start, idx),
+            match = sourceText.slice(idx, idx + nq.length),
+            after = sourceText.slice(idx + nq.length, end),
+            prefix = start > 0 ? "…" : "",
+            suffix = end < sourceText.length ? "…" : "";
+          return (
+            prefix +
+            escapeHtml(before) +
+            "<u>" +
+            escapeHtml(match) +
+            "</u>" +
+            escapeHtml(after) +
+            suffix
+          );
+        },
+        searchAcrossDays = (query) => {
           const nq = normalizeForSearch(query);
-          if (!nq) return text;
-          const nt = normalizeForSearch(text);
-          let result = "",
-            lastIndex = 0,
-            idx;
-          for (; -1 !== (idx = nt.indexOf(nq, lastIndex));)
-            (result +=
-              text.slice(lastIndex, idx) +
-              `<span class="highlight">${text.slice(idx, idx + nq.length)}</span>`),
-              (lastIndex = idx + nq.length);
-          return result + text.slice(lastIndex);
+          if (!nq) return [];
+          const results = [];
+          for (let idx = 0; idx < localStorage.length; idx++) {
+            const key = localStorage.key(idx);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+            const text = localStorage.getItem(key),
+              headings = getHeadings(text);
+            if (headings.length) {
+              headings.forEach((h, hIdx) => {
+                const sectionEnd =
+                  hIdx + 1 < headings.length ? headings[hIdx + 1].start : text.length,
+                  sectionBody = text.slice(h.end, sectionEnd),
+                  fullSection = h.text + sectionBody;
+                normalizeForSearch(fullSection).includes(nq) &&
+                  results.push({
+                    date: key,
+                    headingIdx: hIdx,
+                    headingText: h.text,
+                    jumpPos: h.end,
+                    snippet: buildSnippet(fullSection, query),
+                  });
+              });
+            } else if (normalizeForSearch(text).includes(nq)) {
+              results.push({
+                date: key,
+                headingIdx: null,
+                headingText: null,
+                jumpPos: 0,
+                snippet: buildSnippet(text, query),
+              });
+            }
+          }
+          return results;
         },
-        F = (e) => {
-          const t = i.value,
-            a = highlightMatches(s.value, t);
-          (o.innerHTML = marked.parse(a)), (s.value = a);
+        renderSearchPaneResults = (query) => {
+          searchPaneResultsEl.innerHTML = "";
+          if (!query) return;
+          const results = searchAcrossDays(query);
+          if (!results.length) {
+            const empty = document.createElement("li");
+            (empty.className = "search-pane-empty"),
+              (empty.textContent = "該当する結果がありません"),
+              searchPaneResultsEl.appendChild(empty);
+            return;
+          }
+          results.forEach((r) => {
+            const li = document.createElement("li"),
+              dateLine = document.createElement("div"),
+              snippetLine = document.createElement("div");
+            (li.className = "search-pane-result"),
+              (dateLine.className = "search-result-date"),
+              (dateLine.textContent =
+                new Date(r.date).toLocaleDateString("ja-JP", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  weekday: "short",
+                }) + (r.headingText ? ` / ${r.headingText}` : "")),
+              (snippetLine.className = "search-result-snippet"),
+              (snippetLine.innerHTML = r.snippet),
+              li.appendChild(dateLine),
+              li.appendChild(snippetLine),
+              li.addEventListener("mouseenter", () => previewSearchResult(r)),
+              li.addEventListener("click", () => commitSearchResult(r)),
+              searchPaneResultsEl.appendChild(li);
+          });
         },
-        Y = (e, t) => {
-          const ne = normalizeForSearch(e),
-            nt = normalizeForSearch(t),
-            a = ne.indexOf(nt),
-            l = Math.max(a - 20, 0),
-            n = Math.min(a + nt.length + 20, e.length);
-          return e.substring(l, n);
+        previewSearchResult = (r) => {
+          if (document.activeElement === s) return;
+          const d = new Date(r.date);
+          T(d);
+          if (null === r.headingIdx) {
+            contentAreaEl.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+          const el = o.querySelectorAll("h1")[r.headingIdx];
+          el && el.scrollIntoView({ behavior: "smooth", block: "center" });
+        },
+        commitSearchResult = (r) => {
+          saveCurrentMemo(),
+            (f = new Date(r.date)),
+            T(f),
+            renderScheduleBar(),
+            O(s, !0),
+            O(o, !1),
+            s.focus(),
+            (s.selectionStart = s.selectionEnd = r.jumpPos || 0),
+            centerCaretInView(),
+            pullAndMerge();
+        },
+        openSearchPane = () => {
+          document.body.classList.remove("search-pane-collapsed"),
+            localStorage.setItem("searchPaneCollapsed", "0"),
+            searchPaneInputEl.focus();
         },
         H = () => {
           const kb =
@@ -1955,128 +2529,52 @@
           if (e.isComposing || 229 === e.keyCode) return;
           const { shiftKey: a, key: l, target: n } = e,
             tag = (n.tagName || "").toLowerCase();
-          if ("textarea" !== tag) {
-            if ("input" !== tag && !n.isContentEditable)
-              ["?", "o", "t", "f", "b", "[", "]", "s"].includes(l) &&
+          if ("textarea" !== tag && "input" !== tag && !n.isContentEditable) {
+            ["?", "o", "t", "f", "b", "[", "]", "s"].includes(l) &&
               e.preventDefault(),
-                "?" === l && U(!0),
-                "o" === l && r.click(),
-                "t" === l &&
-                ((f = new Date()), T(f), renderScheduleBar()),
-                "f" === l && (O(c, !0), i.focus()),
-                "b" === l && downloadBackup(),
-                "[" === l && K(0, 0, -1),
-                "]" === l && K(0, 0, 1),
-                "s" === l && (O(syncEls.modal, !0), refreshSyncUI());
+              "?" === l && U(!0),
+              "o" === l && r.click(),
+              "t" === l && ((f = new Date()), T(f), renderScheduleBar()),
+              "f" === l && openSearchPane(),
+              "b" === l && downloadBackup(),
+              "[" === l && K(0, 0, -1),
+              "]" === l && K(0, 0, 1),
+              "s" === l && (O(syncEls.modal, !0), refreshSyncUI());
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
-            else if ("block" === c.style.display) {
-              if (
-                (("ArrowDown" !== l && "ArrowUp" !== l) ||
-                  ((b =
-                    (b + ("ArrowDown" === l ? 1 : -1) + E.length) %
-                    E.length),
-                    (() => {
-                      const e =
-                        document.querySelectorAll("#searchResults li");
-                      e.forEach((e, t) => {
-                        e.classList.toggle("selected", t === b);
-                      });
-                      const t = e[b];
-                      t &&
-                        t.scrollIntoView({
-                          block: "center",
-                          behavior: "smooth",
-                        });
-                    })()),
-                  "Enter" === l && b >= 0 && b < E.length)
-              ) {
-                const e = new Date(E[b].date);
-                O(c, !1),
-                  (f = e),
-                  T(f),
-                  F(E[b].text),
-                  renderScheduleBar(),
-                  ((e, t) => {
-                    e.innerHTML = highlightMatches(e.innerHTML, t);
-                    const s = e.querySelector(".highlight");
-                    s &&
-                      s.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center",
-                      });
-                  })(o, i.value);
-              }
-            } else
+            else
               "ArrowLeft" === l && (K(-1, 0, 0, !0), playPitchForDate(f)),
                 "ArrowRight" === l && (K(1, 0, 0, !0), playPitchForDate(f)),
                 "ArrowUp" === l && K(-7),
                 "ArrowDown" === l && K(7);
             "Escape" === l &&
               (U(!1),
-                O(c, !1),
                 O(syncEls.modal, !1),
+                O(historyModalEl, !1),
                 stopQrScan(),
                 "block" == s.style.display && (O(s, !1), O(o, !0)));
           }
         }),
-        i.addEventListener("input", () => {
-          const e = i.value;
-          (E =
-            e.length > 0
-              ? ((e) =>
-                Array.from({ length: localStorage.length })
-                  .map((t, a) => {
-                    const l = localStorage.key(a),
-                      n = localStorage.getItem(l);
-                    return normalizeForSearch(n).includes(normalizeForSearch(e))
-                      ? { date: l, text: Y(n, e) }
-                      : null;
-                  })
-                  .filter(Boolean))(e)
-              : []),
-            ((e) => {
-              const t = i.value;
-              if (e.length > 0 && t.length > 0) {
-                showToast(`${e.length} 件の結果が見つかりました`, "info");
-              }
-              (d.innerHTML = e
-                .map((e, idx) => {
-                  const l = highlightMatches(e.text, t);
-                  return `<li class="${0 === idx ? "selected" : ""
-                    }">\n            <span class="date">${new Date(
-                      e.date
-                    ).toLocaleDateString("ja-JP", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      weekday: "long",
-                    })}</span>\n            <span class="text">...${l}...</span>\n          </li>`;
-                })
-                .join("")),
-                (b = e.length ? 0 : -1);
-            })(E);
+        searchPaneInputEl.addEventListener("input", () => {
+          renderSearchPaneResults(searchPaneInputEl.value);
         }),
-        d.addEventListener("click", (e) => {
-          if ("li" === e.target.tagName.toLowerCase()) {
-            const t = Array.prototype.indexOf.call(
-              d.children,
-              e.target.closest("li")
-            ),
-              a = new Date(E[t].date);
-            O(c, !1),
-              (f = a),
-              T(f),
-              F(E[t].text),
-              renderScheduleBar();
-          }
+        searchPaneInputEl.addEventListener("keydown", (e) => {
+          "Escape" === e.key &&
+            (searchPaneInputEl.blur(),
+              document.body.classList.add("search-pane-collapsed"),
+              localStorage.setItem("searchPaneCollapsed", "1"));
         }),
         s.addEventListener("input", () => {
           const e = f.toISOString().split("T")[0];
-          (sDirty = !0),
+          sessionSnapshotDone || (snapshotHistory(e, editBaseline), (sessionSnapshotDone = !0)),
+            (sDirty = !0),
             localStorage.setItem(e, s.value),
             clearTimeout(L),
             (L = setTimeout(saveCurrentMemo, 3e3)),
-            scrollCaretIntoView();
+            scrollCaretIntoView(),
+            renderToc();
+        }),
+        s.addEventListener("mouseleave", (e) => {
+          0 === e.buttons && document.activeElement === s && s.blur();
         }),
         s.addEventListener("blur", () => {
           saveCurrentMemo();
@@ -2231,6 +2729,25 @@
               collapsed ? "1" : "0"
             );
           }),
+        searchPaneToggleEl.addEventListener("click", () => {
+          const collapsed = document.body.classList.toggle(
+            "search-pane-collapsed"
+          );
+          localStorage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
+        }),
+        historyBtnEl.addEventListener("click", (e) => {
+          e.stopPropagation(), openHistoryModal();
+        }),
+        historySliderEl.addEventListener("input", renderHistoryPreview),
+        historyRestoreBtnEl.addEventListener("click", restoreHistoryVersion),
+        o.addEventListener("contextmenu", (e) => {
+          const h1 = e.target.closest("h1");
+          if (!h1 || !o.contains(h1)) return;
+          e.preventDefault();
+          const headers = Array.from(o.querySelectorAll("h1")),
+            idx = headers.indexOf(h1);
+          addH1Shortcut(f.toISOString().split("T")[0], idx, h1.textContent);
+        }),
         document
           .getElementById("menuTrigger")
           .addEventListener("click", (e) => {
@@ -2240,7 +2757,7 @@
           e.stopPropagation(), U(!1), window.moveToToday();
         }),
         document.getElementById("menuSearchBtn").addEventListener("click", (e) => {
-          e.stopPropagation(), U(!1), O(c, !0), i.focus();
+          e.stopPropagation(), U(!1), openSearchPane();
         }),
         document.getElementById("menuSyncBtn").addEventListener("click", (e) => {
           e.stopPropagation(), U(!1), O(syncEls.modal, !0), refreshSyncUI();
@@ -2276,14 +2793,15 @@
             "input" !== tag &&
             !e.target.isContentEditable &&
             "none" == s.style.display &&
-            "block" !== c.style.display &&
             "block" !== p.style.display &&
             "block" !== syncEls.modal.style.display &&
+            "block" !== historyModalEl.style.display &&
             (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
         }),
         document.addEventListener("DOMContentLoaded", () => {
           T(f);
           renderScheduleBar();
+          renderH1ShortcutBar();
           localStorage.getItem("privacyNoticeDismissed") &&
             (document.getElementById("privacyBanner").style.display = "none");
           // Week paneの初期折りたたみ状態(保存済みの設定 > 画面幅による自動判定)
@@ -2301,6 +2819,11 @@
             "schedule-bar-collapsed",
             "1" === localStorage.getItem("scheduleBarCollapsed")
           );
+          // 検索パネルの初期折りたたみ状態(保存済みの設定がなければ常に折りたたみ)
+          document.body.classList.toggle(
+            "search-pane-collapsed",
+            "0" !== localStorage.getItem("searchPaneCollapsed")
+          );
           // ページを開いたときは常に編集モードでカーソルをアクティブにする
           O(s, !0), O(o, !1);
           s.focus();
@@ -2315,6 +2838,11 @@
         });
       window.addEventListener("online", () => {
         pullAndMerge(), maybeSyncPush();
+      });
+      // ページ/タブが再びアクティブになったとき、サーバー側が新しければ取り込む
+      // (オンラインで未保存の変更がない前提。競合解決は行わない)
+      document.addEventListener("visibilitychange", () => {
+        "visible" === document.visibilityState && pullAndMerge();
       });
       // Expose moveToToday as global function
       window.moveToToday = function () {
