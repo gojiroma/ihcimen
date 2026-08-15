@@ -585,7 +585,7 @@
     }
 
     .schedule-cell.selected {
-      background-color: rgba(127, 127, 127, 0.15);
+      box-shadow: inset 0 0 0 2px rgba(80, 80, 80, 0.6);
     }
 
     .schedule-date {
@@ -1670,17 +1670,34 @@
           sb.innerHTML = "";
           const selectedKey = f.toISOString().split("T")[0];
           let selectedCell = null;
+          // 1周目: 各日の本文の文字数を集計し、ヒートマップの基準となる最大値を求める
+          const dayLens = [];
+          for (let i = -scheduleWindowDays; i <= scheduleWindowDays; i++) {
+            const d = new Date(f.getTime() + i * I),
+              key = d.toISOString().split("T")[0];
+            dayLens.push((localStorage.getItem(key) || "").length);
+          }
+          const maxDayLen = Math.max(1, ...dayLens);
           for (let i = -scheduleWindowDays; i <= scheduleWindowDays; i++) {
             const d = new Date(f.getTime() + i * I),
               key = d.toISOString().split("T")[0],
               year = d.getFullYear(),
               day = d.getDay(),
               holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
+              dayLen = dayLens[i + scheduleWindowDays],
+              heat = (dayLen / maxDayLen) * 0.5,
               cell = document.createElement("div");
-            cell.className = "schedule-cell";
+            (cell.className = "schedule-cell"),
+              (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`);
             key === selectedKey &&
               (cell.classList.add("selected"), (selectedCell = cell));
-            holidayName && cell.setAttribute("data-tooltip", holidayName);
+            holidayName
+              ? cell.setAttribute(
+                "data-tooltip",
+                dayLen > 0 ? `${holidayName} / ${dayLen} 文字` : holidayName
+              )
+              : dayLen > 0 &&
+              cell.setAttribute("data-tooltip", `${dayLen} 文字`);
             cell.addEventListener("mouseenter", () => previewScheduleDate(d));
             const dateLabel = document.createElement("div");
             (dateLabel.className = "schedule-date"),
