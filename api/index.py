@@ -51,8 +51,26 @@ def to_utc_iso8601(dt):
     return dt.astimezone(timezone.utc).isoformat()
 
 
-@app.route("/api/push", methods=["POST"])
+@app.route("/api/push", methods=["POST", "DELETE"])
 def push():
+    if request.method == "DELETE":
+        sync_id = request.args.get("sync_id", "")
+        if not SYNC_ID_RE.match(sync_id):
+            return jsonify(error="sync_id must be a 64-character hex string"), 400
+        try:
+            conn = get_connection()
+        except RuntimeError as err:
+            return jsonify(error=str(err)), 500
+        try:
+            ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM sync_blobs WHERE sync_id = %s", (sync_id,))
+                deleted = cur.rowcount
+            conn.commit()
+            return jsonify(deleted=deleted)
+        finally:
+            conn.close()
+
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return jsonify(error="invalid JSON body"), 400

@@ -30,6 +30,7 @@
       height: 100%;
       box-sizing: border-box;
       padding-right: 160px;
+      transition: padding-right 0.25s ease, padding-left 0.25s ease;
     }
 
     body.week-pane-collapsed .container {
@@ -37,7 +38,13 @@
     }
 
     body.week-pane-collapsed .week-pane {
-      display: none;
+      transform: translateX(100%);
+      pointer-events: none;
+    }
+
+    body.week-pane-collapsed.week-pane-peek .week-pane {
+      transform: translateX(0);
+      pointer-events: auto;
     }
 
     .week-pane-toggle {
@@ -56,6 +63,7 @@
       border-radius: 4px 0 0 4px;
       cursor: pointer;
       padding: 10px 4px;
+      transition: right 0.25s ease, opacity 0.2s ease;
     }
 
     .week-pane-toggle:hover {
@@ -66,8 +74,18 @@
       right: 0;
     }
 
+    body.week-pane-collapsed.week-pane-peek .week-pane-toggle {
+      right: 160px;
+    }
+
     body.schedule-bar-collapsed .schedule-bar {
-      display: none;
+      transform: translateY(100%);
+      pointer-events: none;
+    }
+
+    body.schedule-bar-collapsed.schedule-bar-peek .schedule-bar {
+      transform: translateY(0);
+      pointer-events: auto;
     }
 
     body.schedule-bar-collapsed .content-area {
@@ -94,6 +112,7 @@
       padding: 0;
       opacity: 0.55;
       touch-action: none;
+      transition: bottom 0.25s ease, transform 0.25s ease, opacity 0.2s ease;
     }
 
     .schedule-bar-toggle:hover {
@@ -113,6 +132,11 @@
       transform: translate(-50%, 0);
     }
 
+    body.schedule-bar-collapsed.schedule-bar-peek .schedule-bar-toggle {
+      bottom: 100px;
+      transform: translate(-50%, 50%);
+    }
+
     /* 下段カレンダーの全画面モード(ノブを上にドラッグ) */
     body.schedule-bar-fullscreen .menu-trigger,
     body.schedule-bar-fullscreen .history-btn,
@@ -127,8 +151,8 @@
 
     body.schedule-bar-fullscreen .schedule-bar {
       display: flex;
-      top: 0;
-      height: auto;
+      height: 100vh;
+      transform: translateY(0);
       flex-wrap: wrap;
       align-content: flex-start;
       overflow-y: auto;
@@ -166,6 +190,14 @@
       flex-shrink: 0;
       margin-top: 20px;
       margin-bottom: 20px;
+      cursor: pointer;
+      touch-action: pan-y;
+      opacity: 1;
+      transition: opacity 0.15s ease;
+    }
+
+    .date-display:hover {
+      opacity: 0.7;
     }
 
     .date-display .year {
@@ -231,46 +263,6 @@
       left: 250px;
     }
 
-    .menu-actions {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 8px;
-      margin: 16px 0;
-    }
-
-    .menu-actions button {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font: inherit;
-      font-size: 14px;
-      padding: 8px 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      background: none;
-      color: inherit;
-      cursor: pointer;
-    }
-
-    .menu-actions button svg {
-      flex-shrink: 0;
-    }
-
-    .menu-actions button span {
-      flex: 1;
-      text-align: left;
-    }
-
-    .menu-actions button kbd {
-      font-family: inherit;
-      font-size: 11px;
-      line-height: 1;
-      border: 1px solid currentColor;
-      border-radius: 3px;
-      padding: 2px 5px;
-      opacity: 0.6;
-    }
-
     .menu-drawer details {
       margin-top: 10px;
       padding: 6px 0;
@@ -281,6 +273,197 @@
       cursor: pointer;
       font-weight: 700;
       padding: 4px 0;
+    }
+
+    .menu-inline-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .menu-inline-btn {
+      font: inherit;
+      font-size: 13px;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .menu-danger-btn {
+      color: #c0392b;
+      border-color: #c0392b;
+    }
+
+    /* 同期パネル(メニュー内インライン) */
+    .sync-panel {
+      margin-top: 10px;
+    }
+
+    .sync-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .sync-toggle {
+      position: relative;
+      flex-shrink: 0;
+      width: 44px;
+      height: 24px;
+      box-sizing: border-box;
+      border-radius: 12px;
+      border: 1px solid #ccc;
+      background: none;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .sync-toggle-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background-color: currentColor;
+      opacity: 0.5;
+      transition: left 0.15s ease, opacity 0.15s ease;
+    }
+
+    .sync-toggle[aria-checked="true"] .sync-toggle-knob {
+      left: 22px;
+      opacity: 1;
+    }
+
+    .sync-note {
+      font-size: 13px;
+      opacity: 0.75;
+      margin: 10px 0 0;
+    }
+
+    #syncStartChoice,
+    #syncOnPanel,
+    #syncContinuePanel {
+      display: none;
+    }
+
+    #syncQrCanvas {
+      max-width: 100%;
+      margin-top: 10px;
+    }
+
+    .sync-seed-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-size: 13px;
+    }
+
+    #syncSeedText,
+    #syncSeedInput {
+      flex: 1;
+      min-width: 120px;
+      font: inherit;
+      font-size: 13px;
+      padding: 5px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 4px;
+      background-color: var(--bg-color);
+      color: inherit;
+      box-sizing: border-box;
+    }
+
+    #syncContinuePanel p {
+      font-size: 13px;
+      opacity: 0.75;
+      margin: 10px 0 6px;
+    }
+
+    #syncContinuePanel #syncSeedInput {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .sync-sub-detail {
+      margin-top: 12px;
+      padding: 6px 0 0;
+      border-top: 1px solid rgba(128, 128, 128, 0.2);
+    }
+
+    .sync-sub-detail summary {
+      cursor: pointer;
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    .sync-sub-detail ul {
+      font-size: 13px;
+    }
+
+    /* QRスキャン(全画面) */
+    .sync-scan-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 1500;
+      background-color: #000;
+    }
+
+    .sync-scan-overlay.active {
+      display: block;
+    }
+
+    #syncScanVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .sync-scan-hint {
+      position: absolute;
+      top: 24px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: #fff;
+      font-size: 14px;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
+    }
+
+    .sync-scan-cancel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      border: none;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .sync-scan-manual {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(255, 255, 255, 0.9);
+      color: #111;
+      border: none;
+      border-radius: 20px;
+      padding: 10px 20px;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
     }
 
     .schedule-cell[data-tooltip]::after {
@@ -571,6 +754,7 @@
       border-top: 1px solid #ddd;
       background-color: var(--bg-color);
       z-index: 400;
+      transition: height 0.25s ease, transform 0.25s ease;
     }
 
     .schedule-cell {
@@ -583,6 +767,7 @@
       display: flex;
       flex-direction: column;
       gap: 6px;
+      transition: height 0.25s ease;
     }
 
     .schedule-cell.selected {
@@ -646,6 +831,7 @@
       border-left: 1px solid #ddd;
       background-color: var(--bg-color);
       z-index: 400;
+      transition: transform 0.25s ease;
     }
 
     .week-cell {
@@ -715,6 +901,13 @@
 
     body.week-pane-collapsed .toc-panel {
       right: 20px;
+    }
+
+    /* 画面幅が狭いと本文と重なってしまうため非表示にする */
+    @media (max-width: 900px) {
+      .toc-panel {
+        display: none;
+      }
     }
 
     .toc-panel ul {
@@ -862,10 +1055,17 @@
       border-right: 1px solid #ddd;
       background-color: var(--bg-color);
       z-index: 400;
+      transition: transform 0.25s ease;
     }
 
     body.search-pane-collapsed .search-pane {
-      display: none;
+      transform: translateX(-100%);
+      pointer-events: none;
+    }
+
+    body.search-pane-collapsed.search-pane-peek .search-pane {
+      transform: translateX(0);
+      pointer-events: auto;
     }
 
     .search-pane-toggle {
@@ -885,6 +1085,7 @@
       cursor: pointer;
       padding: 10px 4px;
       writing-mode: vertical-rl;
+      transition: left 0.25s ease, opacity 0.2s ease;
     }
 
     .search-pane-toggle:hover {
@@ -893,6 +1094,10 @@
 
     body.search-pane-collapsed .search-pane-toggle {
       left: 0;
+    }
+
+    body.search-pane-collapsed.search-pane-peek .search-pane-toggle {
+      left: 240px;
     }
 
     .search-input-wrap {
@@ -1001,13 +1206,13 @@
         <circle cx="10" cy="10" r="7" />
         <line x1="21" y1="21" x2="15.5" y2="15.5" />
       </svg>
-      <input type="text" id="searchPaneInput" placeholder="検索" />
+      <input type="text" id="searchPaneInput" placeholder="検索 (fキー)" />
     </div>
     <ul id="searchPaneResults"></ul>
   </div>
   <button id="searchPaneToggle" class="search-pane-toggle" type="button">検索</button>
   <div class="container">
-    <div class="date-display" id="dateDisplay" onclick="moveToToday()">
+    <div class="date-display" id="dateDisplay" title="クリックで今日に移動">
       <span class="year" id="yearDisplay">YYYY</span>
       <span class="month-day" id="monthDayDisplay">MM/DD</span>
       <span class="weekday" id="weekdayDisplay">EEEE</span>
@@ -1035,90 +1240,13 @@
   <div id="shortcutModal" class="search-modal close-on-click-outside">
     <div class="search-modal-content menu-drawer">
       <h2>メニュー</h2>
-      <div class="menu-actions">
-        <button id="menuTodayBtn" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="5" width="18" height="16" rx="2" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-            <line x1="8" y1="3" x2="8" y2="7" />
-            <line x1="16" y1="3" x2="16" y2="7" />
-          </svg>
-          <span>今日</span>
-          <kbd>t</kbd>
-        </button>
-        <button id="menuSearchBtn" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="10" cy="10" r="7" />
-            <line x1="21" y1="21" x2="15.5" y2="15.5" />
-          </svg>
-          <span>検索</span>
-          <kbd>f</kbd>
-        </button>
-        <button id="menuSyncBtn" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M17 2.1l4 4-4 4" />
-            <path d="M3 12.1v-2a4 4 0 0 1 4-4h14" />
-            <path d="M7 21.9l-4-4 4-4" />
-            <path d="M21 11.9v2a4 4 0 0 1-4 4H3" />
-          </svg>
-          <span>同期</span>
-          <kbd>s</kbd>
-        </button>
-        <button id="menuDownloadBtn" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v12" />
-            <path d="M7 10l5 5 5-5" />
-            <path d="M4 20h16" />
-          </svg>
-          <span>保存</span>
-          <kbd>b</kbd>
-        </button>
-        <button id="menuUploadBtn" type="button">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 21V9" />
-            <path d="M7 14l5-5 5 5" />
-            <path d="M4 4h16" />
-          </svg>
-          <span>読込</span>
-          <kbd>o</kbd>
-        </button>
-      </div>
       <details>
         <summary>マウス操作</summary>
         <ul>
-          <li>
-            <strong>本文クリック:</strong>
-            表示されている本文をクリックすると、編集モードになります。
-          </li>
-          <li>
-            <strong>下段カレンダー:</strong>
-            画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。中央のノブはクリックで開閉、上にドラッグするとカレンダーだけを全画面表示できます(下にドラッグ、またはクリックで戻ります)。
-          </li>
-          <li>
-            <strong>右側のWeek pane:</strong>
-            画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。端の「週」タブをクリックすると折りたたみ/展開できます。
-          </li>
-          <li>
-            <strong>左側の検索パネル:</strong>
-            画面左端の「検索」タブをクリックすると検索パネルが開きます。キーワードを入力すると、見出し(h1)単位で該当箇所が一覧表示されます。結果にカーソルを合わせるとその見出しへプレビュー移動し、クリックするとその日付に移動して見出し直後にカーソルが入ります。
-          </li>
-          <li>
-            <strong>目次:</strong>
-            本文内に見出し(# で始まる行)があると、右下に目次が表示されます。項目にカーソルを合わせると、閲覧モードならその見出しへスクロール、編集モードならその位置へカーソルが移動します。
-          </li>
-          <li>
-            <strong>見出しのショートカット:</strong>
-            閲覧モードで見出し(h1)を右クリックすると、本文エリア右上にショートカットを追加できます。カーソルを合わせるとその日の見出しへ移動します。×で削除できます。
-          </li>
-          <li>
-            <strong>バージョン履歴:</strong>
-            左上の時計アイコンから、その日の過去のバージョンをスライダーで遡って確認し、必要であれば上書きできます。
-          </li>
+          <li>本文はクリックで編集モードに切り替わります。</li>
+          <li>下段カレンダーはノブのクリックで開閉、上へドラッグで全画面表示になります(下へドラッグ/クリックで戻ります)。</li>
+          <li>右のWeek pane・左の検索パネルは端のタブで開閉、ノブへのホバーで一時的にプレビューできます。</li>
+          <li>目次・見出しのショートカット・バージョン履歴は、本文エリア右下/右上/左上のアイコンから利用できます。</li>
         </ul>
       </details>
       <details>
@@ -1131,9 +1259,6 @@
           <li><strong>? :</strong> このメニューを表示</li>
           <li><strong>t :</strong> 今日の日付に移動</li>
           <li><strong>f :</strong> 検索パネルを開く</li>
-          <li><strong>o :</strong> バックアップデータを取り込む</li>
-          <li><strong>b :</strong> バックアップデータをダウンロード</li>
-          <li><strong>s :</strong> 同期設定を表示</li>
         </ul>
         <h4>日付移動</h4>
         <ul>
@@ -1148,39 +1273,93 @@
         </ul>
         <h4>その他</h4>
         <ul>
-          <li><strong>Esc :</strong> このウィンドウを閉じる</li>
+          <li><strong>Esc :</strong> このウィンドウ(や全画面カレンダー)を閉じる</li>
         </ul>
       </details>
       <details>
         <summary>データのバックアップと復元</summary>
         <ul>
           <li>
-            「バックアップを保存」でメモ全体をJSONファイルとしてダウンロードできます。定期的に保存しておくことをおすすめします。
+            「エクスポート」でメモ全体をJSONファイルとしてダウンロードできます。定期的に保存しておくことをおすすめします。
           </li>
           <li>
-            別のブラウザや端末でJSONを読み込むには、「バックアップを読み込む」からファイルを選択します。
+            別のブラウザや端末でJSONを読み込むには「インポート」からファイルを選択します。
           </li>
           <li>
             タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
           </li>
         </ul>
+        <div class="menu-inline-actions">
+          <button id="backupExportBtn" type="button" class="menu-inline-btn">
+            エクスポート
+          </button>
+          <button id="backupImportBtn" type="button" class="menu-inline-btn">
+            インポート
+          </button>
+        </div>
+        <div class="menu-inline-actions">
+          <button id="resetAllBtn" type="button" class="menu-inline-btn menu-danger-btn">
+            すべてリセット
+          </button>
+        </div>
+        <p class="sync-note">
+          この端末とサーバー上のデータを削除して初期状態に戻します。先に自動でエクスポートします。
+        </p>
       </details>
       <details>
         <summary>同期とプライバシー</summary>
-        <ul>
-          <li>
-            同期は初期状態では無効です。「同期設定」から「同期を有効にする」を押すと使えるようになります。
-          </li>
-          <li>
-            同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
-          </li>
-          <li>
-            別の端末で同じデータを見るには、QRコードを読み取るか、シードの文字列を貼り付けて引き継いでください。シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
-          </li>
-          <li>
-            7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。
-          </li>
-        </ul>
+        <div class="sync-panel">
+          <div class="sync-toggle-row">
+            <span>同期</span>
+            <button id="syncToggleBtn" class="sync-toggle" type="button" role="switch" aria-checked="false">
+              <span class="sync-toggle-knob"></span>
+            </button>
+          </div>
+          <p id="syncOffNote" class="sync-note">
+            メモはこの端末のブラウザにのみ保存されています。ブラウザのデータを消去したりリセットすると失われるため、「データのバックアップと復元」からのエクスポートで定期的に控えを取っておくと安心です。
+          </p>
+          <div id="syncStartChoice" class="menu-inline-actions">
+            <button id="syncStartFreshBtn" type="button" class="menu-inline-btn">
+              はじめから
+            </button>
+            <button id="syncStartContinueBtn" type="button" class="menu-inline-btn">
+              つづきから
+            </button>
+          </div>
+          <div id="syncOnPanel">
+            <canvas id="syncQrCanvas"></canvas>
+            <p class="sync-seed-row">
+              シード:
+              <input type="text" id="syncSeedText" readonly />
+              <button id="syncCopyBtn" type="button" class="menu-inline-btn">
+                コピー
+              </button>
+            </p>
+          </div>
+          <div id="syncContinuePanel">
+            <p>
+              別の端末のシードをQRコードで読み取るか、下に貼り付けてください。
+            </p>
+            <input type="text" id="syncSeedInput" placeholder="シードを貼り付け" />
+            <button id="syncImportBtn" type="button" class="menu-inline-btn">
+              読み込む
+            </button>
+          </div>
+          <details class="sync-sub-detail">
+            <summary>同期の仕組み</summary>
+            <ul>
+              <li>
+                同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
+              </li>
+              <li>
+                シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
+              </li>
+              <li>
+                7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。削除された後にこの端末を開くと、ローカルに残っているデータから自動的に復元されます。その後は、本文を編集するたびに再びサーバーへ同期されます。
+              </li>
+            </ul>
+          </details>
+        </div>
       </details>
     </div>
   </div>
@@ -1193,31 +1372,16 @@
       <button id="historyRestoreBtn" type="button">このバージョンで上書き</button>
     </div>
   </div>
-  <div id="syncModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content">
-      <h2>同期設定</h2>
-      <p id="syncStatus">同期は無効です</p>
-      <button id="syncEnableBtn">同期を有効にする</button>
-      <button id="syncDisableBtn">同期を無効にする</button>
-      <div id="syncQrContainer">
-        <canvas id="syncQrCanvas"></canvas>
-      </div>
-      <p>
-        シード:
-        <input type="text" id="syncSeedText" readonly />
-        <button id="syncCopyBtn">コピー</button>
-      </p>
-      <h3>別の端末から引き継ぐ</h3>
-      <p>
-        <input type="text" id="syncSeedInput" placeholder="シードを貼り付け" />
-        <button id="syncImportBtn">読み込む</button>
-      </p>
-      <p>
-        <button id="syncScanBtn">カメラでQRを読み取る</button>
-      </p>
-      <video id="syncScanVideo" playsinline style="display: none"></video>
-      <canvas id="syncScanCanvas" style="display: none"></canvas>
-    </div>
+  <div id="syncScanOverlay" class="sync-scan-overlay">
+    <video id="syncScanVideo" playsinline></video>
+    <canvas id="syncScanCanvas" style="display: none"></canvas>
+    <div class="sync-scan-hint">QRコードをカメラに写してください</div>
+    <button id="syncScanCancelBtn" type="button" class="sync-scan-cancel" aria-label="閉じる">
+      ×
+    </button>
+    <button id="syncScanManualBtn" type="button" class="sync-scan-manual">
+      手動でシードを入力する
+    </button>
   </div>
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
@@ -1258,20 +1422,25 @@
           scheduleBar: sb,
           weekPane: wp,
         } = e,
-        syncEls = {
-          modal: document.getElementById("syncModal"),
-          status: document.getElementById("syncStatus"),
-          enableBtn: document.getElementById("syncEnableBtn"),
-          disableBtn: document.getElementById("syncDisableBtn"),
-          qrCanvas: document.getElementById("syncQrCanvas"),
-          seedText: document.getElementById("syncSeedText"),
-          copyBtn: document.getElementById("syncCopyBtn"),
-          seedInput: document.getElementById("syncSeedInput"),
-          importBtn: document.getElementById("syncImportBtn"),
-          scanBtn: document.getElementById("syncScanBtn"),
-          scanVideo: document.getElementById("syncScanVideo"),
-          scanCanvas: document.getElementById("syncScanCanvas"),
-        },
+        syncToggleBtnEl = document.getElementById("syncToggleBtn"),
+        syncOffNoteEl = document.getElementById("syncOffNote"),
+        syncStartChoiceEl = document.getElementById("syncStartChoice"),
+        syncStartFreshBtnEl = document.getElementById("syncStartFreshBtn"),
+        syncStartContinueBtnEl = document.getElementById(
+          "syncStartContinueBtn"
+        ),
+        syncOnPanelEl = document.getElementById("syncOnPanel"),
+        syncQrCanvasEl = document.getElementById("syncQrCanvas"),
+        syncSeedTextEl = document.getElementById("syncSeedText"),
+        syncCopyBtnEl = document.getElementById("syncCopyBtn"),
+        syncContinuePanelEl = document.getElementById("syncContinuePanel"),
+        syncSeedInputEl = document.getElementById("syncSeedInput"),
+        syncImportBtnEl = document.getElementById("syncImportBtn"),
+        syncScanOverlayEl = document.getElementById("syncScanOverlay"),
+        syncScanVideoEl = document.getElementById("syncScanVideo"),
+        syncScanCanvasEl = document.getElementById("syncScanCanvas"),
+        syncScanCancelBtnEl = document.getElementById("syncScanCancelBtn"),
+        syncScanManualBtnEl = document.getElementById("syncScanManualBtn"),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -1873,7 +2042,18 @@
               );
             if (!res.ok) throw new Error("pull failed: " + res.status);
             const body = await res.json();
-            if (!body.found) return void markSyncHealthy(!0);
+            if (!body.found) {
+              // サーバー側に何もない(初回、または7日間の未同期で削除された)場合、
+              // ローカルに実データがあれば直ちに復元(再push)しておく。
+              const local = collectSyncableData();
+              return (
+                (Object.keys(local.entries).length ||
+                  Object.keys(local.notes).length ||
+                  Object.keys(local.weekNotes).length) &&
+                (await doSyncPush(seed)),
+                void markSyncHealthy(!0)
+              );
+            }
             const localUpdatedAt = localStorage.getItem("syncLastUpdatedAt");
             if (
               localUpdatedAt &&
@@ -1886,6 +2066,7 @@
               localStorage.setItem("syncLastUpdatedAt", body.updated_at),
               !sDirty && A(f),
               renderScheduleBar(),
+              renderH1ShortcutBar(),
               markSyncHealthy(!0);
           } catch (err) {
             markSyncHealthy(!1);
@@ -1969,6 +2150,28 @@
             document.body.removeChild(link),
             URL.revokeObjectURL(url),
             showToast(`バックアップをダウンロードしました (${Object.keys(data).length} 件)`, "success");
+        },
+        resetEverything = async () => {
+          if (
+            !confirm(
+              "この端末とサーバー上のデータをすべて削除して初期状態に戻します。先に現在のデータをエクスポートします。よろしいですか?"
+            )
+          )
+            return;
+          downloadBackup();
+          const seed = getSyncSeed();
+          if (seed && navigator.onLine)
+            try {
+              const syncId = await deriveSyncId(seed);
+              await fetchWithTimeout(
+                `/api/push?sync_id=${syncId}`,
+                { method: "DELETE" },
+                8000
+              );
+            } catch (err) { }
+          setTimeout(() => {
+            localStorage.clear(), location.reload();
+          }, 500);
         },
         // --- 同期: シード / 暗号化 / QRコード ---
         SYNC_ID_INFO = new TextEncoder().encode("ihcimen-sync-id-v1"),
@@ -2063,7 +2266,12 @@
                 : key.startsWith("weeknote:") &&
                 (weekNotes[key.slice(9)] = localStorage.getItem(key));
           }
-          return { entries, notes, weekNotes };
+          return {
+            entries,
+            notes,
+            weekNotes,
+            h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
+          };
         },
         applySyncedData = (data) => {
           Object.entries(data.entries || {}).forEach(([k, v]) =>
@@ -2074,48 +2282,51 @@
             ),
             Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
               localStorage.setItem(`weeknote:${k}`, v)
-            );
+            ),
+            "string" == typeof data.h1Shortcuts &&
+            localStorage.setItem("h1Shortcuts", data.h1Shortcuts);
         },
         getSyncSeed = () => localStorage.getItem("syncSeed"),
         setSyncSeed = (seed) => localStorage.setItem("syncSeed", seed),
         clearSyncSeed = () => localStorage.removeItem("syncSeed"),
         renderSyncQr = (seed) => {
           window.QRCode &&
-            QRCode.toCanvas(syncEls.qrCanvas, seed, { width: 200 }, (err) => {
+            QRCode.toCanvas(syncQrCanvasEl, seed, { width: 200 }, (err) => {
               err && console.error(err);
             });
         },
-        refreshSyncUI = () => {
-          const seed = getSyncSeed();
-          seed
-            ? ((syncEls.status.textContent = "同期は有効です"),
-              (syncEls.seedText.value = seed),
-              renderSyncQr(seed))
-            : ((syncEls.status.textContent = "同期は無効です"),
-              (syncEls.seedText.value = ""));
+        renderSyncPanel = () => {
+          const seed = getSyncSeed(),
+            on = !!seed;
+          syncToggleBtnEl.setAttribute("aria-checked", on ? "true" : "false"),
+            O(syncOffNoteEl, !on),
+            O(syncStartChoiceEl, !1),
+            O(syncOnPanelEl, on),
+            O(syncContinuePanelEl, !1),
+            on && ((syncSeedTextEl.value = seed), renderSyncQr(seed));
         },
         enableSync = () => {
           getSyncSeed() || setSyncSeed(generateSeed()),
-            refreshSyncUI(),
+            renderSyncPanel(),
             showToast("同期を有効にしました", "success");
         },
         disableSync = () => {
           clearSyncSeed(),
-            refreshSyncUI(),
+            renderSyncPanel(),
             showToast("同期を無効にしました。ローカルの日誌はそのまま残ります", "info");
         },
         importSyncSeed = (seed) => {
           (seed = (seed || "").trim()),
             seed &&
             (setSyncSeed(seed),
-              refreshSyncUI(),
+              renderSyncPanel(),
               showToast("シードを読み込みました", "success"));
         },
         stopQrScan = () => {
           syncScanStream &&
             (syncScanStream.getTracks().forEach((t) => t.stop()),
               (syncScanStream = null)),
-            (syncEls.scanVideo.style.display = "none");
+            syncScanOverlayEl.classList.remove("active");
         },
         startQrScan = async () => {
           try {
@@ -2129,20 +2340,20 @@
             );
             return;
           }
-          (syncEls.scanVideo.srcObject = syncScanStream),
-            (syncEls.scanVideo.style.display = "block"),
-            await syncEls.scanVideo.play();
-          const ctx = syncEls.scanCanvas.getContext("2d"),
+          (syncScanVideoEl.srcObject = syncScanStream),
+            syncScanOverlayEl.classList.add("active"),
+            await syncScanVideoEl.play();
+          const ctx = syncScanCanvasEl.getContext("2d"),
             scanFrame = () => {
               if (!syncScanStream) return;
               if (
-                syncEls.scanVideo.readyState === syncEls.scanVideo.HAVE_ENOUGH_DATA
+                syncScanVideoEl.readyState === syncScanVideoEl.HAVE_ENOUGH_DATA
               ) {
-                (syncEls.scanCanvas.width = syncEls.scanVideo.videoWidth),
-                  (syncEls.scanCanvas.height = syncEls.scanVideo.videoHeight);
-                const w = syncEls.scanCanvas.width,
-                  h = syncEls.scanCanvas.height;
-                ctx.drawImage(syncEls.scanVideo, 0, 0, w, h);
+                (syncScanCanvasEl.width = syncScanVideoEl.videoWidth),
+                  (syncScanCanvasEl.height = syncScanVideoEl.videoHeight);
+                const w = syncScanCanvasEl.width,
+                  h = syncScanCanvasEl.height;
+                ctx.drawImage(syncScanVideoEl, 0, 0, w, h);
                 const imageData = ctx.getImageData(0, 0, w, h),
                   code =
                     window.jsQR && jsQR(imageData.data, w, h);
@@ -2503,6 +2714,17 @@
           sb.appendChild(frag),
             (scheduleLatest = new Date(scheduleLatest.getTime() + days * I));
         },
+        // 画面がとても大きいと、初期表示だけでは全画面カレンダーが
+        // スクロール可能にならず(=無限スクロールの入口である scroll
+        // イベントが一度も発火しない)ため、あふれるまで先読みで
+        // 補充しておく。
+        fillScheduleBarFullscreen = () => {
+          if (!document.body.classList.contains("schedule-bar-fullscreen"))
+            return;
+          let guard = 0;
+          for (; sb.scrollHeight <= sb.clientHeight + 50 && guard < 30; guard++)
+            extendScheduleBarEnd();
+        },
         K = (e, t = 0, a = 0, l = !1) => {
           saveCurrentMemo();
           const s = Object.keys(localStorage)
@@ -2576,16 +2798,12 @@
           const { shiftKey: a, key: l, target: n } = e,
             tag = (n.tagName || "").toLowerCase();
           if ("textarea" !== tag && "input" !== tag && !n.isContentEditable) {
-            ["?", "o", "t", "f", "b", "[", "]", "s"].includes(l) &&
-              e.preventDefault(),
+            ["?", "t", "f", "[", "]"].includes(l) && e.preventDefault(),
               "?" === l && U(!0),
-              "o" === l && r.click(),
               "t" === l && ((f = new Date()), T(f), renderScheduleBar()),
               "f" === l && openSearchPane(),
-              "b" === l && downloadBackup(),
               "[" === l && K(0, 0, -1),
-              "]" === l && K(0, 0, 1),
-              "s" === l && (O(syncEls.modal, !0), refreshSyncUI());
+              "]" === l && K(0, 0, 1);
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
             else
               "ArrowLeft" === l && (K(-1, 0, 0, !0), playPitchForDate(f)),
@@ -2594,9 +2812,9 @@
                 "ArrowDown" === l && K(7);
             "Escape" === l &&
               (U(!1),
-                O(syncEls.modal, !1),
                 O(historyModalEl, !1),
                 stopQrScan(),
+                document.body.classList.remove("schedule-bar-fullscreen"),
                 "block" == s.style.display && (O(s, !1), O(o, !0)));
           }
         }),
@@ -2739,9 +2957,18 @@
         o.addEventListener("click", () => {
           O(s, !0), O(o, !1), s.focus();
         }),
-        syncEls.enableBtn.addEventListener("click", enableSync),
-        syncEls.disableBtn.addEventListener("click", disableSync),
-        syncEls.copyBtn.addEventListener("click", () => {
+        syncToggleBtnEl.addEventListener("click", () => {
+          getSyncSeed()
+            ? disableSync()
+            : O(syncStartChoiceEl, !0);
+        }),
+        syncStartFreshBtnEl.addEventListener("click", enableSync),
+        syncStartContinueBtnEl.addEventListener("click", () => {
+          O(syncStartChoiceEl, !1),
+            O(syncContinuePanelEl, !0),
+            startQrScan();
+        }),
+        syncCopyBtnEl.addEventListener("click", () => {
           const seed = getSyncSeed();
           seed &&
             navigator.clipboard
@@ -2749,16 +2976,96 @@
               .then(() => showToast("シードをコピーしました", "success"))
               .catch(() => showToast("コピーに失敗しました", "error"));
         }),
-        syncEls.importBtn.addEventListener("click", () => {
-          importSyncSeed(syncEls.seedInput.value), (syncEls.seedInput.value = "");
+        syncImportBtnEl.addEventListener("click", () => {
+          importSyncSeed(syncSeedInputEl.value), (syncSeedInputEl.value = "");
         }),
-        syncEls.scanBtn.addEventListener("click", startQrScan),
+        syncScanCancelBtnEl.addEventListener("click", stopQrScan),
+        syncScanManualBtnEl.addEventListener("click", () => {
+          stopQrScan(), syncSeedInputEl.focus();
+        }),
         document
           .getElementById("privacyBannerDismiss")
           .addEventListener("click", () => {
             localStorage.setItem("privacyNoticeDismissed", "1"),
               (document.getElementById("privacyBanner").style.display = "none");
           }),
+        document
+          .querySelector(".container")
+          .addEventListener("click", (e) => {
+            // date-display / content-area 以外の余白タップで
+            // ブラウザ自体のフルスクリーン表示を切り替える。
+            e.target === e.currentTarget &&
+              (document.fullscreenElement
+                ? document.exitFullscreen().catch(() => { })
+                : document.documentElement
+                  .requestFullscreen()
+                  .catch(() => { }));
+          }),
+        (() => {
+          // タッチデバイスでは日付表示を左右にドラッグすると1日前後できる
+          // (パラパラめくる感覚)。クリックは今日へ移動。
+          const SWIPE_THRESHOLD = 40;
+          let startX = null,
+            startY = null,
+            dragMoved = !1;
+          dd.addEventListener("pointerdown", (e) => {
+            "touch" === e.pointerType &&
+              ((startX = e.clientX), (startY = e.clientY), (dragMoved = !1));
+          }),
+            dd.addEventListener("pointermove", (e) => {
+              if (
+                null === startX ||
+                dragMoved ||
+                "touch" !== e.pointerType
+              )
+                return;
+              const dx = e.clientX - startX,
+                dy = e.clientY - startY;
+              Math.abs(dx) > SWIPE_THRESHOLD &&
+                Math.abs(dx) > Math.abs(dy) &&
+                ((dragMoved = !0),
+                  K(dx > 0 ? -1 : 1, 0, 0, !0),
+                  playPitchForDate(f));
+            }),
+            dd.addEventListener("pointerup", () => {
+              startX = null;
+            }),
+            dd.addEventListener("click", () => {
+              if (dragMoved) return void (dragMoved = !1);
+              window.moveToToday();
+            });
+        })(),
+        (() => {
+          // ノブ/タブにホバーすると、折りたたみ中のPaneを一時的にプレビュー表示する。
+          // ノブからPane自体へマウスを移動する間も消えないよう、少し遅延して隠す。
+          const setupPeek = (toggleEl, paneEl, peekClass) => {
+            let hideTimer = null;
+            const show = () => {
+              clearTimeout(hideTimer), document.body.classList.add(peekClass);
+            },
+              scheduleHide = () => {
+                hideTimer = setTimeout(
+                  () => document.body.classList.remove(peekClass),
+                  200
+                );
+              };
+            toggleEl.addEventListener("mouseenter", show),
+              toggleEl.addEventListener("mouseleave", scheduleHide),
+              paneEl.addEventListener("mouseenter", show),
+              paneEl.addEventListener("mouseleave", scheduleHide);
+          };
+          setupPeek(
+            document.getElementById("weekPaneToggle"),
+            wp,
+            "week-pane-peek"
+          ),
+            setupPeek(
+              document.getElementById("scheduleBarToggle"),
+              sb,
+              "schedule-bar-peek"
+            ),
+            setupPeek(searchPaneToggleEl, document.getElementById("searchPane"), "search-pane-peek");
+        })(),
         document
           .getElementById("weekPaneToggle")
           .addEventListener("click", () => {
@@ -2794,6 +3101,7 @@
                   document.body.classList.remove("schedule-bar-collapsed"),
                   (dragTriggered = !0),
                   requestAnimationFrame(() => {
+                    fillScheduleBarFullscreen();
                     const selectedCell = sb.querySelector(
                       ".schedule-cell.selected"
                     );
@@ -2856,22 +3164,16 @@
           .addEventListener("click", (e) => {
             e.stopPropagation(), U(!0);
           }),
-        document.getElementById("menuTodayBtn").addEventListener("click", (e) => {
-          e.stopPropagation(), U(!1), window.moveToToday();
-        }),
-        document.getElementById("menuSearchBtn").addEventListener("click", (e) => {
-          e.stopPropagation(), U(!1), openSearchPane();
-        }),
-        document.getElementById("menuSyncBtn").addEventListener("click", (e) => {
-          e.stopPropagation(), U(!1), O(syncEls.modal, !0), refreshSyncUI();
-        }),
         document
-          .getElementById("menuDownloadBtn")
+          .getElementById("backupExportBtn")
           .addEventListener("click", (e) => {
             e.stopPropagation(), U(!1), downloadBackup();
           }),
-        document.getElementById("menuUploadBtn").addEventListener("click", (e) => {
+        document.getElementById("backupImportBtn").addEventListener("click", (e) => {
           e.stopPropagation(), U(!1), r.click();
+        }),
+        document.getElementById("resetAllBtn").addEventListener("click", (e) => {
+          e.stopPropagation(), resetEverything();
         }),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
@@ -2897,7 +3199,6 @@
             !e.target.isContentEditable &&
             "none" == s.style.display &&
             "block" !== p.style.display &&
-            "block" !== syncEls.modal.style.display &&
             "block" !== historyModalEl.style.display &&
             (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
         }),
@@ -2934,6 +3235,7 @@
             (s.focus(), (s.selectionStart = s.selectionEnd = s.value.length));
           // 初回設定
           H();
+          renderSyncPanel();
           // 日付表示内容が変更されたときに title を更新する
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
@@ -2947,6 +3249,12 @@
       // (オンラインで未保存の変更がない前提。競合解決は行わない)
       document.addEventListener("visibilitychange", () => {
         "visible" === document.visibilityState && pullAndMerge();
+      });
+      // 全画面カレンダー表示中にウィンドウが広がった場合も、
+      // スクロール可能になるまでセルを補充する。
+      window.addEventListener("resize", () => {
+        document.body.classList.contains("schedule-bar-fullscreen") &&
+          fillScheduleBarFullscreen();
       });
       // Expose moveToToday as global function
       window.moveToToday = function () {
