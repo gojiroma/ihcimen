@@ -170,6 +170,31 @@
       z-index: 501;
     }
 
+    .schedule-fullscreen-close {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 502;
+      width: 48px;
+      height: 48px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+      background-color: var(--bg-color);
+      color: inherit;
+      font-size: 22px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    body.schedule-bar-fullscreen .schedule-fullscreen-close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .content-area {
       flex: 1;
       width: 100%;
@@ -194,6 +219,31 @@
       touch-action: pan-y;
       opacity: 1;
       transition: opacity 0.15s ease;
+    }
+
+    /* タッチデバイスで編集中は、周辺UIを隠して本文に集中できるようにする */
+    body.touch-editing .schedule-bar,
+    body.touch-editing .schedule-bar-toggle,
+    body.touch-editing .week-pane,
+    body.touch-editing .week-pane-toggle,
+    body.touch-editing .search-pane,
+    body.touch-editing .search-pane-toggle,
+    body.touch-editing .history-btn,
+    body.touch-editing .h1-shortcut-bar {
+      display: none;
+    }
+
+    body.touch-editing .date-display {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      left: auto;
+      margin: 0;
+      z-index: 450;
+    }
+
+    body.touch-editing .content-area {
+      padding-top: 50px;
     }
 
     .date-display:hover {
@@ -1389,6 +1439,9 @@
   <button id="scheduleBarToggle" class="schedule-bar-toggle" type="button" aria-label="下段カレンダーの折りたたみ">
     <span class="knob"></span>
   </button>
+  <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
+    ×
+  </button>
   <div id="weekPane" class="week-pane"></div>
   <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
@@ -1475,7 +1528,9 @@
         weekLatestMonday = null,
         scheduleScrollSuppressed = !1,
         weekScrollSuppressed = !1;
-      const I = 864e5,
+      const isTouchDevice =
+        "ontouchstart" in window || navigator.maxTouchPoints > 0,
+        I = 864e5,
         T = (e) => {
           t.textContent = e.getFullYear();
           a.textContent = `${String(e.getMonth() + 1).padStart(
@@ -1727,6 +1782,30 @@
             top: contentAreaEl.scrollTop + delta,
             behavior: "smooth",
           });
+        },
+        // 閲覧モードでのクリック位置(画面座標)から、対応するソース内の
+        // 文字位置を推定する。クリックされたテキストノードの前後数文字を
+        // 手がかりに本文(s.value)から一致箇所を探す簡易的な方法。
+        findSourcePositionForClick = (clientX, clientY) => {
+          let node = null,
+            offset = 0;
+          if (document.caretRangeFromPoint) {
+            const range = document.caretRangeFromPoint(clientX, clientY);
+            range && ((node = range.startContainer), (offset = range.startOffset));
+          } else if (document.caretPositionFromPoint) {
+            const pos = document.caretPositionFromPoint(clientX, clientY);
+            pos && ((node = pos.offsetNode), (offset = pos.offset));
+          }
+          if (!node || 3 !== node.nodeType) return s.value.length;
+          const text = node.textContent || "",
+            before = text.slice(Math.max(0, offset - 12), offset),
+            after = text.slice(offset, offset + 12),
+            snippet = before + after;
+          if (!snippet.trim()) return s.value.length;
+          const idx = s.value.indexOf(snippet);
+          if (-1 !== idx) return idx + before.length;
+          const idx2 = before.length >= 4 ? s.value.indexOf(before) : -1;
+          return -1 !== idx2 ? idx2 + before.length : s.value.length;
         },
         // --- バージョン履歴(localStorageのみ、日付ごと) ---
         MAX_HISTORY_VERSIONS = 30,
@@ -2725,30 +2804,13 @@
           for (; sb.scrollHeight <= sb.clientHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
-        K = (e, t = 0, a = 0, l = !1) => {
-          saveCurrentMemo();
-          const s = Object.keys(localStorage)
-            .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e))
-            .sort(),
-            o = new Date(s[0]),
-            r = new Date(s[s.length - 1]),
-            c = (e) => e.toISOString().split("T")[0];
-          for (; ;) {
-            if (
-              (f.setDate(f.getDate() + e),
-                f.setMonth(f.getMonth() + t),
-                f.setFullYear(f.getFullYear() + a),
-                !l)
-            )
-              break;
-            const n = c(f);
-            if (localStorage.getItem(n)) break;
-            if (f < o || f > r) {
-              f = new Date(n);
-              break;
-            }
-          }
-          T(f), renderScheduleBar();
+        K = (e, t = 0, a = 0) => {
+          saveCurrentMemo(),
+            f.setDate(f.getDate() + e),
+            f.setMonth(f.getMonth() + t),
+            f.setFullYear(f.getFullYear() + a),
+            T(f),
+            renderScheduleBar();
         };
       sb.addEventListener("mouseleave", () => T(f)),
         sb.addEventListener(
@@ -2806,8 +2868,8 @@
               "]" === l && K(0, 0, 1);
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
             else
-              "ArrowLeft" === l && (K(-1, 0, 0, !0), playPitchForDate(f)),
-                "ArrowRight" === l && (K(1, 0, 0, !0), playPitchForDate(f)),
+              "ArrowLeft" === l && (K(-1), playPitchForDate(f)),
+                "ArrowRight" === l && (K(1), playPitchForDate(f)),
                 "ArrowUp" === l && K(-7),
                 "ArrowDown" === l && K(7);
             "Escape" === l &&
@@ -2845,6 +2907,7 @@
         }),
         s.addEventListener("blur", () => {
           saveCurrentMemo();
+          document.body.classList.remove("touch-editing");
           const e = s.value;
           if (!Z(e)) return;
           O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
@@ -2854,6 +2917,7 @@
           // ズレている可能性があるため、未編集(sDirty=false)なら
           // 編集開始前に必ず f の内容へ再同期しておく。
           sDirty || A(f), O(s, !0), O(o, !1);
+          isTouchDevice && document.body.classList.add("touch-editing");
         }),
         s.addEventListener("keydown", (e) => {
           if (e.isComposing || 229 === e.keyCode) return;
@@ -2954,8 +3018,10 @@
             (s.value = l), (s.selectionStart = s.selectionEnd = t + 2);
           }
         }),
-        o.addEventListener("click", () => {
+        o.addEventListener("click", (e) => {
+          const pos = findSourcePositionForClick(e.clientX, e.clientY);
           O(s, !0), O(o, !1), s.focus();
+          s.selectionStart = s.selectionEnd = pos;
         }),
         syncToggleBtnEl.addEventListener("click", () => {
           getSyncSeed()
@@ -3002,29 +3068,39 @@
                   .catch(() => { }));
           }),
         (() => {
-          // タッチデバイスでは日付表示を左右にドラッグすると1日前後できる
-          // (パラパラめくる感覚)。クリックは今日へ移動。
-          const SWIPE_THRESHOLD = 40;
+          // タッチデバイスでは日付表示を左右にドラッグすると日付を移動できる
+          // (パラパラめくる感覚)。なぞった距離に応じて連続的に移動する
+          // (STEP_PX ごとに1日、指を戻せば逆方向にも戻る)。クリックは今日へ移動。
+          const SWIPE_THRESHOLD = 40,
+            STEP_PX = 28;
           let startX = null,
             startY = null,
-            dragMoved = !1;
+            dragMoved = !1,
+            dragging = !1,
+            lastStep = 0;
           dd.addEventListener("pointerdown", (e) => {
             "touch" === e.pointerType &&
-              ((startX = e.clientX), (startY = e.clientY), (dragMoved = !1));
+              ((startX = e.clientX),
+                (startY = e.clientY),
+                (dragMoved = !1),
+                (dragging = !1),
+                (lastStep = 0));
           }),
             dd.addEventListener("pointermove", (e) => {
-              if (
-                null === startX ||
-                dragMoved ||
-                "touch" !== e.pointerType
-              )
-                return;
+              if (null === startX || "touch" !== e.pointerType) return;
               const dx = e.clientX - startX,
                 dy = e.clientY - startY;
-              Math.abs(dx) > SWIPE_THRESHOLD &&
-                Math.abs(dx) > Math.abs(dy) &&
-                ((dragMoved = !0),
-                  K(dx > 0 ? -1 : 1, 0, 0, !0),
+              if (!dragging) {
+                if (Math.abs(dx) <= SWIPE_THRESHOLD || Math.abs(dx) <= Math.abs(dy))
+                  return;
+                dragging = !0;
+              }
+              const step = Math.trunc(dx / STEP_PX),
+                delta = step - lastStep;
+              delta &&
+                ((lastStep = step),
+                  (dragMoved = !0),
+                  K(-delta),
                   playPitchForDate(f));
             }),
             dd.addEventListener("pointerup", () => {
@@ -3175,6 +3251,11 @@
         document.getElementById("resetAllBtn").addEventListener("click", (e) => {
           e.stopPropagation(), resetEverything();
         }),
+        document
+          .getElementById("scheduleFullscreenCloseBtn")
+          .addEventListener("click", () => {
+            document.body.classList.remove("schedule-bar-fullscreen");
+          }),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
           if (t) {
