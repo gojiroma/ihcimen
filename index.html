@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
+  <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
       display: none;
@@ -31,14 +32,38 @@
       padding-right: 160px;
     }
 
-    @media (max-width: 900px) {
-      .container {
-        padding-right: 0;
-      }
+    body.week-pane-collapsed .container {
+      padding-right: 0;
+    }
 
-      .week-pane {
-        display: none;
-      }
+    body.week-pane-collapsed .week-pane {
+      display: none;
+    }
+
+    .week-pane-toggle {
+      position: fixed;
+      top: 50%;
+      right: 160px;
+      transform: translateY(-50%);
+      z-index: 460;
+      font: inherit;
+      font-size: 12px;
+      opacity: 0.55;
+      background-color: var(--bg-color);
+      color: inherit;
+      border: 1px solid #ccc;
+      border-right: none;
+      border-radius: 4px 0 0 4px;
+      cursor: pointer;
+      padding: 10px 4px;
+    }
+
+    .week-pane-toggle:hover {
+      opacity: 1;
+    }
+
+    body.week-pane-collapsed .week-pane-toggle {
+      right: 0;
     }
 
     .content-area {
@@ -106,14 +131,15 @@
       top: 10px;
       left: 10px;
       z-index: 450;
-      font: inherit;
-      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       opacity: 0.55;
       background: none;
       border: none;
       color: inherit;
       cursor: pointer;
-      padding: 4px 6px;
+      padding: 6px;
     }
 
     .menu-trigger:hover {
@@ -125,21 +151,43 @@
     }
 
     .menu-actions {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
       gap: 8px;
       margin: 16px 0;
     }
 
     .menu-actions button {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       font: inherit;
       font-size: 14px;
-      padding: 8px 14px;
+      padding: 8px 10px;
       border: 1px solid #ccc;
       border-radius: 6px;
       background: none;
       color: inherit;
       cursor: pointer;
+    }
+
+    .menu-actions button svg {
+      flex-shrink: 0;
+    }
+
+    .menu-actions button span {
+      flex: 1;
+      text-align: left;
+    }
+
+    .menu-actions button kbd {
+      font-family: inherit;
+      font-size: 11px;
+      line-height: 1;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      padding: 2px 5px;
+      opacity: 0.6;
     }
 
     .menu-modal-content details {
@@ -582,7 +630,14 @@
 </head>
 
 <body>
-  <button id="menuTrigger" class="menu-trigger" type="button">メニュー</button>
+  <button id="menuTrigger" class="menu-trigger" type="button" aria-label="メニュー" title="メニュー (?)">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <line x1="3" y1="12" x2="21" y2="12" />
+      <line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  </button>
   <div class="container">
     <div class="date-display" id="dateDisplay" onclick="moveToToday()">
       <span class="year" id="yearDisplay">YYYY</span>
@@ -610,11 +665,57 @@
     <div class="search-modal-content menu-modal-content">
       <h2>メニュー</h2>
       <div class="menu-actions">
-        <button id="menuTodayBtn" type="button">今日に移動</button>
-        <button id="menuSearchBtn" type="button">検索</button>
-        <button id="menuSyncBtn" type="button">同期設定</button>
-        <button id="menuDownloadBtn" type="button">バックアップを保存</button>
-        <button id="menuUploadBtn" type="button">バックアップを読み込む</button>
+        <button id="menuTodayBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="16" rx="2" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+            <line x1="8" y1="3" x2="8" y2="7" />
+            <line x1="16" y1="3" x2="16" y2="7" />
+          </svg>
+          <span>今日</span>
+          <kbd>t</kbd>
+        </button>
+        <button id="menuSearchBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="10" cy="10" r="7" />
+            <line x1="21" y1="21" x2="15.5" y2="15.5" />
+          </svg>
+          <span>検索</span>
+          <kbd>f</kbd>
+        </button>
+        <button id="menuSyncBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 2.1l4 4-4 4" />
+            <path d="M3 12.1v-2a4 4 0 0 1 4-4h14" />
+            <path d="M7 21.9l-4-4 4-4" />
+            <path d="M21 11.9v2a4 4 0 0 1-4 4H3" />
+          </svg>
+          <span>同期</span>
+          <kbd>s</kbd>
+        </button>
+        <button id="menuDownloadBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12" />
+            <path d="M7 10l5 5 5-5" />
+            <path d="M4 20h16" />
+          </svg>
+          <span>保存</span>
+          <kbd>b</kbd>
+        </button>
+        <button id="menuUploadBtn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 21V9" />
+            <path d="M7 14l5-5 5 5" />
+            <path d="M4 4h16" />
+          </svg>
+          <span>読込</span>
+          <kbd>o</kbd>
+        </button>
       </div>
       <details>
         <summary>マウス操作</summary>
@@ -629,7 +730,7 @@
           </li>
           <li>
             <strong>右側のWeek pane:</strong>
-            画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。
+            画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。端の「週」タブをクリックすると折りたたみ/展開できます。
           </li>
         </ul>
       </details>
@@ -732,6 +833,7 @@
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
   <div id="weekPane" class="week-pane"></div>
+  <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -808,6 +910,27 @@
           )}/${String(e.getDate()).padStart(2, "0")}`;
           l.textContent = e.toLocaleDateString("ja-JP", { weekday: "long" });
           A(e);
+          updateFavicon(e);
+        },
+        updateFavicon = (e) => {
+          const day = e.getDate(),
+            canvas = document.createElement("canvas");
+          (canvas.width = 64), (canvas.height = 64);
+          const ctx = canvas.getContext("2d");
+          (ctx.fillStyle = "#ffffff"),
+            ctx.roundRect
+              ? (ctx.beginPath(), ctx.roundRect(2, 2, 60, 60, 14), ctx.fill())
+              : ctx.fillRect(0, 0, 64, 64),
+            (ctx.strokeStyle = "#999"),
+            (ctx.lineWidth = 2),
+            ctx.stroke(),
+            (ctx.fillStyle = "#111"),
+            (ctx.font = "bold 36px sans-serif"),
+            (ctx.textAlign = "center"),
+            (ctx.textBaseline = "middle"),
+            ctx.fillText(String(day), 32, 34);
+          const link = document.getElementById("favicon");
+          link && (link.href = canvas.toDataURL("image/png"));
         },
         Z = (e) => {
           const t = e.trim();
@@ -1515,7 +1638,9 @@
             tag = (n.tagName || "").toLowerCase();
           if ("textarea" !== tag) {
             if ("input" !== tag && !n.isContentEditable)
-              "?" === l && U(!0),
+              ["?", "o", "t", "f", "b", "[", "]", "s"].includes(l) &&
+              e.preventDefault(),
+                "?" === l && U(!0),
                 "o" === l && r.click(),
                 "t" === l &&
                 ((f = new Date()), T(f), renderScheduleBar()),
@@ -1765,6 +1890,14 @@
               (document.getElementById("privacyBanner").style.display = "none");
           }),
         document
+          .getElementById("weekPaneToggle")
+          .addEventListener("click", () => {
+            const collapsed = document.body.classList.toggle(
+              "week-pane-collapsed"
+            );
+            localStorage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
+          }),
+        document
           .getElementById("menuTrigger")
           .addEventListener("click", (e) => {
             e.stopPropagation(), U(!0);
@@ -1819,6 +1952,16 @@
           renderScheduleBar();
           localStorage.getItem("privacyNoticeDismissed") &&
             (document.getElementById("privacyBanner").style.display = "none");
+          // Week paneの初期折りたたみ状態(保存済みの設定 > 画面幅による自動判定)
+          {
+            const stored = localStorage.getItem("weekPaneCollapsed"),
+              shouldCollapse =
+                null !== stored ? "1" === stored : window.innerWidth <= 900;
+            document.body.classList.toggle(
+              "week-pane-collapsed",
+              shouldCollapse
+            );
+          }
           // ページを開いたときは常に編集モードでカーソルをアクティブにする
           O(s, !0), O(o, !1);
           s.focus();
