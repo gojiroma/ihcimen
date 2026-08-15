@@ -93,6 +93,7 @@
       justify-content: center;
       padding: 0;
       opacity: 0.55;
+      touch-action: none;
     }
 
     .schedule-bar-toggle:hover {
@@ -110,6 +111,39 @@
     body.schedule-bar-collapsed .schedule-bar-toggle {
       bottom: 0;
       transform: translate(-50%, 0);
+    }
+
+    /* 下段カレンダーの全画面モード(ノブを上にドラッグ) */
+    body.schedule-bar-fullscreen .menu-trigger,
+    body.schedule-bar-fullscreen .history-btn,
+    body.schedule-bar-fullscreen .h1-shortcut-bar,
+    body.schedule-bar-fullscreen .search-pane,
+    body.schedule-bar-fullscreen .search-pane-toggle,
+    body.schedule-bar-fullscreen .week-pane,
+    body.schedule-bar-fullscreen .week-pane-toggle,
+    body.schedule-bar-fullscreen .container {
+      display: none;
+    }
+
+    body.schedule-bar-fullscreen .schedule-bar {
+      display: flex;
+      top: 0;
+      height: auto;
+      flex-wrap: wrap;
+      align-content: flex-start;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 500;
+    }
+
+    body.schedule-bar-fullscreen .schedule-bar .schedule-cell {
+      height: 160px;
+    }
+
+    body.schedule-bar-fullscreen .schedule-bar-toggle {
+      bottom: 0;
+      transform: translate(-50%, 0);
+      z-index: 501;
     }
 
     .content-area {
@@ -660,7 +694,7 @@
       bottom: 130px;
       z-index: 410;
       max-width: 220px;
-      max-height: 240px;
+      max-height: calc(100vh - 170px);
       overflow-y: auto;
       font-size: 12px;
       background-color: var(--bg-color);
@@ -681,12 +715,6 @@
 
     body.week-pane-collapsed .toc-panel {
       right: 20px;
-    }
-
-    .toc-title {
-      font-weight: 700;
-      margin-bottom: 4px;
-      opacity: 0.7;
     }
 
     .toc-panel ul {
@@ -993,7 +1021,6 @@
       <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? またはメニューから)"></textarea>
       <div class="markdown-viewer" id="markdownViewer"></div>
       <div id="tocPanel" class="toc-panel toc-empty">
-        <div class="toc-title">目次</div>
         <ul id="tocList"></ul>
       </div>
     </div>
@@ -1070,7 +1097,7 @@
           </li>
           <li>
             <strong>下段カレンダー:</strong>
-            画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
+            画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。中央のノブはクリックで開閉、上にドラッグするとカレンダーだけを全画面表示できます(下にドラッグ、またはクリックで戻ります)。
           </li>
           <li>
             <strong>右側のWeek pane:</strong>
@@ -2426,7 +2453,11 @@
           sb.appendChild(frag),
             selectedCell &&
             ((scheduleScrollSuppressed = !0),
-              selectedCell.scrollIntoView({ inline: "center", block: "nearest" }),
+              selectedCell.scrollIntoView(
+                document.body.classList.contains("schedule-bar-fullscreen")
+                  ? { inline: "nearest", block: "center" }
+                  : { inline: "center", block: "nearest" }
+              ),
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
               )),
@@ -2434,7 +2465,10 @@
         },
         extendScheduleBarStart = (days = 14) => {
           const maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment();
+            frag = document.createDocumentFragment(),
+            fullscreen = document.body.classList.contains(
+              "schedule-bar-fullscreen"
+            );
           for (let i = days; i >= 1; i--)
             frag.appendChild(
               createScheduleCell(
@@ -2443,13 +2477,18 @@
               )
             );
           const prevScrollWidth = sb.scrollWidth,
-            prevScrollLeft = sb.scrollLeft;
+            prevScrollLeft = sb.scrollLeft,
+            prevScrollHeight = sb.scrollHeight,
+            prevScrollTop = sb.scrollTop;
           sb.insertBefore(frag, sb.firstChild),
             (scheduleEarliest = new Date(
               scheduleEarliest.getTime() - days * I
             )),
-            (sb.scrollLeft =
-              prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
+            fullscreen
+              ? (sb.scrollTop =
+                prevScrollTop + (sb.scrollHeight - prevScrollHeight))
+              : (sb.scrollLeft =
+                prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
         },
         extendScheduleBarEnd = (days = 14) => {
           const maxDayLen = getGlobalMaxDayLen(),
@@ -2493,6 +2532,8 @@
         sb.addEventListener(
           "wheel",
           (e) => {
+            if (document.body.classList.contains("schedule-bar-fullscreen"))
+              return;
             e.preventDefault();
             sb.scrollLeft += e.deltaX + e.deltaY;
           },
@@ -2500,10 +2541,15 @@
         ),
         sb.addEventListener("scroll", () => {
           if (scheduleScrollSuppressed) return;
-          sb.scrollLeft < 200
-            ? extendScheduleBarStart()
-            : sb.scrollWidth - sb.scrollLeft - sb.clientWidth < 200 &&
-            extendScheduleBarEnd();
+          document.body.classList.contains("schedule-bar-fullscreen")
+            ? sb.scrollTop < 200
+              ? extendScheduleBarStart()
+              : sb.scrollHeight - sb.scrollTop - sb.clientHeight < 200 &&
+              extendScheduleBarEnd()
+            : sb.scrollLeft < 200
+              ? extendScheduleBarStart()
+              : sb.scrollWidth - sb.scrollLeft - sb.clientWidth < 200 &&
+              extendScheduleBarEnd();
         }),
         wp.addEventListener("mouseleave", () => T(f)),
         wp.addEventListener("scroll", () => {
@@ -2574,6 +2620,9 @@
             renderToc();
         }),
         s.addEventListener("mouseleave", (e) => {
+          // 目次パネルへ直接カーソルを移した場合は、編集状態を保ったまま
+          // カーソル移動のみ行いたいので、閲覧モードへは切り替えない。
+          if (e.relatedTarget && tocPanelEl.contains(e.relatedTarget)) return;
           0 === e.buttons && document.activeElement === s && s.blur();
         }),
         s.addEventListener("blur", () => {
@@ -2718,17 +2767,71 @@
             );
             localStorage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
           }),
-        document
-          .getElementById("scheduleBarToggle")
-          .addEventListener("click", () => {
-            const collapsed = document.body.classList.toggle(
-              "schedule-bar-collapsed"
-            );
-            localStorage.setItem(
-              "scheduleBarCollapsed",
-              collapsed ? "1" : "0"
-            );
+        (() => {
+          const el = document.getElementById("scheduleBarToggle"),
+            DRAG_THRESHOLD = 15;
+          let dragStartY = null,
+            dragMoved = !1,
+            dragTriggered = !1;
+          el.addEventListener("pointerdown", (e) => {
+            (dragStartY = e.clientY),
+              (dragMoved = !1),
+              (dragTriggered = !1),
+              el.setPointerCapture(e.pointerId);
           }),
+            el.addEventListener("pointermove", (e) => {
+              if (null === dragStartY) return;
+              e.preventDefault();
+              if (dragTriggered) return;
+              const dy = e.clientY - dragStartY;
+              if (Math.abs(dy) < DRAG_THRESHOLD) return;
+              dragMoved = !0;
+              const fullscreen = document.body.classList.contains(
+                "schedule-bar-fullscreen"
+              );
+              !fullscreen && dy < -DRAG_THRESHOLD
+                ? (document.body.classList.add("schedule-bar-fullscreen"),
+                  document.body.classList.remove("schedule-bar-collapsed"),
+                  (dragTriggered = !0),
+                  requestAnimationFrame(() => {
+                    const selectedCell = sb.querySelector(
+                      ".schedule-cell.selected"
+                    );
+                    selectedCell &&
+                      ((scheduleScrollSuppressed = !0),
+                        selectedCell.scrollIntoView({
+                          inline: "nearest",
+                          block: "center",
+                        }),
+                        requestAnimationFrame(() =>
+                          requestAnimationFrame(
+                            () => (scheduleScrollSuppressed = !1)
+                          )
+                        ));
+                  }))
+                : fullscreen &&
+                dy > DRAG_THRESHOLD &&
+                (document.body.classList.remove("schedule-bar-fullscreen"),
+                  (dragTriggered = !0));
+            }),
+            el.addEventListener("pointerup", () => {
+              dragStartY = null;
+            }),
+            el.addEventListener("click", () => {
+              if (dragMoved) return void (dragMoved = !1);
+              if (document.body.classList.contains("schedule-bar-fullscreen"))
+                return void document.body.classList.remove(
+                  "schedule-bar-fullscreen"
+                );
+              const collapsed = document.body.classList.toggle(
+                "schedule-bar-collapsed"
+              );
+              localStorage.setItem(
+                "scheduleBarCollapsed",
+                collapsed ? "1" : "0"
+              );
+            });
+        })(),
         searchPaneToggleEl.addEventListener("click", () => {
           const collapsed = document.body.classList.toggle(
             "search-pane-collapsed"
@@ -2824,10 +2927,11 @@
             "search-pane-collapsed",
             "0" !== localStorage.getItem("searchPaneCollapsed")
           );
-          // ページを開いたときは常に編集モードでカーソルをアクティブにする
-          O(s, !0), O(o, !1);
-          s.focus();
-          s.selectionStart = s.selectionEnd = s.value.length;
+          // ページを開いたとき、その日に内容があれば閲覧モードのままにし、
+          // 空の日だけ編集モードでカーソルをアクティブにする(A(f) が
+          // 既に内容の有無で表示モードを決めているので、それに従う)。
+          "block" === s.style.display &&
+            (s.focus(), (s.selectionStart = s.selectionEnd = s.value.length));
           // 初回設定
           H();
           // 日付表示内容が変更されたときに title を更新する
