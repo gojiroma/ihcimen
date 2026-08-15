@@ -44,8 +44,10 @@
     .content-area {
       flex: 1;
       width: 100%;
+      min-width: 0;
       min-height: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -99,6 +101,59 @@
       padding: 0;
     }
 
+    .menu-trigger {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 450;
+      font: inherit;
+      font-size: 13px;
+      opacity: 0.55;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 4px 6px;
+    }
+
+    .menu-trigger:hover {
+      opacity: 1;
+    }
+
+    .menu-modal-content {
+      max-width: 420px;
+    }
+
+    .menu-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0;
+    }
+
+    .menu-actions button {
+      font: inherit;
+      font-size: 14px;
+      padding: 8px 14px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .menu-modal-content details {
+      margin-top: 10px;
+      padding: 6px 0;
+      border-top: 1px solid #ddd;
+    }
+
+    .menu-modal-content summary {
+      cursor: pointer;
+      font-weight: 700;
+      padding: 4px 0;
+    }
+
     .schedule-cell[data-tooltip]::after {
       content: attr(data-tooltip);
       position: absolute;
@@ -139,9 +194,11 @@
 
     .markdown-viewer,
     .text-box {
-      font-family: "BIZ UDGothic";
+      font-family: "BIZ UDGothic", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+        "Yu Gothic", Meiryo, sans-serif;
       width: 700px;
       max-width: 100%;
+      min-width: 0;
       margin-top: 20px;
       border: none;
       padding: 5px;
@@ -149,10 +206,27 @@
       line-height: 200%;
       word-break: break-all;
       flex-shrink: 0;
+      box-sizing: border-box;
     }
 
     .markdown-viewer {
       display: none;
+    }
+
+    .markdown-viewer pre {
+      max-width: 100%;
+      overflow-x: auto;
+      box-sizing: border-box;
+    }
+
+    .markdown-viewer img,
+    .markdown-viewer table {
+      max-width: 100%;
+    }
+
+    .markdown-viewer table {
+      display: block;
+      overflow-x: auto;
     }
 
     /* Save Status Indicator */
@@ -508,6 +582,7 @@
 </head>
 
 <body>
+  <button id="menuTrigger" class="menu-trigger" type="button">メニュー</button>
   <div class="container">
     <div class="date-display" id="dateDisplay" onclick="moveToToday()">
       <span class="year" id="yearDisplay">YYYY</span>
@@ -517,10 +592,10 @@
     <div class="content-area">
       <p id="privacyBanner" class="privacy-banner">
         同期を使う場合、内容は端末上で暗号化されます。詳しくは
-        <strong>?</strong> でヘルプを表示。
+        <strong>?</strong> またはメニューから。
         <button id="privacyBannerDismiss" type="button">閉じる</button>
       </p>
-      <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? でヘルプ)"></textarea>
+      <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? またはメニューから)"></textarea>
       <div class="markdown-viewer" id="markdownViewer"></div>
     </div>
   </div>
@@ -532,80 +607,93 @@
     </div>
   </div>
   <div id="shortcutModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content">
-      <h2>ヘルプ</h2>
-      <h3>マウス操作</h3>
-      <ul>
-        <li>
-          <strong>本文クリック:</strong>
-          表示されている本文をクリックすると、編集モードになります。
-        </li>
-        <li>
-          <strong>下段カレンダー:</strong>
-          画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
-        </li>
-        <li>
-          <strong>右側のWeek pane:</strong>
-          画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。
-        </li>
-      </ul>
-      <h3>ショートカットキー一覧</h3>
-      <p>
-        以下は本文の入力中や検索窓の入力中には反応しません。それ以外の場面でキーを押すと動作します。
-      </p>
-      <h4>基本操作</h4>
-      <ul>
-        <li><strong>? :</strong> このヘルプを表示</li>
-        <li><strong>t :</strong> 今日の日付に移動</li>
-        <li><strong>f :</strong> 検索ウィンドウを表示</li>
-        <li><strong>o :</strong> バックアップデータを取り込む</li>
-        <li><strong>b :</strong> バックアップデータをダウンロード</li>
-        <li><strong>s :</strong> 同期設定を表示</li>
-      </ul>
-      <h4>日付移動</h4>
-      <ul>
-        <li><strong>← :</strong> 前の日に移動</li>
-        <li><strong>→ :</strong> 次の日に移動</li>
-        <li><strong>↑ :</strong> 1週間前に移動</li>
-        <li><strong>↓ :</strong> 1週間後に移動</li>
-        <li><strong>Shift + ↑ :</strong> 4週間前に移動</li>
-        <li><strong>Shift + ↓ :</strong> 4週間後に移動</li>
-        <li><strong>[ :</strong> 前の年に移動</li>
-        <li><strong>] :</strong> 次の年に移動</li>
-      </ul>
-      <h4>その他</h4>
-      <ul>
-        <li><strong>Esc :</strong> このウィンドウを閉じる</li>
-      </ul>
-      <h3>データのバックアップと復元</h3>
-      <ul>
-        <li>
-          メモが更新されると、JSONファイルが自動的にダウンロードされます。定期的に不要なファイルを削除するスクリプトを実行してください。
-        </li>
-        <li>
-          新しいブラウザでJSONを開くには、o
-          キーでファイル選択ダイアログを開き、バックアップを選択します。
-        </li>
-        <li>
-          タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
-        </li>
-      </ul>
-      <h3>同期とプライバシー</h3>
-      <ul>
-        <li>
-          同期は初期状態では無効です。<strong>s</strong>
-          キーで設定を開き、「同期を有効にする」を押すと使えるようになります。
-        </li>
-        <li>
-          同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
-        </li>
-        <li>
-          別の端末で同じデータを見るには、QRコードを読み取るか、シードの文字列を貼り付けて引き継いでください。シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
-        </li>
-        <li>
-          7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。
-        </li>
-      </ul>
+    <div class="search-modal-content menu-modal-content">
+      <h2>メニュー</h2>
+      <div class="menu-actions">
+        <button id="menuTodayBtn" type="button">今日に移動</button>
+        <button id="menuSearchBtn" type="button">検索</button>
+        <button id="menuSyncBtn" type="button">同期設定</button>
+        <button id="menuDownloadBtn" type="button">バックアップを保存</button>
+        <button id="menuUploadBtn" type="button">バックアップを読み込む</button>
+      </div>
+      <details>
+        <summary>マウス操作</summary>
+        <ul>
+          <li>
+            <strong>本文クリック:</strong>
+            表示されている本文をクリックすると、編集モードになります。
+          </li>
+          <li>
+            <strong>下段カレンダー:</strong>
+            画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
+          </li>
+          <li>
+            <strong>右側のWeek pane:</strong>
+            画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。
+          </li>
+        </ul>
+      </details>
+      <details>
+        <summary>キーボードショートカット</summary>
+        <p>
+          以下は本文の入力中や検索窓の入力中には反応しません。それ以外の場面でキーを押すと動作します。
+        </p>
+        <h4>基本操作</h4>
+        <ul>
+          <li><strong>? :</strong> このメニューを表示</li>
+          <li><strong>t :</strong> 今日の日付に移動</li>
+          <li><strong>f :</strong> 検索ウィンドウを表示</li>
+          <li><strong>o :</strong> バックアップデータを取り込む</li>
+          <li><strong>b :</strong> バックアップデータをダウンロード</li>
+          <li><strong>s :</strong> 同期設定を表示</li>
+        </ul>
+        <h4>日付移動</h4>
+        <ul>
+          <li><strong>← :</strong> 前の日に移動</li>
+          <li><strong>→ :</strong> 次の日に移動</li>
+          <li><strong>↑ :</strong> 1週間前に移動</li>
+          <li><strong>↓ :</strong> 1週間後に移動</li>
+          <li><strong>Shift + ↑ :</strong> 4週間前に移動</li>
+          <li><strong>Shift + ↓ :</strong> 4週間後に移動</li>
+          <li><strong>[ :</strong> 前の年に移動</li>
+          <li><strong>] :</strong> 次の年に移動</li>
+        </ul>
+        <h4>その他</h4>
+        <ul>
+          <li><strong>Esc :</strong> このウィンドウを閉じる</li>
+        </ul>
+      </details>
+      <details>
+        <summary>データのバックアップと復元</summary>
+        <ul>
+          <li>
+            「バックアップを保存」でメモ全体をJSONファイルとしてダウンロードできます。定期的に保存しておくことをおすすめします。
+          </li>
+          <li>
+            別のブラウザや端末でJSONを読み込むには、「バックアップを読み込む」からファイルを選択します。
+          </li>
+          <li>
+            タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
+          </li>
+        </ul>
+      </details>
+      <details>
+        <summary>同期とプライバシー</summary>
+        <ul>
+          <li>
+            同期は初期状態では無効です。「同期設定」から「同期を有効にする」を押すと使えるようになります。
+          </li>
+          <li>
+            同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
+          </li>
+          <li>
+            別の端末で同じデータを見るには、QRコードを読み取るか、シードの文字列を貼り付けて引き継いでください。シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
+          </li>
+          <li>
+            7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。
+          </li>
+        </ul>
+      </details>
     </div>
   </div>
   <div id="searchModal" class="search-modal close-on-click-outside">
@@ -878,19 +966,38 @@
             "2027-01-05": "年末年始休暇",
           },
         },
-        X = (e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        normalizeForSearch = (e) =>
+          e
+            .normalize("NFKC")
+            .toLowerCase()
+            .replace(/[ァ-ヶ]/g, (c) =>
+              String.fromCharCode(c.charCodeAt(0) - 0x60)
+            ),
+        highlightMatches = (text, query) => {
+          const nq = normalizeForSearch(query);
+          if (!nq) return text;
+          const nt = normalizeForSearch(text);
+          let result = "",
+            lastIndex = 0,
+            idx;
+          for (; -1 !== (idx = nt.indexOf(nq, lastIndex));)
+            (result +=
+              text.slice(lastIndex, idx) +
+              `<span class="highlight">${text.slice(idx, idx + nq.length)}</span>`),
+              (lastIndex = idx + nq.length);
+          return result + text.slice(lastIndex);
+        },
         F = (e) => {
           const t = i.value,
-            a = s.value.replace(
-              new RegExp(X(t), "g"),
-              `<span class="highlight">${t}</span>`
-            );
+            a = highlightMatches(s.value, t);
           (o.innerHTML = marked.parse(a)), (s.value = a);
         },
         Y = (e, t) => {
-          const a = e.indexOf(t),
+          const ne = normalizeForSearch(e),
+            nt = normalizeForSearch(t),
+            a = ne.indexOf(nt),
             l = Math.max(a - 20, 0),
-            n = Math.min(a + t.length + 20, e.length);
+            n = Math.min(a + nt.length + 20, e.length);
           return e.substring(l, n);
         },
         H = () => {
@@ -1446,10 +1553,7 @@
                   F(E[b].text),
                   renderScheduleBar(),
                   ((e, t) => {
-                    const a = e.innerHTML,
-                      l = new RegExp(`(${X(t)})`, "gi"),
-                      n = a.replace(l, '<span class="highlight">$1</span>');
-                    e.innerHTML = n;
+                    e.innerHTML = highlightMatches(e.innerHTML, t);
                     const s = e.querySelector(".highlight");
                     s &&
                       s.scrollIntoView({
@@ -1480,25 +1584,21 @@
                   .map((t, a) => {
                     const l = localStorage.key(a),
                       n = localStorage.getItem(l);
-                    return n.includes(e)
+                    return normalizeForSearch(n).includes(normalizeForSearch(e))
                       ? { date: l, text: Y(n, e) }
                       : null;
                   })
                   .filter(Boolean))(e)
               : []),
             ((e) => {
-              const t = i.value,
-                a = new RegExp(`(${X(t)})`, "gi");
+              const t = i.value;
               if (e.length > 0 && t.length > 0) {
                 showToast(`${e.length} 件の結果が見つかりました`, "info");
               }
               (d.innerHTML = e
-                .map((e, t) => {
-                  const l = e.text.replace(
-                    a,
-                    '<span class="highlight">$1</span>'
-                  );
-                  return `<li class="${0 === t ? "selected" : ""
+                .map((e, idx) => {
+                  const l = highlightMatches(e.text, t);
+                  return `<li class="${0 === idx ? "selected" : ""
                     }">\n            <span class="date">${new Date(
                       e.date
                     ).toLocaleDateString("ja-JP", {
@@ -1664,6 +1764,28 @@
             localStorage.setItem("privacyNoticeDismissed", "1"),
               (document.getElementById("privacyBanner").style.display = "none");
           }),
+        document
+          .getElementById("menuTrigger")
+          .addEventListener("click", (e) => {
+            e.stopPropagation(), U(!0);
+          }),
+        document.getElementById("menuTodayBtn").addEventListener("click", (e) => {
+          e.stopPropagation(), U(!1), window.moveToToday();
+        }),
+        document.getElementById("menuSearchBtn").addEventListener("click", (e) => {
+          e.stopPropagation(), U(!1), O(c, !0), i.focus();
+        }),
+        document.getElementById("menuSyncBtn").addEventListener("click", (e) => {
+          e.stopPropagation(), U(!1), O(syncEls.modal, !0), refreshSyncUI();
+        }),
+        document
+          .getElementById("menuDownloadBtn")
+          .addEventListener("click", (e) => {
+            e.stopPropagation(), U(!1), downloadBackup();
+          }),
+        document.getElementById("menuUploadBtn").addEventListener("click", (e) => {
+          e.stopPropagation(), U(!1), r.click();
+        }),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
           if (t) {
