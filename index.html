@@ -950,6 +950,7 @@
           scanVideo: document.getElementById("syncScanVideo"),
           scanCanvas: document.getElementById("syncScanCanvas"),
         },
+        contentAreaEl = document.querySelector(".content-area"),
         v = {
           selectedDate: new Date(),
           saveTimer: void 0,
@@ -966,7 +967,13 @@
         syncPushTimer = null,
         syncScanStream = null,
         syncHealthy = !0,
-        audioCtx = null;
+        audioCtx = null,
+        scheduleEarliest = null,
+        scheduleLatest = null,
+        weekEarliestMonday = null,
+        weekLatestMonday = null,
+        scheduleScrollSuppressed = !1,
+        weekScrollSuppressed = !1;
       const I = 864e5,
         T = (e) => {
           t.textContent = e.getFullYear();
@@ -1597,6 +1604,49 @@
               osc.stop(now + 0.3);
           } catch (err) { }
         },
+        // テキストエリア内でのキャレットのY座標(ピクセル)を、折り返しも
+        // 考慮した上で計測する(ミラー要素に caret 手前のテキストを
+        // 流し込み、実際にレンダリングされた高さを測る手法)。
+        getCaretOffsetInTextarea = () => {
+          const style = getComputedStyle(s),
+            mirror = document.createElement("div");
+          (mirror.style.position = "absolute"),
+            (mirror.style.visibility = "hidden"),
+            (mirror.style.whiteSpace = "pre-wrap"),
+            (mirror.style.wordBreak = style.wordBreak),
+            (mirror.style.overflowWrap = style.overflowWrap),
+            (mirror.style.font = style.font),
+            (mirror.style.lineHeight = style.lineHeight),
+            (mirror.style.width = s.clientWidth + "px"),
+            (mirror.style.padding = style.padding),
+            (mirror.style.boxSizing = style.boxSizing);
+          const beforeCaret = s.value.substring(0, s.selectionStart);
+          mirror.appendChild(document.createTextNode(beforeCaret));
+          const marker = document.createElement("span");
+          (marker.textContent = "|"), mirror.appendChild(marker);
+          document.body.appendChild(mirror);
+          const offset = marker.offsetTop;
+          return document.body.removeChild(mirror), offset;
+        },
+        // 入力で行数が増えてキャレットがエリア下端(または上端)に
+        // 近づいたら、.content-area を自動でスクロールする。
+        scrollCaretIntoView = () => {
+          if (document.activeElement !== s) return;
+          const caretOffset = getCaretOffsetInTextarea(),
+            style = getComputedStyle(s),
+            paddingTop = parseFloat(style.paddingTop) || 0,
+            lineHeight = parseFloat(style.lineHeight) || 24,
+            sRect = s.getBoundingClientRect(),
+            caretTop = sRect.top + paddingTop + caretOffset,
+            caretBottom = caretTop + lineHeight,
+            caRect = contentAreaEl.getBoundingClientRect(),
+            buffer = lineHeight;
+          caretBottom > caRect.bottom - buffer
+            ? (contentAreaEl.scrollTop +=
+              caretBottom - (caRect.bottom - buffer))
+            : caretTop < caRect.top + buffer &&
+            (contentAreaEl.scrollTop -= caRect.top + buffer - caretTop);
+        },
         selectScheduleDate = (d) => {
           (f = d), T(f), renderScheduleBar(), pullAndMerge();
         },
@@ -1607,6 +1657,111 @@
           // 別の日付の内容で上書きされてしまう。
           document.activeElement !== s && (T(d), playPitchForDate(d));
         },
+        getGlobalMaxDayLen = () => {
+          const lens = Object.keys(localStorage)
+            .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
+            .map((k) => localStorage.getItem(k).length);
+          return Math.max(1, ...lens);
+        },
+        getGlobalMaxWeekLen = () => {
+          const totals = {};
+          Object.keys(localStorage)
+            .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
+            .forEach((k) => {
+              const [y, m, dd] = k.split("-").map(Number),
+                d = new Date(y, m - 1, dd),
+                { isoYear, weekNum } = getISOWeekInfo(d),
+                wk = `${isoYear}-W${weekNum}`;
+              totals[wk] = (totals[wk] || 0) + localStorage.getItem(k).length;
+            });
+          return Math.max(1, ...Object.values(totals));
+        },
+        createScheduleCell = (d, maxDayLen) => {
+          const key = d.toISOString().split("T")[0],
+            year = d.getFullYear(),
+            day = d.getDay(),
+            holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
+            dayLen = (localStorage.getItem(key) || "").length,
+            heat = (dayLen / maxDayLen) * 0.5,
+            cell = document.createElement("div");
+          (cell.className = "schedule-cell"),
+            (cell.dataset.date = key),
+            (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`);
+          holidayName
+            ? cell.setAttribute(
+              "data-tooltip",
+              dayLen > 0 ? `${holidayName} / ${dayLen} 文字` : holidayName
+            )
+            : dayLen > 0 && cell.setAttribute("data-tooltip", `${dayLen} 文字`);
+          cell.addEventListener("mouseenter", () => previewScheduleDate(d));
+          const dateLabel = document.createElement("div");
+          (dateLabel.className = "schedule-date"),
+            6 === day && dateLabel.classList.add("saturday"),
+            0 === day && dateLabel.classList.add("sunday"),
+            holidayName && dateLabel.classList.add("holiday"),
+            (dateLabel.textContent = `${d.getMonth() + 1}/${d.getDate()}(${d.toLocaleDateString(
+              "ja-JP",
+              { weekday: "short" }
+            )})`),
+            dateLabel.addEventListener("click", () => selectScheduleDate(d));
+          let holidayLabel = null;
+          if (holidayName) {
+            holidayLabel = document.createElement("div");
+            (holidayLabel.className = "schedule-holiday"),
+              (holidayLabel.textContent = holidayName);
+          }
+          const noteInput = document.createElement("textarea");
+          (noteInput.className = "schedule-note"),
+            (noteInput.placeholder = "予定を入力"),
+            (noteInput.value = localStorage.getItem(`note:${key}`) || "");
+          noteInput.addEventListener("input", () => {
+            const v = noteInput.value;
+            v
+              ? localStorage.setItem(`note:${key}`, v)
+              : localStorage.removeItem(`note:${key}`);
+          }),
+            cell.appendChild(dateLabel),
+            holidayLabel && cell.appendChild(holidayLabel),
+            cell.appendChild(noteInput);
+          return cell;
+        },
+        createWeekCell = (monday, maxWeekLen) => {
+          const { isoYear, weekNum } = getISOWeekInfo(monday),
+            weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
+            sunday = new Date(monday.getTime() + 6 * I),
+            weekTotal = getWeekCharCount(monday),
+            heat = (weekTotal / maxWeekLen) * 0.5,
+            cell = document.createElement("div");
+          (cell.className = "week-cell"),
+            (cell.dataset.weekKey = weekKey),
+            (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`),
+            cell.setAttribute(
+              "title",
+              weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
+            );
+          cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
+          const weekLabel = document.createElement("div");
+          (weekLabel.className = "week-label"),
+            (weekLabel.textContent = `${isoYear}-Week ${String(weekNum).padStart(
+              2,
+              "0"
+            )} (${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1
+            }/${sunday.getDate()})`),
+            weekLabel.addEventListener("click", () => selectScheduleDate(monday));
+          const noteInput = document.createElement("textarea");
+          (noteInput.className = "week-note"),
+            (noteInput.placeholder = "週のメモ"),
+            (noteInput.value = localStorage.getItem(`weeknote:${weekKey}`) || "");
+          noteInput.addEventListener("input", () => {
+            const v = noteInput.value;
+            v
+              ? localStorage.setItem(`weeknote:${weekKey}`, v)
+              : localStorage.removeItem(`weeknote:${weekKey}`);
+          }),
+            cell.appendChild(weekLabel),
+            cell.appendChild(noteInput);
+          return cell;
+        },
         renderWeekPane = () => {
           wp.innerHTML = "";
           const {
@@ -1614,125 +1769,126 @@
             weekNum: selWeek,
             monday: centerMonday,
           } = getISOWeekInfo(f),
-            selectedKey = `${selYear}-W${String(selWeek).padStart(2, "0")}`;
+            selectedKey = `${selYear}-W${String(selWeek).padStart(2, "0")}`,
+            maxWeekLen = getGlobalMaxWeekLen();
+          (weekEarliestMonday = new Date(
+            centerMonday.getTime() - weekPaneWindowWeeks * 7 * I
+          )),
+            (weekLatestMonday = new Date(
+              centerMonday.getTime() + weekPaneWindowWeeks * 7 * I
+            ));
           let selectedCell = null;
-          // 1周目: 各週の合計文字数を集計し、ヒートマップの基準となる最大値を求める
-          const weekTotals = [];
-          for (let i = -weekPaneWindowWeeks; i <= weekPaneWindowWeeks; i++) {
-            const monday = new Date(centerMonday.getTime() + i * 7 * I);
-            weekTotals.push(getWeekCharCount(monday));
+          const frag = document.createDocumentFragment();
+          for (
+            let m = new Date(weekEarliestMonday);
+            m <= weekLatestMonday;
+            m.setDate(m.getDate() + 7)
+          ) {
+            const cell = createWeekCell(new Date(m), maxWeekLen);
+            cell.dataset.weekKey === selectedKey &&
+              (cell.classList.add("selected"), (selectedCell = cell)),
+              frag.appendChild(cell);
           }
-          const maxWeekTotal = Math.max(1, ...weekTotals);
-          // 2周目: セルを実際に描画する
-          for (let i = -weekPaneWindowWeeks; i <= weekPaneWindowWeeks; i++) {
-            const monday = new Date(centerMonday.getTime() + i * 7 * I),
-              { isoYear, weekNum } = getISOWeekInfo(monday),
-              weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
-              sunday = new Date(monday.getTime() + 6 * I),
-              weekTotal = weekTotals[i + weekPaneWindowWeeks],
-              heat = (weekTotal / maxWeekTotal) * 0.5,
-              cell = document.createElement("div");
-            (cell.className = "week-cell"),
-              (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`),
-              cell.setAttribute(
-                "title",
-                weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
-              );
-            weekKey === selectedKey &&
-              (cell.classList.add("selected"), (selectedCell = cell));
-            cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
-            const weekLabel = document.createElement("div");
-            (weekLabel.className = "week-label"),
-              (weekLabel.textContent = `${isoYear}-Week ${String(weekNum).padStart(
-                2,
-                "0"
-              )} (${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1
-              }/${sunday.getDate()})`),
-              weekLabel.addEventListener("click", () => selectScheduleDate(monday));
-            const noteInput = document.createElement("textarea");
-            (noteInput.className = "week-note"),
-              (noteInput.placeholder = "週のメモ"),
-              (noteInput.value = localStorage.getItem(`weeknote:${weekKey}`) || "");
-            noteInput.addEventListener("input", () => {
-              const v = noteInput.value;
-              v
-                ? localStorage.setItem(`weeknote:${weekKey}`, v)
-                : localStorage.removeItem(`weeknote:${weekKey}`);
-            }),
-              cell.appendChild(weekLabel),
-              cell.appendChild(noteInput),
-              wp.appendChild(cell);
-          }
-          selectedCell &&
-            selectedCell.scrollIntoView({ inline: "nearest", block: "center" });
+          wp.appendChild(frag),
+            selectedCell &&
+            ((weekScrollSuppressed = !0),
+              selectedCell.scrollIntoView({ inline: "nearest", block: "center" }),
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => (weekScrollSuppressed = !1))
+              ));
+        },
+        extendWeekPaneStart = (weeks = 8) => {
+          const maxWeekLen = getGlobalMaxWeekLen(),
+            frag = document.createDocumentFragment();
+          for (let i = weeks; i >= 1; i--)
+            frag.appendChild(
+              createWeekCell(
+                new Date(weekEarliestMonday.getTime() - i * 7 * I),
+                maxWeekLen
+              )
+            );
+          const prevScrollHeight = wp.scrollHeight,
+            prevScrollTop = wp.scrollTop;
+          wp.insertBefore(frag, wp.firstChild),
+            (weekEarliestMonday = new Date(
+              weekEarliestMonday.getTime() - weeks * 7 * I
+            )),
+            (wp.scrollTop =
+              prevScrollTop + (wp.scrollHeight - prevScrollHeight));
+        },
+        extendWeekPaneEnd = (weeks = 8) => {
+          const maxWeekLen = getGlobalMaxWeekLen(),
+            frag = document.createDocumentFragment();
+          for (let i = 1; i <= weeks; i++)
+            frag.appendChild(
+              createWeekCell(
+                new Date(weekLatestMonday.getTime() + i * 7 * I),
+                maxWeekLen
+              )
+            );
+          wp.appendChild(frag),
+            (weekLatestMonday = new Date(
+              weekLatestMonday.getTime() + weeks * 7 * I
+            ));
         },
         renderScheduleBar = () => {
           sb.innerHTML = "";
-          const selectedKey = f.toISOString().split("T")[0];
+          const selectedKey = f.toISOString().split("T")[0],
+            maxDayLen = getGlobalMaxDayLen();
+          (scheduleEarliest = new Date(f.getTime() - scheduleWindowDays * I)),
+            (scheduleLatest = new Date(f.getTime() + scheduleWindowDays * I));
           let selectedCell = null;
-          // 1周目: 各日の本文の文字数を集計し、ヒートマップの基準となる最大値を求める
-          const dayLens = [];
-          for (let i = -scheduleWindowDays; i <= scheduleWindowDays; i++) {
-            const d = new Date(f.getTime() + i * I),
-              key = d.toISOString().split("T")[0];
-            dayLens.push((localStorage.getItem(key) || "").length);
+          const frag = document.createDocumentFragment();
+          for (
+            let d = new Date(scheduleEarliest);
+            d <= scheduleLatest;
+            d.setDate(d.getDate() + 1)
+          ) {
+            const cell = createScheduleCell(new Date(d), maxDayLen);
+            cell.dataset.date === selectedKey &&
+              (cell.classList.add("selected"), (selectedCell = cell)),
+              frag.appendChild(cell);
           }
-          const maxDayLen = Math.max(1, ...dayLens);
-          for (let i = -scheduleWindowDays; i <= scheduleWindowDays; i++) {
-            const d = new Date(f.getTime() + i * I),
-              key = d.toISOString().split("T")[0],
-              year = d.getFullYear(),
-              day = d.getDay(),
-              holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
-              dayLen = dayLens[i + scheduleWindowDays],
-              heat = (dayLen / maxDayLen) * 0.5,
-              cell = document.createElement("div");
-            (cell.className = "schedule-cell"),
-              (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`);
-            key === selectedKey &&
-              (cell.classList.add("selected"), (selectedCell = cell));
-            holidayName
-              ? cell.setAttribute(
-                "data-tooltip",
-                dayLen > 0 ? `${holidayName} / ${dayLen} 文字` : holidayName
-              )
-              : dayLen > 0 &&
-              cell.setAttribute("data-tooltip", `${dayLen} 文字`);
-            cell.addEventListener("mouseenter", () => previewScheduleDate(d));
-            const dateLabel = document.createElement("div");
-            (dateLabel.className = "schedule-date"),
-              6 === day && dateLabel.classList.add("saturday"),
-              0 === day && dateLabel.classList.add("sunday"),
-              holidayName && dateLabel.classList.add("holiday"),
-              (dateLabel.textContent = `${d.getMonth() + 1}/${d.getDate()}(${d.toLocaleDateString(
-                "ja-JP",
-                { weekday: "short" }
-              )})`),
-              dateLabel.addEventListener("click", () => selectScheduleDate(d));
-            let holidayLabel = null;
-            if (holidayName) {
-              holidayLabel = document.createElement("div");
-              (holidayLabel.className = "schedule-holiday"),
-                (holidayLabel.textContent = holidayName);
-            }
-            const noteInput = document.createElement("textarea");
-            (noteInput.className = "schedule-note"),
-              (noteInput.placeholder = "予定を入力"),
-              (noteInput.value = localStorage.getItem(`note:${key}`) || "");
-            noteInput.addEventListener("input", () => {
-              const v = noteInput.value;
-              v
-                ? localStorage.setItem(`note:${key}`, v)
-                : localStorage.removeItem(`note:${key}`);
-            }),
-              cell.appendChild(dateLabel),
-              holidayLabel && cell.appendChild(holidayLabel),
-              cell.appendChild(noteInput),
-              sb.appendChild(cell);
-          }
-          selectedCell &&
-            selectedCell.scrollIntoView({ inline: "center", block: "nearest" }),
+          sb.appendChild(frag),
+            selectedCell &&
+            ((scheduleScrollSuppressed = !0),
+              selectedCell.scrollIntoView({ inline: "center", block: "nearest" }),
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
+              )),
             renderWeekPane();
+        },
+        extendScheduleBarStart = (days = 14) => {
+          const maxDayLen = getGlobalMaxDayLen(),
+            frag = document.createDocumentFragment();
+          for (let i = days; i >= 1; i--)
+            frag.appendChild(
+              createScheduleCell(
+                new Date(scheduleEarliest.getTime() - i * I),
+                maxDayLen
+              )
+            );
+          const prevScrollWidth = sb.scrollWidth,
+            prevScrollLeft = sb.scrollLeft;
+          sb.insertBefore(frag, sb.firstChild),
+            (scheduleEarliest = new Date(
+              scheduleEarliest.getTime() - days * I
+            )),
+            (sb.scrollLeft =
+              prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
+        },
+        extendScheduleBarEnd = (days = 14) => {
+          const maxDayLen = getGlobalMaxDayLen(),
+            frag = document.createDocumentFragment();
+          for (let i = 1; i <= days; i++)
+            frag.appendChild(
+              createScheduleCell(
+                new Date(scheduleLatest.getTime() + i * I),
+                maxDayLen
+              )
+            );
+          sb.appendChild(frag),
+            (scheduleLatest = new Date(scheduleLatest.getTime() + days * I));
         },
         K = (e, t = 0, a = 0, l = !1) => {
           saveCurrentMemo();
@@ -1768,7 +1924,21 @@
           },
           { passive: false }
         ),
+        sb.addEventListener("scroll", () => {
+          if (scheduleScrollSuppressed) return;
+          sb.scrollLeft < 200
+            ? extendScheduleBarStart()
+            : sb.scrollWidth - sb.scrollLeft - sb.clientWidth < 200 &&
+            extendScheduleBarEnd();
+        }),
         wp.addEventListener("mouseleave", () => T(f)),
+        wp.addEventListener("scroll", () => {
+          if (weekScrollSuppressed) return;
+          wp.scrollTop < 200
+            ? extendWeekPaneStart()
+            : wp.scrollHeight - wp.scrollTop - wp.clientHeight < 200 &&
+            extendWeekPaneEnd();
+        }),
         document.addEventListener("click", (e) => {
         document
           .querySelectorAll(".search-modal.close-on-click-outside")
@@ -1905,7 +2075,8 @@
           (sDirty = !0),
             localStorage.setItem(e, s.value),
             clearTimeout(L),
-            (L = setTimeout(saveCurrentMemo, 3e3));
+            (L = setTimeout(saveCurrentMemo, 3e3)),
+            scrollCaretIntoView();
         }),
         s.addEventListener("blur", () => {
           saveCurrentMemo();
