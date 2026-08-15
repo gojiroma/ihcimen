@@ -13,6 +13,7 @@
     html,
     body {
       height: 100%;
+      margin: 0;
       overflow: hidden;
     }
 
@@ -536,24 +537,16 @@
       <h3>マウス操作</h3>
       <ul>
         <li>
-          <strong>日付パラパラ:</strong>
-          日付の下にある「帯」にカーソルを置くと、素早く日付が変わり、その日のメモを「チラ見」できます。クリックすると日付が固定されます。
-        </li>
-        <li>
-          <strong>ホイールくるくる:</strong>
-          カレンダー上でマウスのホイールを回すと、年を移動できます。
-        </li>
-        <li>
           <strong>本文クリック:</strong>
           表示されている本文をクリックすると、編集モードになります。
         </li>
         <li>
           <strong>下段カレンダー:</strong>
-          画面下部のバーは選択中の日付を中心に横スクロールできます。日付をクリックするとその日の本文に移動し、各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
+          画面下部のバーは選択中の日付を中心に横スクロールできます(ホイール操作でもShiftキー不要でスクロールできます)。日付にカーソルを合わせるとその日のメモを「チラ見」でき、クリックすると日付が固定されます。各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
         </li>
         <li>
           <strong>右側のWeek pane:</strong>
-          画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」をクリックするとその週の月曜日に移動し、各セルの入力欄には週単位の簡易メモを書き込めます。
+          画面右側は選択中の週を中心に縦スクロールできます。「YYYY-Week XX」にカーソルを合わせるとその週の月曜日のメモを「チラ見」でき、クリックすると移動が固定されます。各セルの入力欄には週単位の簡易メモを書き込めます。
         </li>
       </ul>
       <h3>ショートカットキー一覧</h3>
@@ -1252,7 +1245,7 @@
           requestAnimationFrame(scanFrame);
         },
         scheduleWindowDays = 30,
-        weekPaneWindowWeeks = 8,
+        weekPaneWindowWeeks = 52,
         getISOWeekInfo = (date) => {
           const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()),
             dayNum = (d.getDay() + 6) % 7;
