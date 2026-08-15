@@ -20,6 +20,7 @@
       flex-direction: column;
       align-items: center;
       margin-top: 20px;
+      padding-bottom: 120px;
     }
 
     .date-display {
@@ -43,50 +44,7 @@
       line-height: 1.2;
     }
 
-    .date-picker-container {
-      display: flex;
-      /*flexだった*/
-      width: 100%;
-      height: 30px;
-      border: 1px solid #000;
-    }
-
-    .date-box {
-      flex: 1;
-      height: 30px;
-      border-right: 1px solid #ddd;
-      cursor: pointer;
-      box-sizing: border-box;
-    }
-
-    .date-box.selected {
-      background-color: #00f !important;
-    }
-
-    .date-box.has-entry {
-      background-color: #ff0;
-    }
-
-    .date-box.today {
-      background-color: red;
-    }
-
-    .date-box.saturday {
-      background-color: #add8e6;
-    }
-
-    .date-box.sunday {
-      background-color: #ffb6c1;
-    }
-
-    .date-box.closed,
-    .date-box.holiday {
-      background-color: gray;
-      position: relative;
-    }
-
-    .date-box.closed::after,
-    .date-box.holiday::after {
+    .schedule-cell[data-tooltip]::after {
       content: attr(data-tooltip);
       position: absolute;
       background-color: #333;
@@ -100,8 +58,7 @@
       white-space: nowrap;
     }
 
-    .date-box.closed:hover::after,
-    .date-box.holiday:hover::after {
+    .schedule-cell[data-tooltip]:hover::after {
       display: block;
       z-index: 10;
     }
@@ -143,7 +100,7 @@
     /* Save Status Indicator */
     .save-status {
       position: fixed;
-      bottom: 20px;
+      bottom: 120px;
       right: 20px;
       padding: 12px 16px;
       border-radius: 8px;
@@ -246,8 +203,7 @@
       transition: background-color 0.2s ease;
     }
 
-    textarea,
-    .date-box {
+    textarea {
       transition: box-shadow 0.3s ease, background-color 0.2s ease;
     }
 
@@ -344,6 +300,76 @@
       background-color: var(--bg-color);
       color: var(--text-color);
     }
+
+    .schedule-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 100px;
+      display: flex;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-top: 1px solid #ddd;
+      background-color: var(--bg-color);
+      z-index: 400;
+    }
+
+    .schedule-cell {
+      position: relative;
+      flex: 0 0 120px;
+      width: 120px;
+      box-sizing: border-box;
+      border-right: 1px solid #ddd;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .schedule-cell.selected {
+      background-color: rgba(127, 127, 127, 0.15);
+    }
+
+    .schedule-date {
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .schedule-date.saturday {
+      color: #3b82c4;
+    }
+
+    .schedule-date.sunday,
+    .schedule-date.holiday {
+      color: #e0555f;
+    }
+
+    .schedule-date.holiday {
+      font-weight: 700;
+    }
+
+    .schedule-holiday {
+      font-size: 11px;
+      color: #e0555f;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .schedule-note {
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+      border: none;
+      outline: 0;
+      background-color: transparent;
+      color: inherit;
+      font-size: 13px;
+      font-family: inherit;
+      padding: 0;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -355,7 +381,6 @@
       <span class="month-day" id="monthDayDisplay">MM/DD</span>
       <span class="weekday" id="weekdayDisplay">EEEE</span>
     </div>
-    <div class="date-picker-container" id="datePickerContainer"></div>
     <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? でヘルプ)"></textarea>
     <div class="markdown-viewer" id="markdownViewer"></div>
   </div>
@@ -382,6 +407,10 @@
         <li>
           <strong>本文クリック:</strong>
           表示されている本文をクリックすると、編集モードになります。
+        </li>
+        <li>
+          <strong>下段カレンダー:</strong>
+          画面下部のバーは選択中の日付を中心に横スクロールできます。日付をクリックするとその日の本文に移動し、各セルの入力欄には本文とは別に簡易的な予定を書き込めます。
         </li>
       </ul>
       <h3>ショートカットキー一覧</h3>
@@ -434,6 +463,7 @@
   </div>
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
+  <div id="scheduleBar" class="schedule-bar"></div>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -441,7 +471,6 @@
         "yearDisplay",
         "monthDayDisplay",
         "weekdayDisplay",
-        "datePickerContainer",
         "textBox",
         "markdownViewer",
         "fileInput",
@@ -452,12 +481,12 @@
         "saveStatus",
         "toastContainer",
         "dateDisplay",
+        "scheduleBar",
       ].reduce((e, t) => ((e[t] = document.getElementById(t)), e), {}),
         {
           yearDisplay: t,
           monthDayDisplay: a,
           weekdayDisplay: l,
-          datePickerContainer: n,
           textBox: s,
           markdownViewer: o,
           fileInput: r,
@@ -468,28 +497,19 @@
           saveStatus: saveStatusEl,
           toastContainer: toastContainerEl,
           dateDisplay: dd,
+          scheduleBar: sb,
         } = e,
         v = {
-          currentYear: new Date().getFullYear(),
           selectedDate: new Date(),
-          clickedDate: void 0,
-          hoveredDate: void 0,
-          revertToToday: !1,
           saveTimer: void 0,
           searchResultsData: [],
           currentSearchResultIndex: -1,
-          wheelTimeout: void 0,
         };
       let {
-        currentYear: S,
         selectedDate: f,
-        clickedDate: w,
-        hoveredDate: k,
-        revertToToday: D,
         saveTimer: L,
         searchResultsData: E,
         currentSearchResultIndex: b,
-        wheelTimeout: x,
       } = v;
       const I = 864e5,
         T = (e) => {
@@ -501,23 +521,18 @@
           l.textContent = e.toLocaleDateString("ja-JP", { weekday: "long" });
           A(e);
         },
+        Z = (e) => {
+          const t = e.trim();
+          return "" !== t && "#" !== t;
+        },
         A = (e) => {
-          const t = e.toISOString().split("T")[0];
-          let a = localStorage.getItem(t) || "";
-          if (!a && new Date().toISOString().split("T")[0] === t) {
-            a = "# ";
-            localStorage.setItem(t, a);
-          }
+          const t = e.toISOString().split("T")[0],
+            a = localStorage.getItem(t) || "# ";
           s.value = a;
           o.innerHTML = marked.parse(a);
-          o.style.display = a ? "block" : "none";
-          s.style.display = a ? "none" : "block";
-        },
-        $ = (e) => {
-          document
-            .querySelectorAll(".date-box")
-            .forEach((e) => e.classList.remove("selected")),
-            e && e.classList.add("selected");
+          const l = Z(a);
+          (o.style.display = l ? "block" : "none"),
+            (s.style.display = l ? "none" : "block");
         },
         O = (e, t) => {
           e.style.display = t ? "block" : "none";
@@ -662,73 +677,6 @@
             "2027-01-05": "年末年始休暇",
           },
         },
-        R = (e) => {
-          const t = new Date(e, 0, 1),
-            a = new Date(e, 11, 31),
-            l = Math.ceil((a - t + I) / I);
-          n.innerHTML = "";
-          for (let a = 0; a < l; a++) {
-            const s = document.createElement("div");
-            s.classList.add("date-box");
-            const o = new Date(t.getTime() + a * I),
-              r = o.toISOString().split("T")[0];
-            (s.dataset.date = r),
-              (s.style.width = `calc(100% / ${l})`),
-              n.appendChild(s);
-            const c = o.getDay();
-            6 === c
-              ? s.classList.add("saturday")
-              : 0 === c && s.classList.add("sunday"),
-              M[e] &&
-              M[e][r] &&
-              (s.classList.add("holiday"),
-                s.setAttribute("data-tooltip", M[e][r])),
-              C[e] &&
-              C[e][r] &&
-              (s.classList.add("closed"),
-                s.setAttribute("data-tooltip", C[e][r])),
-              s.addEventListener("mouseover", () => {
-                (k = new Date(s.dataset.date)),
-                  T(k),
-                  s.classList.add("hovered");
-              }),
-              s.addEventListener("mouseout", () => {
-                s.classList.remove("hovered");
-              }),
-              s.addEventListener("click", () => {
-                (w = new Date(s.dataset.date)),
-                  (f = w),
-                  (S = w.getFullYear()),
-                  R(S),
-                  T(w),
-                  $(s);
-              }),
-              o.toISOString().split("T")[0] ===
-              new Date().toISOString().split("T")[0] &&
-              s.classList.add("today");
-          }
-          n.addEventListener("mouseleave", j), q();
-        },
-        j = () => {
-          D || !w
-            ? ((f = new Date()), T(f), (D = !1))
-            : w &&
-            k !== w &&
-            (T(w),
-              $(
-                document.querySelector(
-                  `.date-box[data-date="${w.toISOString().split("T")[0]}"]`
-                )
-              ));
-        },
-        q = () => {
-          document.querySelectorAll(".date-box").forEach((e) => {
-            const t = e.dataset.date;
-            localStorage.getItem(t) && localStorage.getItem(t).length > 0
-              ? e.classList.add("has-entry")
-              : e.classList.remove("has-entry");
-          });
-        },
         X = (e) => e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
         F = (e) => {
           const t = i.value,
@@ -822,12 +770,69 @@
             URL.revokeObjectURL(url),
             showToast(`バックアップをダウンロードしました (${Object.keys(data).length} 件)`, "success");
         },
+        scheduleWindowDays = 30,
+        selectScheduleDate = (d) => {
+          (f = d), T(f), renderScheduleBar();
+        },
+        previewScheduleDate = (d) => {
+          T(d);
+        },
+        renderScheduleBar = () => {
+          sb.innerHTML = "";
+          const selectedKey = f.toISOString().split("T")[0];
+          let selectedCell = null;
+          for (let i = -scheduleWindowDays; i <= scheduleWindowDays; i++) {
+            const d = new Date(f.getTime() + i * I),
+              key = d.toISOString().split("T")[0],
+              year = d.getFullYear(),
+              day = d.getDay(),
+              holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
+              cell = document.createElement("div");
+            cell.className = "schedule-cell";
+            key === selectedKey &&
+              (cell.classList.add("selected"), (selectedCell = cell));
+            holidayName && cell.setAttribute("data-tooltip", holidayName);
+            cell.addEventListener("mouseenter", () => previewScheduleDate(d));
+            const dateLabel = document.createElement("div");
+            (dateLabel.className = "schedule-date"),
+              6 === day && dateLabel.classList.add("saturday"),
+              0 === day && dateLabel.classList.add("sunday"),
+              holidayName && dateLabel.classList.add("holiday"),
+              (dateLabel.textContent = `${d.getMonth() + 1}/${d.getDate()}(${d.toLocaleDateString(
+                "ja-JP",
+                { weekday: "short" }
+              )})`),
+              dateLabel.addEventListener("click", () => selectScheduleDate(d));
+            let holidayLabel = null;
+            if (holidayName) {
+              holidayLabel = document.createElement("div");
+              (holidayLabel.className = "schedule-holiday"),
+                (holidayLabel.textContent = holidayName);
+            }
+            const noteInput = document.createElement("input");
+            (noteInput.className = "schedule-note"),
+              (noteInput.type = "text"),
+              (noteInput.placeholder = "予定を入力"),
+              (noteInput.value = localStorage.getItem(`note:${key}`) || "");
+            noteInput.addEventListener("input", () => {
+              const v = noteInput.value;
+              v
+                ? localStorage.setItem(`note:${key}`, v)
+                : localStorage.removeItem(`note:${key}`);
+            }),
+              cell.appendChild(dateLabel),
+              holidayLabel && cell.appendChild(holidayLabel),
+              cell.appendChild(noteInput),
+              sb.appendChild(cell);
+          }
+          selectedCell &&
+            selectedCell.scrollIntoView({ inline: "center", block: "nearest" });
+        },
         K = (e, t = 0, a = 0, l = !1) => {
           saveCurrentMemo();
-          const n = f.getFullYear(),
-            s = Object.keys(localStorage)
-              .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e))
-              .sort(),
+          const s = Object.keys(localStorage)
+            .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e))
+            .sort(),
             o = new Date(s[0]),
             r = new Date(s[s.length - 1]),
             c = (e) => e.toISOString().split("T")[0];
@@ -846,12 +851,10 @@
               break;
             }
           }
-          const i = f.getFullYear();
-          n !== i && R(i);
-          const d = c(f);
-          T(f), $(document.querySelector(`.date-box[data-date="${d}"]`));
+          T(f), renderScheduleBar();
         };
-      document.addEventListener("click", (e) => {
+      sb.addEventListener("mouseleave", () => T(f)),
+        document.addEventListener("click", (e) => {
         document
           .querySelectorAll(".search-modal.close-on-click-outside")
           .forEach((t) => {
@@ -870,19 +873,11 @@
               "?" === l && U(!0),
                 "o" === l && r.click(),
                 "t" === l &&
-                ((f = new Date()),
-                  T(f),
-                  $(
-                    document.querySelector(
-                      `.date-box[data-date="${f.toISOString().split("T")[0]
-                      }"]`
-                    )
-                  ),
-                  (D = !0)),
+                ((f = new Date()), T(f), renderScheduleBar()),
                 "f" === l && (O(c, !0), i.focus()),
                 "b" === l && downloadBackup(),
-                "[" === l && ((S -= 1), R(S)),
-                "]" === l && ((S += 1), R(S));
+                "[" === l && K(0, 0, -1),
+                "]" === l && K(0, 0, 1);
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
             else if ("block" === c.style.display) {
               if (
@@ -910,12 +905,7 @@
                   (f = e),
                   T(f),
                   F(E[b].text),
-                  $(
-                    document.querySelector(
-                      `.date-box[data-date="${f.toISOString().split("T")[0]
-                      }"]`
-                    )
-                  ),
+                  renderScheduleBar(),
                   ((e, t) => {
                     const a = e.innerHTML,
                       l = new RegExp(`(${X(t)})`, "gi"),
@@ -992,24 +982,19 @@
               (f = a),
               T(f),
               F(E[t].text),
-              $(
-                document.querySelector(
-                  `.date-box[data-date="${f.toISOString().split("T")[0]}"]`
-                )
-              );
+              renderScheduleBar();
           }
         }),
         s.addEventListener("input", () => {
           const e = f.toISOString().split("T")[0];
-          (s.value = s.value.replace(/^\s*$[\n\r]{1,}/gm, "")),
-            localStorage.setItem(e, s.value),
-            q(),
+          localStorage.setItem(e, s.value),
             clearTimeout(L),
-            (L = setTimeout(B, 3e3));
+            (L = setTimeout(saveCurrentMemo, 3e3));
         }),
         s.addEventListener("blur", () => {
           saveCurrentMemo();
           const e = s.value;
+          if (!Z(e)) return;
           O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
         }),
         s.addEventListener("focus", () => {
@@ -1126,7 +1111,6 @@
               Object.keys(t).forEach((e) => localStorage.setItem(e, t[e])),
                 showToast(`${Object.keys(t).length} 件のメモをインポートしました`, "success"),
                 location.reload();
-              q();
             }),
               (e.onerror = () => {
                 showToast("ファイルの読み込みに失敗しました", "error");
@@ -1134,10 +1118,6 @@
               e.readAsText(t);
           }
         }),
-        n.addEventListener("wheel", (e) => {
-          e.preventDefault();
-          clearTimeout(x), (S += e.deltaY < 0 ? -1 : 1), R(S);
-        }, { passive: false }),
         document.addEventListener("keydown", function (e) {
           "e" === e.key &&
             "none" == s.style.display &&
@@ -1145,10 +1125,13 @@
             "block" !== p.style.display &&
             (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
         }),
-        // 修正後のコード
         document.addEventListener("DOMContentLoaded", () => {
-          (w = new Date()), T(w), R(S), q(), O(s, false), O(o, true);
+          T(f);
+          renderScheduleBar();
+          // ページを開いたときは常に編集モードでカーソルをアクティブにする
+          O(s, !0), O(o, !1);
           s.focus();
+          s.selectionStart = s.selectionEnd = s.value.length;
           // 初回設定
           H();
           // 日付表示内容が変更されたときに title を更新する
@@ -1159,9 +1142,7 @@
       window.moveToToday = function () {
         f = new Date();
         T(f);
-        const dateBox = document.querySelector(`.date-box[data-date="${f.toISOString().split("T")[0]}"]`);
-        $(dateBox);
-        D = true;
+        renderScheduleBar();
         showToast("今日に移動しました", "info");
       };
     })();
