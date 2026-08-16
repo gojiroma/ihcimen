@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="3" />
+  <meta name="app-version" content="4" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -579,8 +579,12 @@
     }
 
     .text-box {
-      height: 3500px;
+      /* JSでコンテンツ量に応じて高さを設定する(resizeTextBox)。
+         固定heightだと、内容がそれを超えたときにテキストエリア自身が
+         独自にスクロールしてしまい、.content-area 側のスクロールでは
+         その先に届かなくなる。 */
       flex-shrink: 0;
+      overflow: hidden;
     }
 
     textarea {
@@ -1681,12 +1685,26 @@
           const t = e.trim();
           return "" !== t && "#" !== t;
         },
+        // 本文欄の高さをコンテンツ量に合わせて伸縮させる。空/短い日でも
+        // ある程度の高さ(クリックしやすい余白)は確保しつつ、長い日は
+        // それに合わせて伸ばすことで、.content-area 側のスクロールだけで
+        // 全体に届くようにする(テキストエリア自身の内部スクロールを
+        // 発生させない)。
+        resizeTextBox = () => {
+          (s.style.height = "0px"),
+            (s.style.height =
+              Math.max(
+                s.scrollHeight,
+                Math.max(contentAreaEl.clientHeight - 40, 300)
+              ) + "px");
+        },
         A = (e) => {
           const t = toDateKey(e),
             a = localStorage.getItem(t) || "# ";
           s.value = a;
           editBaseline = a;
           sessionSnapshotDone = !1;
+          resizeTextBox();
           o.innerHTML = marked.parse(a);
           const l = Z(a);
           (o.style.display = l ? "block" : "none"),
@@ -1904,11 +1922,16 @@
             sRect = s.getBoundingClientRect(),
             caretTop = sRect.top + paddingTop + caretOffset,
             caRect = contentAreaEl.getBoundingClientRect(),
-            delta = caretTop - caRect.top - caRect.height / 2 + lineHeight / 2;
-          contentAreaEl.scrollTo({
-            top: contentAreaEl.scrollTop + delta,
-            behavior: "smooth",
-          });
+            // .content-area は下段カレンダーの裏まで箱が伸びているため、
+            // 中央寄せは実際に見えている高さ(padding-bottom分を除く)を
+            // 基準にする。scrollTo({behavior:"smooth"})は環境によって
+            // アニメーションが進行せずスクロールされないことがあるため、
+            // scrollCaretIntoView と同様に即時反映する。
+            caPaddingBottom =
+              parseFloat(getComputedStyle(contentAreaEl).paddingBottom) || 0,
+            visibleHeight = caRect.height - caPaddingBottom,
+            delta = caretTop - caRect.top - visibleHeight / 2 + lineHeight / 2;
+          contentAreaEl.scrollTop += delta;
         },
         // 閲覧モードでのクリック位置(画面座標)から、対応するソース内の
         // 文字位置を推定する。クリックされたテキストノードの前後数文字を
@@ -3217,6 +3240,7 @@
             localStorage.setItem(e, s.value),
             clearTimeout(L),
             (L = setTimeout(saveCurrentMemo, 3e3)),
+            resizeTextBox(),
             scrollCaretIntoView(),
             renderToc();
         }),
@@ -3693,7 +3717,8 @@
       // スクロール可能になるまでセルを補充する。
       window.addEventListener("resize", () => {
         document.body.classList.contains("schedule-bar-fullscreen") &&
-          fillScheduleBarFullscreen();
+          fillScheduleBarFullscreen(),
+          resizeTextBox();
       });
       // しばらく操作がないと、ノブ/アイコン類を控えめにフェードする。
       (() => {
