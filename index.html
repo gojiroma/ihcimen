@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="6" />
+  <meta name="app-version" content="7" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -218,6 +218,91 @@
 
     body.schedule-bar-fullscreen .fullscreen-year-watermark {
       display: block;
+    }
+
+    /* セルの長押し/右クリックで開く色選択ポップアップ */
+    .cell-color-picker {
+      display: none;
+      position: fixed;
+      z-index: 1600;
+      transform: translate(-50%, 8px);
+      background-color: var(--bg-color);
+      color: inherit;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 10px;
+      padding: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      flex-wrap: wrap;
+      gap: 6px;
+      max-width: 180px;
+    }
+
+    .cell-color-picker.open {
+      display: flex;
+    }
+
+    .cell-color-swatch {
+      width: 28px;
+      height: 28px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 1px solid rgba(128, 128, 128, 0.3);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .cell-color-clear {
+      flex-basis: 100%;
+      font: inherit;
+      font-size: 12px;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    /* 全画面カレンダー右端の年目盛りルーラー */
+    body.schedule-bar-fullscreen .schedule-bar {
+      right: 36px;
+    }
+
+    .year-ruler {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 36px;
+      box-sizing: border-box;
+      z-index: 495;
+      overflow-y: auto;
+      overflow-x: hidden;
+      background-color: rgba(128, 128, 128, 0.05);
+      border-left: 1px solid rgba(128, 128, 128, 0.2);
+    }
+
+    body.schedule-bar-fullscreen .year-ruler {
+      display: block;
+    }
+
+    .year-ruler-tick {
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      opacity: 0.5;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    .year-ruler-tick:hover,
+    .year-ruler-tick.active {
+      opacity: 1;
+      background-color: rgba(59, 130, 196, 0.18);
+      font-weight: 700;
     }
 
     .content-area {
@@ -1566,6 +1651,17 @@
     ×
   </button>
   <div id="fullscreenYearWatermark" class="fullscreen-year-watermark"></div>
+  <div id="cellColorPicker" class="cell-color-picker">
+    <button type="button" class="cell-color-swatch" data-color="pink" style="background-color: #fadce3" title="ピンク"></button>
+    <button type="button" class="cell-color-swatch" data-color="blue" style="background-color: #d6e9f5" title="水色"></button>
+    <button type="button" class="cell-color-swatch" data-color="green" style="background-color: #dceedb" title="若草色"></button>
+    <button type="button" class="cell-color-swatch" data-color="yellow" style="background-color: #fbf2d3" title="クリーム"></button>
+    <button type="button" class="cell-color-swatch" data-color="purple" style="background-color: #e5def2" title="ラベンダー"></button>
+    <button type="button" class="cell-color-swatch" data-color="orange" style="background-color: #fbe1d3" title="サーモン"></button>
+    <button type="button" class="cell-color-swatch" data-color="gray" style="background-color: #e3e3e3" title="グレー"></button>
+    <button type="button" class="cell-color-clear" data-color="">指定なし</button>
+  </div>
+  <div id="yearRuler" class="year-ruler"></div>
   <div id="weekPane" class="week-pane"></div>
   <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
@@ -1633,6 +1729,8 @@
         fullscreenYearWatermarkEl = document.getElementById(
           "fullscreenYearWatermark"
         ),
+        cellColorPickerEl = document.getElementById("cellColorPicker"),
+        yearRulerEl = document.getElementById("yearRuler"),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -2700,20 +2798,24 @@
         collectSyncableData = () => {
           const entries = {},
             notes = {},
-            weekNotes = {};
+            weekNotes = {},
+            cellColors = {};
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             /^\d{4}-\d{2}-\d{2}$/.test(key)
               ? (entries[key] = localStorage.getItem(key))
               : key.startsWith("note:")
                 ? (notes[key.slice(5)] = localStorage.getItem(key))
-                : key.startsWith("weeknote:") &&
-                (weekNotes[key.slice(9)] = localStorage.getItem(key));
+                : key.startsWith("weeknote:")
+                  ? (weekNotes[key.slice(9)] = localStorage.getItem(key))
+                  : key.startsWith("cellColor:") &&
+                  (cellColors[key.slice(10)] = localStorage.getItem(key));
           }
           return {
             entries,
             notes,
             weekNotes,
+            cellColors,
             h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
           };
         },
@@ -2726,6 +2828,9 @@
             ),
             Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
               localStorage.setItem(`weeknote:${k}`, v)
+            ),
+            Object.entries(data.cellColors || {}).forEach(([k, v]) =>
+              localStorage.setItem(`cellColor:${k}`, v)
             ),
             "string" == typeof data.h1Shortcuts &&
             localStorage.setItem("h1Shortcuts", data.h1Shortcuts);
@@ -2939,17 +3044,55 @@
             });
           return Math.max(1, ...Object.values(totals));
         },
+        // --- カレンダーセルの色分け(長押し/右クリック) ---
+        CELL_COLORS = {
+          pink: "#fadce3",
+          blue: "#d6e9f5",
+          green: "#dceedb",
+          yellow: "#fbf2d3",
+          purple: "#e5def2",
+          orange: "#fbe1d3",
+          gray: "#e3e3e3",
+        },
+        getCellColorKey = (dateKey) => `cellColor:${dateKey}`,
+        getCellColor = (dateKey) =>
+          localStorage.getItem(getCellColorKey(dateKey)) || "",
+        setCellColor = (dateKey, color) => {
+          color
+            ? localStorage.setItem(getCellColorKey(dateKey), color)
+            : localStorage.removeItem(getCellColorKey(dateKey));
+        },
+        applyCellColor = (cell, dateKey, maxDayLen) => {
+          const custom = getCellColor(dateKey);
+          if (custom && CELL_COLORS[custom]) {
+            cell.style.backgroundColor = CELL_COLORS[custom];
+            return;
+          }
+          const dayLen = (localStorage.getItem(dateKey) || "").length,
+            heat = (dayLen / maxDayLen) * 0.5;
+          cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
+        },
+        closeCellColorPicker = () => {
+          cellColorPickerEl.classList.remove("open");
+        },
+        openCellColorPicker = (dateKey, x, y) => {
+          cellColorPickerEl.dataset.targetDate = dateKey;
+          const vw = window.innerWidth,
+            clampedX = Math.min(Math.max(x, 100), vw - 100);
+          (cellColorPickerEl.style.left = clampedX + "px"),
+            (cellColorPickerEl.style.top = y + "px"),
+            cellColorPickerEl.classList.add("open");
+        },
         createScheduleCell = (d, maxDayLen) => {
           const key = toDateKey(d),
             year = d.getFullYear(),
             day = d.getDay(),
             holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
             dayLen = (localStorage.getItem(key) || "").length,
-            heat = (dayLen / maxDayLen) * 0.5,
             cell = document.createElement("div");
           (cell.className = "schedule-cell"),
             (cell.dataset.date = key),
-            (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`);
+            applyCellColor(cell, key, maxDayLen);
           holidayName
             ? cell.setAttribute(
               "data-tooltip",
@@ -2957,6 +3100,37 @@
             )
             : dayLen > 0 && cell.setAttribute("data-tooltip", `${dayLen} 文字`);
           cell.addEventListener("mouseenter", () => previewScheduleDate(d));
+          cell.addEventListener("contextmenu", (e) => {
+            e.target.closest(".schedule-note") ||
+              (e.preventDefault(), openCellColorPicker(key, e.clientX, e.clientY));
+          });
+          let longPressTimer = null,
+            longPressStartX = 0,
+            longPressStartY = 0,
+            suppressNextLabelClick = !1;
+          cell.addEventListener("pointerdown", (e) => {
+            "touch" === e.pointerType &&
+              !e.target.closest(".schedule-note") &&
+              ((longPressStartX = e.clientX),
+                (longPressStartY = e.clientY),
+                (longPressTimer = setTimeout(() => {
+                  openCellColorPicker(key, longPressStartX, longPressStartY),
+                    (suppressNextLabelClick = !0),
+                    (longPressTimer = null);
+                }, 500)));
+          }),
+            cell.addEventListener("pointermove", (e) => {
+              longPressTimer &&
+                (Math.abs(e.clientX - longPressStartX) > 10 ||
+                  Math.abs(e.clientY - longPressStartY) > 10) &&
+                (clearTimeout(longPressTimer), (longPressTimer = null));
+            }),
+            cell.addEventListener("pointerup", () => {
+              longPressTimer && (clearTimeout(longPressTimer), (longPressTimer = null));
+            }),
+            cell.addEventListener("pointercancel", () => {
+              longPressTimer && (clearTimeout(longPressTimer), (longPressTimer = null));
+            });
           const dateLabel = document.createElement("div"),
             isNewYearsDay = 0 === d.getMonth() && 1 === d.getDate();
           (dateLabel.className = "schedule-date"),
@@ -2967,7 +3141,11 @@
               }/${d.getDate()}(${d.toLocaleDateString("ja-JP", {
                 weekday: "short",
               })})`),
-            dateLabel.addEventListener("click", () => selectScheduleDate(d));
+            dateLabel.addEventListener("click", () => {
+              if (suppressNextLabelClick)
+                return void (suppressNextLabelClick = !1);
+              selectScheduleDate(d);
+            });
           let holidayLabel = null;
           if (holidayName) {
             holidayLabel = document.createElement("div");
@@ -3241,6 +3419,9 @@
                 ? U(!1)
                 : ((t.style.display = "none"), stopQrScan()));
           });
+        cellColorPickerEl.classList.contains("open") &&
+          !cellColorPickerEl.contains(e.target) &&
+          closeCellColorPicker();
       }),
         document.addEventListener("keydown", (e) => {
           if (e.isComposing || 229 === e.keyCode) return;
@@ -3687,6 +3868,17 @@
           .addEventListener("click", () => {
             document.body.classList.remove("schedule-bar-fullscreen");
           }),
+        cellColorPickerEl.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-color]");
+          if (!btn) return;
+          const dateKey = cellColorPickerEl.dataset.targetDate;
+          setCellColor(dateKey, btn.dataset.color), closeCellColorPicker();
+          const cell = sb.querySelector(
+            `.schedule-cell[data-date="${dateKey}"]`
+          );
+          cell && applyCellColor(cell, dateKey, getGlobalMaxDayLen()),
+            maybeSyncPush();
+        }),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
           if (t) {
