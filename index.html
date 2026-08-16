@@ -2056,7 +2056,12 @@
           if (document.activeElement === s) return;
           const d = new Date(sc.date);
           T(d);
-          const el = o.querySelectorAll("h1")[sc.headingIdx];
+          // headingIdxは他の見出しの追加/削除でずれるため、まず本文を
+          // テキストで探し、見つからない場合だけ保存時のindexにフォールバック
+          // する。
+          const headers = Array.from(o.querySelectorAll("h1")),
+            byText = headers.find((h) => h.textContent === sc.text),
+            el = byText || headers[sc.headingIdx];
           el
             ? (el.scrollIntoView({ behavior: "smooth", block: "center" }),
               flashHighlight(el))
@@ -2187,7 +2192,12 @@
           if (null === r.headingIdx) {
             contentAreaEl.scrollTo({ top: 0, behavior: "smooth" });
           } else {
-            const el = o.querySelectorAll("h1")[r.headingIdx];
+            // headingIdxは検索時点のもので、その後の編集でずれている
+            // 可能性があるため、まずテキストで探す。
+            const headers = Array.from(o.querySelectorAll("h1")),
+              el =
+                headers.find((h) => h.textContent === r.headingText) ||
+                headers[r.headingIdx];
             el &&
               (el.scrollIntoView({ behavior: "smooth", block: "center" }),
                 flashHighlight(el));
