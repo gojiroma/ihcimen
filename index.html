@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="7" />
+  <meta name="app-version" content="8" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -439,6 +439,33 @@
       display: flex;
       gap: 8px;
       margin-top: 10px;
+    }
+
+    .storage-usage-panel {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(128, 128, 128, 0.3);
+    }
+
+    .storage-usage-text {
+      font-size: 12px;
+      opacity: 0.75;
+      margin: 0 0 6px;
+      line-height: 1.5;
+    }
+
+    .storage-usage-bar {
+      height: 6px;
+      border-radius: 3px;
+      background-color: rgba(128, 128, 128, 0.2);
+      overflow: hidden;
+    }
+
+    .storage-usage-bar-fill {
+      height: 100%;
+      width: 0%;
+      background-color: rgba(59, 130, 196, 0.7);
+      transition: width 0.3s ease;
     }
 
     .menu-inline-btn {
@@ -1619,6 +1646,12 @@
           </details>
         </div>
       </details>
+      <div id="storageUsagePanel" class="storage-usage-panel">
+        <p id="storageUsageText" class="storage-usage-text"></p>
+        <div class="storage-usage-bar">
+          <div id="storageUsageBarFill" class="storage-usage-bar-fill"></div>
+        </div>
+      </div>
     </div>
   </div>
   <div id="historyModal" class="search-modal close-on-click-outside">
@@ -1731,6 +1764,10 @@
         ),
         cellColorPickerEl = document.getElementById("cellColorPicker"),
         yearRulerEl = document.getElementById("yearRuler"),
+        storageUsageTextEl = document.getElementById("storageUsageText"),
+        storageUsageBarFillEl = document.getElementById(
+          "storageUsageBarFill"
+        ),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -2371,17 +2408,72 @@
             localStorage.setItem("searchPaneCollapsed", "0"),
             searchPaneInputEl.focus();
         },
+        STORAGE_QUOTA_KB = 5120,
+        getStorageUsageKb = () =>
+          Array.from({ length: localStorage.length }).reduce(
+            (sum, _, idx) =>
+              sum +
+              localStorage.key(idx).length +
+              localStorage.getItem(localStorage.key(idx)).length,
+            0
+          ) / 1024,
         H = () => {
-          const kb =
-            Array.from({ length: localStorage.length }).reduce(
-              (sum, _, idx) =>
-                sum +
-                localStorage.key(idx).length +
-                localStorage.getItem(localStorage.key(idx)).length,
-              0
-            ) / 1024,
-            percent = ((kb / 5120) * 100).toFixed(1);
+          const percent = ((getStorageUsageKb() / STORAGE_QUOTA_KB) * 100).toFixed(1);
           document.title = `${dd.innerText} (${percent}%)`;
+        },
+        recordStorageUsageSample = (kb) => {
+          const today = toDateKey(new Date());
+          let log;
+          try {
+            log = JSON.parse(localStorage.getItem("storageUsageLog") || "[]");
+          } catch (err) {
+            log = [];
+          }
+          if (!log.length || log[log.length - 1].date !== today) {
+            log.push({ date: today, kb });
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 30);
+            const cutoffKey = toDateKey(cutoff);
+            (log = log.filter((entry) => entry.date >= cutoffKey)),
+              localStorage.setItem("storageUsageLog", JSON.stringify(log));
+          }
+          return log;
+        },
+        renderStorageUsagePanel = () => {
+          const kb = getStorageUsageKb(),
+            percent = (kb / STORAGE_QUOTA_KB) * 100,
+            log = recordStorageUsageSample(kb);
+          storageUsageBarFillEl.style.width = Math.min(percent, 100).toFixed(1) + "%";
+          const base = `保存領域の使用率: ${percent.toFixed(1)}%`;
+          if (log.length < 2) {
+            storageUsageTextEl.textContent = `${base}(枯渇の目安は数日後に表示されます)`;
+            return;
+          }
+          const first = log[0],
+            last = log[log.length - 1],
+            days = (new Date(last.date) - new Date(first.date)) / 86400000;
+          if (days < 1) {
+            storageUsageTextEl.textContent = `${base}(枯渇の目安は数日後に表示されます)`;
+            return;
+          }
+          const dailyRate = (last.kb - first.kb) / days;
+          if (dailyRate <= 0) {
+            storageUsageTextEl.textContent = `${base}(現在のペースでは増加していないため、枯渇の見込みはありません)`;
+            return;
+          }
+          const remainingKb = STORAGE_QUOTA_KB - kb,
+            daysRemaining = Math.max(remainingKb, 0) / dailyRate;
+          let etaText;
+          daysRemaining < 1
+            ? (etaText = "まもなく")
+            : daysRemaining < 60
+              ? (etaText = `約${Math.round(daysRemaining)}日後`)
+              : daysRemaining < 730
+                ? (etaText = `約${Math.round(daysRemaining / 30)}ヶ月後`)
+                : (etaText = `約${(daysRemaining / 365).toFixed(1)}年後`);
+          const etaDate = new Date();
+          etaDate.setDate(etaDate.getDate() + Math.round(daysRemaining));
+          storageUsageTextEl.textContent = `${base}(今のペースでは${etaText}、${etaDate.getFullYear()}年${etaDate.getMonth() + 1}月頃に枯渇の見込み)`;
         },
         // 配信中のHTMLに埋め込まれたバージョンが手元より新しければリロードする。
         checkForUpdate = async () => {
@@ -2410,7 +2502,8 @@
         U = (show) => {
           const drawer = p.querySelector(".menu-drawer");
           show
-            ? (O(p, !0),
+            ? (renderStorageUsagePanel(),
+              O(p, !0),
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => drawer.classList.add("open"))
               ))
