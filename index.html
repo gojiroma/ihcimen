@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="9" />
+  <meta name="app-version" content="10" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -196,6 +196,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      right: 84px;
     }
 
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
@@ -265,7 +266,7 @@
 
     /* 全画面カレンダー右端の年目盛りルーラー */
     body.schedule-bar-fullscreen .schedule-bar {
-      right: 36px;
+      right: 64px;
     }
 
     .year-ruler {
@@ -274,7 +275,7 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 36px;
+      width: 64px;
       box-sizing: border-box;
       z-index: 495;
       overflow-y: auto;
@@ -288,11 +289,11 @@
     }
 
     .year-ruler-tick {
-      height: 28px;
+      height: 32px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 10px;
+      font-size: 12px;
       opacity: 0.5;
       cursor: pointer;
       color: inherit;
@@ -2496,7 +2497,9 @@
               localVersion = localVersionEl
                 ? Number(localVersionEl.content)
                 : 0;
-            remoteVersion > localVersion && location.reload();
+            remoteVersion > localVersion &&
+              (sessionStorage.setItem("justUpdatedToast", "1"),
+                location.reload());
           } catch (err) { }
         },
         U = (show) => {
@@ -3395,6 +3398,7 @@
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
               )),
+            updateFullscreenYearWatermark(),
             renderWeekPane();
         },
         extendScheduleBarStart = (days = 14) => {
@@ -4107,6 +4111,10 @@
           observer.observe(dd, { childList: true, subtree: true });
           // 同期が有効なら読み込み時にバックグラウンドで取得する
           pullAndMerge();
+          // バージョン更新によるリロード直後なら、そのことを知らせる
+          sessionStorage.getItem("justUpdatedToast") &&
+            (sessionStorage.removeItem("justUpdatedToast"),
+              showToast("最新バージョンに更新しました", "success"));
         });
       window.addEventListener("online", () => {
         pullAndMerge(), maybeSyncPush();
