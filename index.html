@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="4" />
+  <meta name="app-version" content="5" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3370,6 +3370,13 @@
             const l = a + "# " + s.value.substring(t);
             (s.value = l), (s.selectionStart = s.selectionEnd = t + 2);
           }
+          // 上のいずれかで s.value / selectionStart をプログラムから書き換えた
+          // 場合(preventDefaultされている場合)、実際のキー入力と違って
+          // "input" イベントが自然発火しないため、保存・高さ再計算・
+          // オートスクロールなどが一切走らない。明示的に発火させて
+          // s の input ハンドラに処理させる。
+          e.defaultPrevented &&
+            s.dispatchEvent(new Event("input", { bubbles: !0 }));
         }),
         syncToggleBtnEl.addEventListener("click", () => {
           getSyncSeed()
