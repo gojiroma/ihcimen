@@ -2835,6 +2835,10 @@
         },
         // 入力で行数が増えてキャレットがエリア下端(または上端)に
         // 近づいたら、.content-area を自動でスクロールする。
+        // .content-area 自体の高さは下段カレンダー(position:fixed)の
+        // 裏まで伸びているため、境界判定には見た目の下端(bounding rect)
+        // ではなく、実際にカレンダーで隠れている分(padding-bottomと
+        // 同じ値)を差し引いた位置を使う。
         scrollCaretIntoView = () => {
           if (document.activeElement !== s) return;
           const caretOffset = getCaretOffsetInTextarea(),
@@ -2845,10 +2849,13 @@
             caretTop = sRect.top + paddingTop + caretOffset,
             caretBottom = caretTop + lineHeight,
             caRect = contentAreaEl.getBoundingClientRect(),
+            caPaddingBottom =
+              parseFloat(getComputedStyle(contentAreaEl).paddingBottom) || 0,
+            visibleBottom = caRect.bottom - caPaddingBottom,
             buffer = lineHeight;
-          caretBottom > caRect.bottom - buffer
+          caretBottom > visibleBottom - buffer
             ? (contentAreaEl.scrollTop +=
-              caretBottom - (caRect.bottom - buffer))
+              caretBottom - (visibleBottom - buffer))
             : caretTop < caRect.top + buffer &&
             (contentAreaEl.scrollTop -= caRect.top + buffer - caretTop);
         },
