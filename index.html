@@ -1011,15 +1011,33 @@
     }
 
     .toc-panel li {
-      padding: 3px 0;
+      padding: 3px 2px;
       cursor: pointer;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      border-radius: 3px;
+      transition: background-color 0.15s ease;
     }
 
     .toc-panel li:hover {
       text-decoration: underline;
+      background-color: rgba(59, 130, 196, 0.18);
+    }
+
+    /* h1へのジャンプ時に、目次項目・ジャンプ先の両方を一瞬ハイライトする */
+    .jump-highlight {
+      animation: jumpHighlightFade 1.3s ease;
+    }
+
+    @keyframes jumpHighlightFade {
+      0% {
+        background-color: rgba(59, 130, 196, 0.35);
+      }
+
+      100% {
+        background-color: transparent;
+      }
     }
 
     /* バージョン履歴 */
@@ -1852,19 +1870,30 @@
             const li = document.createElement("li");
             (li.textContent = h.text),
               li.addEventListener("mouseenter", () =>
-                scrollToHeading(idx, h.end)
+                scrollToHeading(idx, h.end, li)
               ),
               tocListEl.appendChild(li);
           }),
             tocPanelEl.classList.toggle("toc-empty", 0 === headings.length);
         },
-        scrollToHeading = (idx, pos) => {
+        // ジャンプ元(目次項目など)・ジャンプ先(見出し)の両方を
+        // 一瞬ハイライトして、どこへ移動したか分かりやすくする。
+        flashHighlight = (el) => {
+          if (!el) return;
+          el.classList.remove("jump-highlight"),
+            void el.offsetWidth,
+            el.classList.add("jump-highlight");
+        },
+        scrollToHeading = (idx, pos, liEl) => {
           if ("block" === s.style.display) {
             (s.selectionStart = s.selectionEnd = pos), centerCaretInView();
           } else {
             const el = o.querySelectorAll("h1")[idx];
-            el && el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el &&
+              (el.scrollIntoView({ behavior: "smooth", block: "center" }),
+                flashHighlight(el));
           }
+          flashHighlight(liEl);
         },
         // キャレット位置を .content-area の縦方向中央に来るようスクロールする
         centerCaretInView = () => {
@@ -1904,6 +1933,36 @@
           if (-1 !== idx) return idx + before.length;
           const idx2 = before.length >= 4 ? s.value.indexOf(before) : -1;
           return -1 !== idx2 ? idx2 + before.length : s.value.length;
+        },
+        // findSourcePositionForClick の逆方向: 本文中のソース位置(文字数)
+        // から、レンダリング後(閲覧モード)の対応する画面位置を探す。編集→
+        // 閲覧モードに切り替えたときに、カーソルがあった場所までスクロール
+        // 位置を合わせるために使う。段落が長いと要素全体のscrollIntoViewでは
+        // 位置がずれるため、Rangeで一致箇所そのものの座標を求める。
+        findRenderedRectForSourcePos = (pos) => {
+          const value = s.value,
+            before = value.slice(Math.max(0, pos - 12), pos),
+            after = value.slice(pos, pos + 12),
+            tryFind = (needle) => {
+              if (!needle || needle.trim().length < 3) return null;
+              const walker = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
+              let node;
+              for (; (node = walker.nextNode());) {
+                const idx = node.textContent.indexOf(needle);
+                if (-1 !== idx) return { node, idx };
+              }
+              return null;
+            },
+            match =
+              tryFind((before + after).trim()) ||
+              tryFind(after.trim()) ||
+              tryFind(before.trim());
+          if (!match) return null;
+          const range = document.createRange();
+          range.setStart(match.node, match.idx);
+          range.setEnd(match.node, match.idx);
+          const rects = range.getClientRects();
+          return rects[0] || range.getBoundingClientRect();
         },
         // --- バージョン履歴(localStorageのみ、日付ごと) ---
         MAX_HISTORY_VERSIONS = 30,
@@ -1993,14 +2052,16 @@
           ),
             renderH1ShortcutBar();
         },
-        jumpToH1Shortcut = (sc) => {
+        jumpToH1Shortcut = (sc, chipEl) => {
           if (document.activeElement === s) return;
           const d = new Date(sc.date);
           T(d);
           const el = o.querySelectorAll("h1")[sc.headingIdx];
           el
-            ? el.scrollIntoView({ behavior: "smooth", block: "center" })
+            ? (el.scrollIntoView({ behavior: "smooth", block: "center" }),
+              flashHighlight(el))
             : showToast("この見出しが見つかりませんでした", "info");
+          flashHighlight(chipEl);
         },
         renderH1ShortcutBar = () => {
           h1ShortcutBarEl.innerHTML = "";
@@ -2019,7 +2080,9 @@
               });
             chip.appendChild(label),
               chip.appendChild(removeBtn),
-              chip.addEventListener("mouseenter", () => jumpToH1Shortcut(sc)),
+              chip.addEventListener("mouseenter", () =>
+                jumpToH1Shortcut(sc, chip)
+              ),
               h1ShortcutBarEl.appendChild(chip);
           });
         },
@@ -2110,23 +2173,28 @@
               (snippetLine.innerHTML = r.snippet),
               li.appendChild(dateLine),
               li.appendChild(snippetLine),
-              li.addEventListener("mouseenter", () => previewSearchResult(r)),
-              li.addEventListener("click", () => commitSearchResult(r)),
+              li.addEventListener("mouseenter", () =>
+                previewSearchResult(r, li)
+              ),
+              li.addEventListener("click", () => commitSearchResult(r, li)),
               searchPaneResultsEl.appendChild(li);
           });
         },
-        previewSearchResult = (r) => {
+        previewSearchResult = (r, liEl) => {
           if (document.activeElement === s) return;
           const d = new Date(r.date);
           T(d);
           if (null === r.headingIdx) {
             contentAreaEl.scrollTo({ top: 0, behavior: "smooth" });
-            return;
+          } else {
+            const el = o.querySelectorAll("h1")[r.headingIdx];
+            el &&
+              (el.scrollIntoView({ behavior: "smooth", block: "center" }),
+                flashHighlight(el));
           }
-          const el = o.querySelectorAll("h1")[r.headingIdx];
-          el && el.scrollIntoView({ behavior: "smooth", block: "center" });
+          flashHighlight(liEl);
         },
-        commitSearchResult = (r) => {
+        commitSearchResult = (r, liEl) => {
           saveCurrentMemo(),
             (f = new Date(r.date)),
             T(f),
@@ -2136,7 +2204,8 @@
             s.focus(),
             (s.selectionStart = s.selectionEnd = r.jumpPos || 0),
             centerCaretInView(),
-            pullAndMerge();
+            pullAndMerge(),
+            flashHighlight(liEl);
         },
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
@@ -3141,11 +3210,19 @@
           0 === e.buttons && document.activeElement === s && s.blur();
         }),
         s.addEventListener("blur", () => {
+          const caretPos = s.selectionStart;
           saveCurrentMemo();
           document.body.classList.remove("touch-editing");
           const e = s.value;
           if (!Z(e)) return;
           O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
+          // カーソルがあった位置に対応する箇所までスクロール位置を合わせる。
+          const rect = findRenderedRectForSourcePos(caretPos);
+          if (rect) {
+            const caRect = contentAreaEl.getBoundingClientRect(),
+              delta = rect.top - caRect.top - caRect.height / 2;
+            contentAreaEl.scrollTop += delta;
+          }
         }),
         s.addEventListener("focus", () => {
           // ホバープレビューなどで表示中の内容が f(実際の選択日)と
