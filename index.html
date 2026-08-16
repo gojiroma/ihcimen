@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="5" />
+  <meta name="app-version" content="6" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -159,6 +159,8 @@
       overflow-y: auto;
       overflow-x: hidden;
       z-index: 500;
+      /* 背景を透過させ、下にある年の透かし表示を見せる */
+      background-color: transparent;
     }
 
     body.schedule-bar-fullscreen .schedule-bar .schedule-cell {
@@ -194,6 +196,28 @@
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
+    .fullscreen-year-watermark {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 499;
+      font-size: clamp(120px, 30vw, 400px);
+      font-weight: 700;
+      color: var(--text-color);
+      opacity: 0.06;
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+      transition: opacity 0.3s ease;
+    }
+
+    body.schedule-bar-fullscreen .fullscreen-year-watermark {
+      display: block;
     }
 
     .content-area {
@@ -1541,6 +1565,7 @@
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
   </button>
+  <div id="fullscreenYearWatermark" class="fullscreen-year-watermark"></div>
   <div id="weekPane" class="week-pane"></div>
   <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
@@ -1605,6 +1630,9 @@
           "syncHandoffCodeInput"
         ),
         syncRedeemCodeBtnEl = document.getElementById("syncRedeemCodeBtn"),
+        fullscreenYearWatermarkEl = document.getElementById(
+          "fullscreenYearWatermark"
+        ),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -2929,15 +2957,16 @@
             )
             : dayLen > 0 && cell.setAttribute("data-tooltip", `${dayLen} 文字`);
           cell.addEventListener("mouseenter", () => previewScheduleDate(d));
-          const dateLabel = document.createElement("div");
+          const dateLabel = document.createElement("div"),
+            isNewYearsDay = 0 === d.getMonth() && 1 === d.getDate();
           (dateLabel.className = "schedule-date"),
             6 === day && dateLabel.classList.add("saturday"),
             0 === day && dateLabel.classList.add("sunday"),
             holidayName && dateLabel.classList.add("holiday"),
-            (dateLabel.textContent = `${d.getMonth() + 1}/${d.getDate()}(${d.toLocaleDateString(
-              "ja-JP",
-              { weekday: "short" }
-            )})`),
+            (dateLabel.textContent = `${isNewYearsDay ? year + "/" : ""}${d.getMonth() + 1
+              }/${d.getDate()}(${d.toLocaleDateString("ja-JP", {
+                weekday: "short",
+              })})`),
             dateLabel.addEventListener("click", () => selectScheduleDate(d));
           let holidayLabel = null;
           if (holidayName) {
@@ -3148,6 +3177,19 @@
           for (; sb.scrollHeight <= sb.clientHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
+        // 全画面カレンダーの中央に来ているセルの年を、透かし表示に反映する。
+        updateFullscreenYearWatermark = () => {
+          if (!document.body.classList.contains("schedule-bar-fullscreen"))
+            return;
+          const sbRect = sb.getBoundingClientRect(),
+            centerX = sbRect.left + sbRect.width / 2,
+            centerY = sbRect.top + sbRect.height / 2,
+            el = document.elementFromPoint(centerX, centerY),
+            cell = el && el.closest(".schedule-cell");
+          cell &&
+            (fullscreenYearWatermarkEl.textContent =
+              cell.dataset.date.split("-")[0]);
+        },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
             f.setDate(f.getDate() + e),
@@ -3168,6 +3210,7 @@
           { passive: false }
         ),
         sb.addEventListener("scroll", () => {
+          updateFullscreenYearWatermark();
           if (scheduleScrollSuppressed) return;
           document.body.classList.contains("schedule-bar-fullscreen")
             ? sb.scrollTop < 200
@@ -3571,6 +3614,7 @@
                             () => (scheduleScrollSuppressed = !1)
                           )
                         ));
+                    updateFullscreenYearWatermark();
                   }))
                 : fullscreen &&
                 dy > DRAG_THRESHOLD &&
