@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="8" />
+  <meta name="app-version" content="9" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3448,7 +3448,8 @@
           for (; sb.scrollHeight <= sb.clientHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
-        // 全画面カレンダーの中央に来ているセルの年を、透かし表示に反映する。
+        // 全画面カレンダーの中央に来ているセルの年を、透かし表示と
+        // 右端の年ルーラーのアクティブ目盛りに反映する。
         updateFullscreenYearWatermark = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
@@ -3457,9 +3458,76 @@
             centerY = sbRect.top + sbRect.height / 2,
             el = document.elementFromPoint(centerX, centerY),
             cell = el && el.closest(".schedule-cell");
-          cell &&
-            (fullscreenYearWatermarkEl.textContent =
-              cell.dataset.date.split("-")[0]);
+          if (!cell) return;
+          const year = cell.dataset.date.split("-")[0];
+          fullscreenYearWatermarkEl.textContent = year;
+          const prevActive = yearRulerEl.querySelector(
+            ".year-ruler-tick.active"
+          );
+          prevActive && prevActive.classList.remove("active");
+          const tick = yearRulerEl.querySelector(
+            `.year-ruler-tick[data-year="${year}"]`
+          );
+          tick && tick.classList.add("active");
+        },
+        // 選択中の日付(f)には触れず、カレンダー表示だけを任意の日付
+        // 中心に作り直す(年ルーラーのホバージャンプ用)。
+        jumpScheduleBarToDate = (targetDate) => {
+          sb.innerHTML = "";
+          const maxDayLen = getGlobalMaxDayLen(),
+            targetKey = toDateKey(targetDate);
+          (scheduleEarliest = new Date(
+            targetDate.getTime() - scheduleWindowDays * I
+          )),
+            (scheduleLatest = new Date(
+              targetDate.getTime() + scheduleWindowDays * I
+            ));
+          let targetCell = null;
+          const frag = document.createDocumentFragment();
+          for (
+            let d = new Date(scheduleEarliest);
+            d <= scheduleLatest;
+            d.setDate(d.getDate() + 1)
+          ) {
+            const cell = createScheduleCell(new Date(d), maxDayLen);
+            cell.dataset.date === targetKey && (targetCell = cell),
+              frag.appendChild(cell);
+          }
+          sb.appendChild(frag),
+            targetCell &&
+            ((scheduleScrollSuppressed = !0),
+              targetCell.scrollIntoView({ inline: "nearest", block: "center" }),
+              requestAnimationFrame(() =>
+                requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
+              )),
+            fillScheduleBarFullscreen(),
+            updateFullscreenYearWatermark();
+        },
+        // 全画面カレンダー右端に、現在の年を中心に前後50年分の目盛りを
+        // 並べる。目盛りにマウスホバーするとその年へジャンプする。
+        renderYearRuler = () => {
+          yearRulerEl.innerHTML = "";
+          const centerYear = f.getFullYear(),
+            frag = document.createDocumentFragment();
+          for (let y = centerYear - 50; y <= centerYear + 50; y++) {
+            const tick = document.createElement("div");
+            (tick.className = "year-ruler-tick"),
+              (tick.textContent = y),
+              (tick.dataset.year = String(y)),
+              tick.addEventListener("mouseenter", () => {
+                jumpScheduleBarToDate(
+                  new Date(y, f.getMonth(), Math.min(f.getDate(), 28))
+                );
+              }),
+              frag.appendChild(tick);
+          }
+          yearRulerEl.appendChild(frag);
+          const activeTick = yearRulerEl.querySelector(
+            `.year-ruler-tick[data-year="${centerYear}"]`
+          );
+          activeTick &&
+            (activeTick.classList.add("active"),
+              activeTick.scrollIntoView({ block: "center" }));
         },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
@@ -3888,6 +3956,7 @@
                             () => (scheduleScrollSuppressed = !1)
                           )
                         ));
+                    renderYearRuler();
                     updateFullscreenYearWatermark();
                   }))
                 : fullscreen &&
