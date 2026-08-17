@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="15" />
+  <meta name="app-version" content="16" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -144,7 +144,6 @@
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
     body.schedule-bar-fullscreen .search-pane-toggle,
-    body.schedule-bar-fullscreen .week-pane,
     body.schedule-bar-fullscreen .week-pane-toggle,
     body.schedule-bar-fullscreen .container {
       display: none;
@@ -196,7 +195,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      right: 84px;
+      right: 180px;
     }
 
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
@@ -264,16 +263,17 @@
       cursor: pointer;
     }
 
-    /* 全画面カレンダー右端の年目盛りルーラー */
+    /* 全画面カレンダー: 左端に年目盛りルーラー、右端にWeek pane */
     body.schedule-bar-fullscreen .schedule-bar {
-      right: 64px;
+      left: 64px;
+      right: 160px;
     }
 
     .year-ruler {
       display: none;
       position: fixed;
       top: 0;
-      right: 0;
+      left: 0;
       bottom: 0;
       width: 64px;
       box-sizing: border-box;
@@ -281,11 +281,25 @@
       overflow-y: auto;
       overflow-x: hidden;
       background-color: rgba(128, 128, 128, 0.05);
-      border-left: 1px solid rgba(128, 128, 128, 0.2);
+      border-right: 1px solid rgba(128, 128, 128, 0.2);
     }
 
     body.schedule-bar-fullscreen .year-ruler {
       display: block;
+    }
+
+    /* 全画面カレンダー中はWeek paneも常時表示し、日別スクロールと連動させる */
+    body.schedule-bar-fullscreen .week-pane {
+      z-index: 501;
+    }
+
+    body.schedule-bar-fullscreen.week-pane-collapsed .week-pane {
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+
+    body.schedule-bar-fullscreen .week-cell.fullscreen-centered {
+      box-shadow: inset 0 0 0 2px rgba(59, 130, 196, 0.6);
     }
 
     .year-ruler-tick {
@@ -1803,7 +1817,8 @@
         weekEarliestMonday = null,
         weekLatestMonday = null,
         scheduleScrollSuppressed = !1,
-        weekScrollSuppressed = !1;
+        weekScrollSuppressed = !1,
+        lastSyncedWeekKey = null;
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0,
         I = 864e5,
@@ -3331,9 +3346,7 @@
             selectedCell &&
             ((weekScrollSuppressed = !0),
               selectedCell.scrollIntoView({ inline: "nearest", block: "center" }),
-              requestAnimationFrame(() =>
-                requestAnimationFrame(() => (weekScrollSuppressed = !1))
-              ));
+              setTimeout(() => (weekScrollSuppressed = !1), 50));
         },
         extendWeekPaneStart = (weeks = 8) => {
           const maxWeekLen = getGlobalMaxWeekLen(),
@@ -3397,8 +3410,9 @@
               ),
               setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
             fillScheduleBarFullscreen(),
-            updateFullscreenYearWatermark(),
-            renderWeekPane();
+            renderWeekPane(),
+            (lastSyncedWeekKey = null),
+            updateFullscreenYearWatermark();
         },
         // 下段カレンダーを開く/ホバーで覗く瞬間、たまたまカーソルの下に
         // あったセルに hover が発火して意図しない日付のプレビューに
@@ -3469,8 +3483,29 @@
           for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
+        // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
+        // 属する週のセルを、Week pane側でも中央に合わせておく。
+        alignWeekPaneToDate = (date) => {
+          const { isoYear, weekNum } = getISOWeekInfo(date),
+            weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`;
+          if (weekKey === lastSyncedWeekKey) return;
+          const cell = wp.querySelector(
+            `.week-cell[data-week-key="${weekKey}"]`
+          );
+          if (!cell) return;
+          lastSyncedWeekKey = weekKey;
+          const prevCentered = wp.querySelector(
+            ".week-cell.fullscreen-centered"
+          );
+          prevCentered && prevCentered.classList.remove("fullscreen-centered"),
+            cell.classList.add("fullscreen-centered"),
+            (weekScrollSuppressed = !0),
+            cell.scrollIntoView({ block: "center" }),
+            setTimeout(() => (weekScrollSuppressed = !1), 50);
+        },
         // 全画面カレンダーの中央に来ているセルの年を、透かし表示と
-        // 右端の年ルーラーのアクティブ目盛りに反映する。
+        // 左端の年ルーラーのアクティブ目盛りに反映する。あわせて
+        // 右端のWeek paneもその日の週に追従させる。
         updateFullscreenYearWatermark = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
@@ -3480,7 +3515,8 @@
             el = document.elementFromPoint(centerX, centerY),
             cell = el && el.closest(".schedule-cell");
           if (!cell) return;
-          const year = cell.dataset.date.split("-")[0];
+          const [dy, dm, dd] = cell.dataset.date.split("-").map(Number),
+            year = String(dy);
           fullscreenYearWatermarkEl.textContent = year;
           const prevActive = yearRulerEl.querySelector(
             ".year-ruler-tick.active"
@@ -3489,7 +3525,8 @@
           const tick = yearRulerEl.querySelector(
             `.year-ruler-tick[data-year="${year}"]`
           );
-          tick && tick.classList.add("active");
+          tick && tick.classList.add("active"),
+            alignWeekPaneToDate(new Date(dy, dm - 1, dd));
         },
         // 選択中の日付(f)には触れず、カレンダー表示だけを任意の日付
         // 中心に作り直す(年ルーラーのホバージャンプ用)。
@@ -3988,6 +4025,7 @@
                         }),
                         setTimeout(() => (scheduleScrollSuppressed = !1), 50));
                     renderYearRuler();
+                    lastSyncedWeekKey = null;
                     updateFullscreenYearWatermark();
                   }))
                 : fullscreen &&
