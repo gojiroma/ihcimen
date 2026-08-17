@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="12" />
+  <meta name="app-version" content="13" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3395,9 +3395,7 @@
                   ? { inline: "nearest", block: "center" }
                   : { inline: "center", block: "nearest" }
               ),
-              requestAnimationFrame(() =>
-                requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
-              )),
+              setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
             fillScheduleBarFullscreen(),
             updateFullscreenYearWatermark(),
             renderWeekPane();
@@ -3506,9 +3504,7 @@
             targetCell &&
             ((scheduleScrollSuppressed = !0),
               targetCell.scrollIntoView({ inline: "nearest", block: "center" }),
-              requestAnimationFrame(() =>
-                requestAnimationFrame(() => (scheduleScrollSuppressed = !1))
-              )),
+              setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
             fillScheduleBarFullscreen(),
             updateFullscreenYearWatermark();
         },
@@ -3960,11 +3956,7 @@
                           inline: "nearest",
                           block: "center",
                         }),
-                        requestAnimationFrame(() =>
-                          requestAnimationFrame(
-                            () => (scheduleScrollSuppressed = !1)
-                          )
-                        ));
+                        setTimeout(() => (scheduleScrollSuppressed = !1), 50));
                     renderYearRuler();
                     updateFullscreenYearWatermark();
                   }))
