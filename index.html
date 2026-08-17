@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="14" />
+  <meta name="app-version" content="15" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3757,6 +3757,16 @@
               e.preventDefault();
               const l = a + "\n- " + s.value.substring(t);
               (s.value = l), (s.selectionStart = s.selectionEnd = t + 4);
+            } else if (c) {
+              // 見出しの "# " だけでタイトル未入力のまま Enter された場合、
+              // 新しい見出しを重ねて挿入せず、空の見出し記号を取り消す
+              // (空の箇条書きで Enter したときに項目を抜けるのと同じ挙動)。
+              e.preventDefault();
+              l.pop();
+              const suffix = s.value.substring(t),
+                newValue = l.join("\n") + "\n" + suffix;
+              (s.value = newValue),
+                (s.selectionStart = s.selectionEnd = t - o.length + 1);
             } else if (n > 1) {
               e.preventDefault();
               const l = a + "\n\n# " + s.value.substring(t);
