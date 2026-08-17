@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="11" />
+  <meta name="app-version" content="12" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3445,12 +3445,16 @@
         // 画面がとても大きいと、初期表示だけでは全画面カレンダーが
         // スクロール可能にならず(=無限スクロールの入口である scroll
         // イベントが一度も発火しない)ため、あふれるまで先読みで
-        // 補充しておく。
+        // 補充しておく。展開直後は height の CSS トランジション
+        // (0.25s)が始まったばかりで sb.clientHeight がまだ縮んだ
+        // ままのことがあるため、判定には最終的な高さになる
+        // window.innerHeight を使う。
         fillScheduleBarFullscreen = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
+          const targetHeight = window.innerHeight;
           let guard = 0;
-          for (; sb.scrollHeight <= sb.clientHeight + 50 && guard < 30; guard++)
+          for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
         // 全画面カレンダーの中央に来ているセルの年を、透かし表示と
