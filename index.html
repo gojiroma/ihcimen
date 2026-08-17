@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="13" />
+  <meta name="app-version" content="14" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -3400,6 +3400,20 @@
             updateFullscreenYearWatermark(),
             renderWeekPane();
         },
+        // 下段カレンダーを開く/ホバーで覗く瞬間、たまたまカーソルの下に
+        // あったセルに hover が発火して意図しない日付のプレビューに
+        // 飛んでしまうのを防ぐため、開く前にスクロール位置を合わせ、
+        // 今日のセルがカーソルの位置に来るようにしておく。
+        alignTodayCellToCursorX = (clientX) => {
+          if ("number" != typeof clientX) return;
+          const todayCell = sb.querySelector(
+            `.schedule-cell[data-date="${toDateKey(new Date())}"]`
+          );
+          if (!todayCell) return;
+          const rect = todayCell.getBoundingClientRect(),
+            cellCenterX = rect.left + rect.width / 2;
+          sb.scrollLeft -= clientX - cellCenterX;
+        },
         extendScheduleBarStart = (days = 14) => {
           const maxDayLen = getGlobalMaxDayLen(),
             frag = document.createDocumentFragment(),
@@ -3899,11 +3913,17 @@
               paneEl.addEventListener("pointerenter", show),
               paneEl.addEventListener("pointerleave", scheduleHide);
           };
-          setupPeek(
-            document.getElementById("weekPaneToggle"),
-            wp,
-            "week-pane-peek"
-          ),
+          document
+            .getElementById("scheduleBarToggle")
+            .addEventListener("pointerenter", (e) => {
+              (e.pointerType && "mouse" !== e.pointerType) ||
+                alignTodayCellToCursorX(e.clientX);
+            }),
+            setupPeek(
+              document.getElementById("weekPaneToggle"),
+              wp,
+              "week-pane-peek"
+            ),
             setupPeek(
               document.getElementById("scheduleBarToggle"),
               sb,
@@ -3976,7 +3996,7 @@
                 el.hasPointerCapture(e.pointerId) &&
                 el.releasePointerCapture(e.pointerId);
             }),
-            el.addEventListener("click", () => {
+            el.addEventListener("click", (e) => {
               if (dragMoved) return void (dragMoved = !1);
               if (document.body.classList.contains("schedule-bar-fullscreen"))
                 return void document.body.classList.remove(
@@ -3985,10 +4005,11 @@
               const collapsed = document.body.classList.toggle(
                 "schedule-bar-collapsed"
               );
-              localStorage.setItem(
-                "scheduleBarCollapsed",
-                collapsed ? "1" : "0"
-              );
+              collapsed || alignTodayCellToCursorX(e.clientX),
+                localStorage.setItem(
+                  "scheduleBarCollapsed",
+                  collapsed ? "1" : "0"
+                );
             });
         })(),
         searchPaneToggleEl.addEventListener("click", () => {
