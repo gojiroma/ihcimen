@@ -166,6 +166,8 @@
 
     body.schedule-bar-fullscreen .schedule-bar .schedule-cell {
       height: 160px;
+      width: var(--fs-cell-width, 120px);
+      flex-basis: var(--fs-cell-width, 120px);
     }
 
     body.schedule-bar-fullscreen .schedule-bar-toggle {
@@ -4038,6 +4040,17 @@
           sb.appendChild(frag),
             (scheduleLatest = new Date(scheduleLatest.getTime() + days * I));
         },
+        // 全画面カレンダーのセル幅は、1列あたり約120pxを目安にしつつ、
+        // 実際の表示幅にちょうど収まる列数へ丸めて均等割りする。
+        // これにより右端に余る半端な空白を無くす。
+        adjustFullscreenCellWidth = () => {
+          const available = sb.clientWidth;
+          if (!available) return;
+          const targetWidth = 120,
+            columns = Math.max(1, Math.round(available / targetWidth)),
+            cellWidth = available / columns;
+          sb.style.setProperty("--fs-cell-width", `${cellWidth}px`);
+        },
         // 画面がとても大きいと、初期表示だけでは全画面カレンダーが
         // スクロール可能にならず(=無限スクロールの入口である scroll
         // イベントが一度も発火しない)ため、あふれるまで先読みで
@@ -4048,6 +4061,7 @@
         fillScheduleBarFullscreen = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
+          adjustFullscreenCellWidth();
           const targetHeight = window.innerHeight;
           let guard = 0;
           for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
