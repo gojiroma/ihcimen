@@ -1833,6 +1833,9 @@
     <button type="button" class="cell-color-swatch" data-color="purple" style="background-color: #e5def2" title="ラベンダー"></button>
     <button type="button" class="cell-color-swatch" data-color="orange" style="background-color: #fbe1d3" title="サーモン"></button>
     <button type="button" class="cell-color-swatch" data-color="gray" style="background-color: #e3e3e3" title="グレー"></button>
+    <button type="button" class="cell-color-swatch" data-color="mint" style="background-color: #d2f0e2" title="ミント"></button>
+    <button type="button" class="cell-color-swatch" data-color="indigo" style="background-color: #d8dcf5" title="藍色"></button>
+    <button type="button" class="cell-color-swatch" data-color="brown" style="background-color: #ecdfc8" title="ベージュ"></button>
     <button type="button" class="cell-color-clear" data-color="">指定なし</button>
   </div>
   <div id="yearRuler" class="year-ruler"></div>
@@ -3050,7 +3053,8 @@
           const entries = {},
             notes = {},
             weekNotes = {},
-            cellColors = {};
+            cellColors = {},
+            weekColors = {};
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
             /^\d{4}-\d{2}-\d{2}$/.test(key)
@@ -3059,14 +3063,17 @@
                 ? (notes[key.slice(5)] = localStorage.getItem(key))
                 : key.startsWith("weeknote:")
                   ? (weekNotes[key.slice(9)] = localStorage.getItem(key))
-                  : key.startsWith("cellColor:") &&
-                  (cellColors[key.slice(10)] = localStorage.getItem(key));
+                  : key.startsWith("cellColor:")
+                    ? (cellColors[key.slice(10)] = localStorage.getItem(key))
+                    : key.startsWith("weekColor:") &&
+                    (weekColors[key.slice(10)] = localStorage.getItem(key));
           }
           return {
             entries,
             notes,
             weekNotes,
             cellColors,
+            weekColors,
             h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
           };
         },
@@ -3082,6 +3089,9 @@
             ),
             Object.entries(data.cellColors || {}).forEach(([k, v]) =>
               localStorage.setItem(`cellColor:${k}`, v)
+            ),
+            Object.entries(data.weekColors || {}).forEach(([k, v]) =>
+              localStorage.setItem(`weekColor:${k}`, v)
             ),
             "string" == typeof data.h1Shortcuts &&
             localStorage.setItem("h1Shortcuts", data.h1Shortcuts);
@@ -3304,6 +3314,9 @@
           purple: "#e5def2",
           orange: "#fbe1d3",
           gray: "#e3e3e3",
+          mint: "#d2f0e2",
+          indigo: "#d8dcf5",
+          brown: "#ecdfc8",
         },
         getCellColorKey = (dateKey) => `cellColor:${dateKey}`,
         getCellColor = (dateKey) =>
@@ -3321,6 +3334,23 @@
           }
           const dayLen = (localStorage.getItem(dateKey) || "").length,
             heat = (dayLen / maxDayLen) * 0.5;
+          cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
+        },
+        getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
+        getWeekColor = (weekKey) =>
+          localStorage.getItem(getWeekColorKey(weekKey)) || "",
+        setWeekColor = (weekKey, color) => {
+          color
+            ? localStorage.setItem(getWeekColorKey(weekKey), color)
+            : localStorage.removeItem(getWeekColorKey(weekKey));
+        },
+        applyWeekColor = (cell, weekKey, weekTotal, maxWeekLen) => {
+          const custom = getWeekColor(weekKey);
+          if (custom && CELL_COLORS[custom]) {
+            cell.style.backgroundColor = CELL_COLORS[custom];
+            return;
+          }
+          const heat = (weekTotal / maxWeekLen) * 0.5;
           cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
         },
         // --- ICSカレンダー(外部iCalendarフィードの取り込み) ---
@@ -3611,8 +3641,9 @@
         closeCellColorPicker = () => {
           cellColorPickerEl.classList.remove("open");
         },
-        openCellColorPicker = (dateKey, x, y) => {
-          cellColorPickerEl.dataset.targetDate = dateKey;
+        openCellColorPicker = (targetKey, x, y, targetType = "day") => {
+          (cellColorPickerEl.dataset.targetDate = targetKey),
+            (cellColorPickerEl.dataset.targetType = targetType);
           const vw = window.innerWidth,
             clampedX = Math.min(Math.max(x, 100), vw - 100);
           (cellColorPickerEl.style.left = clampedX + "px"),
@@ -3735,16 +3766,55 @@
             weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
             sunday = new Date(monday.getTime() + 6 * I),
             weekTotal = getWeekCharCount(monday),
-            heat = (weekTotal / maxWeekLen) * 0.5,
             cell = document.createElement("div");
           (cell.className = "week-cell"),
             (cell.dataset.weekKey = weekKey),
-            (cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`),
+            (cell.dataset.weekTotal = String(weekTotal)),
+            applyWeekColor(cell, weekKey, weekTotal, maxWeekLen),
             cell.setAttribute(
               "title",
               weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
             );
           cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
+          cell.addEventListener("contextmenu", (e) => {
+            e.target.closest(".week-note") ||
+              (e.preventDefault(),
+                openCellColorPicker(weekKey, e.clientX, e.clientY, "week"));
+          });
+          let weekLongPressTimer = null,
+            weekLongPressStartX = 0,
+            weekLongPressStartY = 0,
+            suppressNextWeekLabelClick = !1;
+          cell.addEventListener("pointerdown", (e) => {
+            "touch" === e.pointerType &&
+              !e.target.closest(".week-note") &&
+              ((weekLongPressStartX = e.clientX),
+                (weekLongPressStartY = e.clientY),
+                (weekLongPressTimer = setTimeout(() => {
+                  openCellColorPicker(
+                    weekKey,
+                    weekLongPressStartX,
+                    weekLongPressStartY,
+                    "week"
+                  ),
+                    (suppressNextWeekLabelClick = !0),
+                    (weekLongPressTimer = null);
+                }, 500)));
+          }),
+            cell.addEventListener("pointermove", (e) => {
+              weekLongPressTimer &&
+                (Math.abs(e.clientX - weekLongPressStartX) > 10 ||
+                  Math.abs(e.clientY - weekLongPressStartY) > 10) &&
+                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
+            }),
+            cell.addEventListener("pointerup", () => {
+              weekLongPressTimer &&
+                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
+            }),
+            cell.addEventListener("pointercancel", () => {
+              weekLongPressTimer &&
+                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
+            });
           const weekLabel = document.createElement("div");
           (weekLabel.className = "week-label"),
             (weekLabel.textContent = `${isoYear}-Week ${String(weekNum).padStart(
@@ -3752,7 +3822,11 @@
               "0"
             )} (${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1
             }/${sunday.getDate()})`),
-            weekLabel.addEventListener("click", () => selectScheduleDate(monday));
+            weekLabel.addEventListener("click", () => {
+              if (suppressNextWeekLabelClick)
+                return void (suppressNextWeekLabelClick = !1);
+              selectScheduleDate(monday);
+            });
           const noteInput = document.createElement("textarea");
           (noteInput.className = "week-note"),
             (noteInput.placeholder = "週のメモ"),
@@ -4555,13 +4629,29 @@
         cellColorPickerEl.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-color]");
           if (!btn) return;
-          const dateKey = cellColorPickerEl.dataset.targetDate;
-          setCellColor(dateKey, btn.dataset.color), closeCellColorPicker();
-          const cell = sb.querySelector(
-            `.schedule-cell[data-date="${dateKey}"]`
-          );
-          cell && applyCellColor(cell, dateKey, getGlobalMaxDayLen()),
-            maybeSyncPush();
+          const targetKey = cellColorPickerEl.dataset.targetDate,
+            targetType = cellColorPickerEl.dataset.targetType || "day";
+          closeCellColorPicker();
+          if ("week" === targetType) {
+            setWeekColor(targetKey, btn.dataset.color);
+            const cell = wp.querySelector(
+              `.week-cell[data-week-key="${targetKey}"]`
+            );
+            cell &&
+              applyWeekColor(
+                cell,
+                targetKey,
+                Number(cell.dataset.weekTotal || 0),
+                getGlobalMaxWeekLen()
+              );
+          } else {
+            setCellColor(targetKey, btn.dataset.color);
+            const cell = sb.querySelector(
+              `.schedule-cell[data-date="${targetKey}"]`
+            );
+            cell && applyCellColor(cell, targetKey, getGlobalMaxDayLen());
+          }
+          maybeSyncPush();
         }),
         icsAddColorPickerEl.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-color]");
