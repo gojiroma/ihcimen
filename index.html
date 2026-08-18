@@ -1259,10 +1259,10 @@
     .toc-panel {
       position: fixed;
       right: 176px;
-      bottom: 130px;
+      top: 46px;
       z-index: 410;
       max-width: 220px;
-      max-height: calc(100vh - 170px);
+      max-height: calc(100vh - 160px);
       overflow-y: auto;
       font-size: 12px;
       background-color: var(--bg-color);
@@ -1270,7 +1270,7 @@
       border-radius: 6px;
       padding: 6px 10px;
       opacity: 0.55;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.2s ease, right 0.25s ease;
     }
 
     .toc-panel:hover {
@@ -1282,7 +1282,7 @@
     }
 
     body.week-pane-collapsed .toc-panel {
-      right: 20px;
+      right: 10px;
     }
 
     /* 画面幅が狭いと本文と重なってしまうため非表示にする */
