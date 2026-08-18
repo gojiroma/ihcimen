@@ -210,14 +210,16 @@
       right: 180px;
     }
 
-    /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
+    /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
+       画面全体を覆う表示にしたいので、Week paneより手前(高いz-index)に
+       置き、幅が狭い画面でもWeek paneの裏に隠れないようにする。 */
     .fullscreen-year-watermark {
       display: none;
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 499;
+      z-index: 503;
       font-size: clamp(120px, 30vw, 400px);
       font-weight: 700;
       color: var(--text-color);
@@ -4456,7 +4458,7 @@
             } else if (n > 1) {
               e.preventDefault();
               const l = a + "\n\n# " + s.value.substring(t);
-              (s.value = l), (s.selectionStart = s.selectionEnd = t + 6);
+              (s.value = l), (s.selectionStart = s.selectionEnd = t + 4);
             }
           } else if ("Backspace" === e.key) {
             if ("-" === o.trim()) {
