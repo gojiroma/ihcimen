@@ -146,7 +146,6 @@
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
     body.schedule-bar-fullscreen .search-pane-toggle,
-    body.schedule-bar-fullscreen .week-pane-toggle,
     body.schedule-bar-fullscreen .container {
       display: none;
     }
@@ -174,6 +173,10 @@
       z-index: 501;
     }
 
+    body.schedule-bar-fullscreen .week-pane-toggle {
+      z-index: 502;
+    }
+
     .schedule-fullscreen-close {
       display: none;
       position: fixed;
@@ -197,7 +200,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      right: 180px;
     }
 
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
@@ -265,10 +267,10 @@
       cursor: pointer;
     }
 
-    /* 全画面カレンダー: 左端に年目盛りルーラー、右端にWeek pane */
+    /* 全画面カレンダー: 左端に年目盛りルーラー、日カレンダーは常に残り幅いっぱい */
     body.schedule-bar-fullscreen .schedule-bar {
       left: 64px;
-      right: 160px;
+      right: 0;
     }
 
     .year-ruler {
@@ -290,14 +292,10 @@
       display: block;
     }
 
-    /* 全画面カレンダー中はWeek paneも常時表示し、日別スクロールと連動させる */
+    /* 全画面カレンダー中もWeek paneは通常時と同じ折りたたみ/プレビュー操作で
+       オーバーレイ表示させ、日カレンダーの幅を占有しないようにする */
     body.schedule-bar-fullscreen .week-pane {
       z-index: 501;
-    }
-
-    body.schedule-bar-fullscreen.week-pane-collapsed .week-pane {
-      transform: translateX(0);
-      pointer-events: auto;
     }
 
     body.schedule-bar-fullscreen .week-cell.fullscreen-centered {
