@@ -7,6 +7,14 @@
   <title>Daily Notes</title>
   <meta name="app-version" content="19" />
   <link rel="icon" id="favicon" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Daily Notes" />
   <style>
     ::-webkit-scrollbar {
       display: none;
@@ -4945,6 +4953,14 @@
       };
       scheduleNextMidnightRollover();
     })();
+  </script>
+  <script>
+    "serviceWorker" in navigator &&
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .catch((err) => console.warn("[sw] registration failed:", err));
+      });
   </script>
 </body>
 
