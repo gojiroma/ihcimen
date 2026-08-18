@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="17" />
+  <meta name="app-version" content="18" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -481,6 +481,83 @@
       width: 0%;
       background-color: rgba(59, 130, 196, 0.7);
       transition: width 0.3s ease;
+    }
+
+    .ics-calendar-list {
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ics-calendar-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ics-color-dot {
+      flex-shrink: 0;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(128, 128, 128, 0.3);
+    }
+
+    .ics-calendar-url {
+      flex: 1;
+      min-width: 0;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ics-remove-btn {
+      flex-shrink: 0;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1;
+      padding: 2px 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .ics-url-input {
+      width: 100%;
+      box-sizing: border-box;
+      font: inherit;
+      font-size: 13px;
+      padding: 6px 8px;
+      margin-top: 4px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 6px;
+      background-color: var(--bg-color);
+      color: inherit;
+    }
+
+    .ics-color-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .ics-color-swatch {
+      width: 22px;
+      height: 22px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 1px solid rgba(128, 128, 128, 0.3);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .ics-color-swatch.selected {
+      box-shadow: 0 0 0 2px rgba(59, 130, 196, 0.8);
     }
 
     .menu-inline-btn {
@@ -1048,6 +1125,29 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .schedule-ics-events {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .schedule-ics-event {
+      font-size: 10px;
+      line-height: 1.3;
+      opacity: 0.85;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border-left: 2px solid var(--ics-color, currentColor);
+      padding-left: 4px;
+    }
+
+    .schedule-ics-more {
+      opacity: 0.55;
+      border-left: none;
+      padding-left: 6px;
     }
 
     .schedule-note {
@@ -1661,6 +1761,32 @@
           </details>
         </div>
       </details>
+      <details>
+        <summary>ICSカレンダー</summary>
+        <p class="sync-note">
+          外部のICS(iCalendar)カレンダーを読み込んで、下段カレンダーのセルに予定を表示します。複数登録でき、それぞれに色を割り当てられます。
+        </p>
+        <div id="icsCalendarList" class="ics-calendar-list"></div>
+        <input type="text" id="icsUrlInput" placeholder="ICSのURL(https://...)" class="ics-url-input" />
+        <div id="icsAddColorPicker" class="ics-color-picker">
+          <button type="button" class="ics-color-swatch selected" data-color="pink" style="background-color: #fadce3" title="ピンク"></button>
+          <button type="button" class="ics-color-swatch" data-color="blue" style="background-color: #d6e9f5" title="水色"></button>
+          <button type="button" class="ics-color-swatch" data-color="green" style="background-color: #dceedb" title="若草色"></button>
+          <button type="button" class="ics-color-swatch" data-color="yellow" style="background-color: #fbf2d3" title="クリーム"></button>
+          <button type="button" class="ics-color-swatch" data-color="purple" style="background-color: #e5def2" title="ラベンダー"></button>
+          <button type="button" class="ics-color-swatch" data-color="orange" style="background-color: #fbe1d3" title="サーモン"></button>
+          <button type="button" class="ics-color-swatch" data-color="gray" style="background-color: #e3e3e3" title="グレー"></button>
+        </div>
+        <div class="menu-inline-actions">
+          <button id="icsAddBtn" type="button" class="menu-inline-btn">
+            追加
+          </button>
+          <button id="icsRefreshBtn" type="button" class="menu-inline-btn">
+            今すぐ更新
+          </button>
+        </div>
+        <p id="icsStatusText" class="sync-note"></p>
+      </details>
       <div id="storageUsagePanel" class="storage-usage-panel">
         <p id="storageUsageText" class="storage-usage-text"></p>
         <div class="storage-usage-bar">
@@ -1783,6 +1909,12 @@
         storageUsageBarFillEl = document.getElementById(
           "storageUsageBarFill"
         ),
+        icsCalendarListEl = document.getElementById("icsCalendarList"),
+        icsUrlInputEl = document.getElementById("icsUrlInput"),
+        icsAddColorPickerEl = document.getElementById("icsAddColorPicker"),
+        icsAddBtnEl = document.getElementById("icsAddBtn"),
+        icsRefreshBtnEl = document.getElementById("icsRefreshBtn"),
+        icsStatusTextEl = document.getElementById("icsStatusText"),
         contentAreaEl = document.querySelector(".content-area"),
         tocPanelEl = document.getElementById("tocPanel"),
         tocListEl = document.getElementById("tocList"),
@@ -1818,7 +1950,15 @@
         weekLatestMonday = null,
         scheduleScrollSuppressed = !1,
         weekScrollSuppressed = !1,
-        lastSyncedWeekKey = null;
+        lastSyncedWeekKey = null,
+        icsAddColor = "pink",
+        icsEventsCache = (() => {
+          try {
+            return JSON.parse(localStorage.getItem("icsEventsCache") || "{}");
+          } catch (err) {
+            return {};
+          }
+        })();
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0,
         I = 864e5,
@@ -3183,6 +3323,291 @@
             heat = (dayLen / maxDayLen) * 0.5;
           cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
         },
+        // --- ICSカレンダー(外部iCalendarフィードの取り込み) ---
+        ICS_DOW = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 },
+        ICS_EXPAND_PAST_DAYS = 60,
+        ICS_EXPAND_FUTURE_DAYS = 400,
+        ICS_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000,
+        unfoldICSLines = (text) => {
+          const rawLines = text.split(/\r\n|\n|\r/),
+            lines = [];
+          for (const line of rawLines)
+            (line.startsWith(" ") || line.startsWith("\t")) && lines.length
+              ? (lines[lines.length - 1] += line.slice(1))
+              : lines.push(line);
+          return lines;
+        },
+        parseICSLine = (line) => {
+          const colonIdx = line.indexOf(":");
+          if (-1 === colonIdx) return null;
+          const left = line.slice(0, colonIdx),
+            value = line.slice(colonIdx + 1),
+            [name, ...paramParts] = left.split(";"),
+            params = {};
+          paramParts.forEach((p) => {
+            const eqIdx = p.indexOf("=");
+            -1 !== eqIdx &&
+              (params[p.slice(0, eqIdx).toUpperCase()] = p.slice(eqIdx + 1));
+          });
+          return { name: name.toUpperCase(), params, value };
+        },
+        unescapeICSText = (s) =>
+          s
+            .replace(/\\n/gi, " ")
+            .replace(/\\,/g, ",")
+            .replace(/\\;/g, ";")
+            .replace(/\\\\/g, "\\"),
+        parseICSDateValue = (value, params) => {
+          if ("DATE" === params.VALUE || /^\d{8}$/.test(value))
+            return {
+              y: +value.slice(0, 4),
+              mo: +value.slice(4, 6),
+              d: +value.slice(6, 8),
+              time: null,
+              allDay: !0,
+            };
+          const m = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/);
+          if (!m) return null;
+          const [, y, mo, d, h, mi, se, z] = m;
+          if (z) {
+            const utc = new Date(
+              Date.UTC(+y, +mo - 1, +d, +h, +mi, +se)
+            );
+            return {
+              y: utc.getFullYear(),
+              mo: utc.getMonth() + 1,
+              d: utc.getDate(),
+              time: `${String(utc.getHours()).padStart(2, "0")}:${String(
+                utc.getMinutes()
+              ).padStart(2, "0")}`,
+              allDay: !1,
+            };
+          }
+          return { y: +y, mo: +mo, d: +d, time: `${h}:${mi}`, allDay: !1 };
+        },
+        parseRRuleValue = (value) => {
+          const parts = {};
+          value.split(";").forEach((p) => {
+            const [k, v] = p.split("=");
+            k && (parts[k.toUpperCase()] = v);
+          });
+          return parts;
+        },
+        // ICSテキスト全体をVEVENTの配列に分解する(RFC5545の簡易実装)。
+        parseICS = (text) => {
+          const lines = unfoldICSLines(text),
+            events = [];
+          let current = null;
+          for (const rawLine of lines) {
+            const parsed = parseICSLine(rawLine);
+            if (!parsed) continue;
+            if ("BEGIN" === parsed.name && "VEVENT" === parsed.value)
+              current = { summary: "", start: null, rrule: null, exdateKeys: new Set() };
+            else if ("END" === parsed.name && "VEVENT" === parsed.value) {
+              current && current.start && events.push(current);
+              current = null;
+            } else if (current)
+              if ("SUMMARY" === parsed.name)
+                current.summary = unescapeICSText(parsed.value);
+              else if ("DTSTART" === parsed.name)
+                current.start = parseICSDateValue(parsed.value, parsed.params);
+              else if ("RRULE" === parsed.name)
+                current.rrule = parseRRuleValue(parsed.value);
+              else if ("EXDATE" === parsed.name)
+                parsed.value.split(",").forEach((v) => {
+                  const dv = parseICSDateValue(v.trim(), parsed.params);
+                  dv &&
+                    current.exdateKeys.add(
+                      `${dv.y}-${String(dv.mo).padStart(2, "0")}-${String(
+                        dv.d
+                      ).padStart(2, "0")}`
+                    );
+                });
+          }
+          return events;
+        },
+        // 1つのVEVENTを、指定した日付範囲内の具体的な発生日に展開する。
+        // RRULEはFREQ=DAILY/WEEKLY(BYDAY可)/MONTHLY/YEARLYの単純な
+        // パターンのみ対応(それ以外は単発の予定として扱う)。
+        expandICSEvent = (event, rangeStart, rangeEnd) => {
+          const { y, mo, d, time, allDay } = event.start,
+            startDate = new Date(y, mo - 1, d),
+            occurrences = [],
+            rrule = event.rrule,
+            SUPPORTED_FREQ = ["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+          if (!rrule || !SUPPORTED_FREQ.includes(rrule.FREQ)) {
+            startDate >= rangeStart &&
+              startDate <= rangeEnd &&
+              !event.exdateKeys.has(toDateKey(startDate)) &&
+              occurrences.push({ date: startDate, time, allDay });
+            return occurrences;
+          }
+          const freq = rrule.FREQ,
+            interval = Math.max(1, parseInt(rrule.INTERVAL, 10) || 1),
+            count = rrule.COUNT ? parseInt(rrule.COUNT, 10) : null,
+            untilRaw = rrule.UNTIL ? parseICSDateValue(rrule.UNTIL, {}) : null,
+            until = untilRaw
+              ? new Date(untilRaw.y, untilRaw.mo - 1, untilRaw.d)
+              : null,
+            byday = rrule.BYDAY
+              ? rrule.BYDAY.split(",").map((x) => x.trim())
+              : null,
+            targetDows = byday
+              ? byday.map((x) => ICS_DOW[x.slice(-2)]).filter((n) => void 0 !== n)
+              : null,
+            MAX_ITER = 3000;
+          let n = 0,
+            stop = !1;
+          const tryAdd = (date) => {
+            if (date < startDate) return;
+            if ((n++, null !== count && n > count)) return void (stop = !0);
+            if (until && date > until) return void (stop = !0);
+            if (date > rangeEnd) return void (stop = !0);
+            date >= rangeStart &&
+              !event.exdateKeys.has(toDateKey(date)) &&
+              occurrences.push({ date, time, allDay });
+          };
+          if ("WEEKLY" === freq && targetDows && targetDows.length) {
+            let weekStart = new Date(startDate);
+            weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+            const sortedDows = [...targetDows].sort(
+              (a, b) => (0 === a ? 7 : a) - (0 === b ? 7 : b)
+            );
+            for (let i = 0; i < MAX_ITER && !stop; i++) {
+              for (const dow of sortedDows) {
+                if (stop) break;
+                const offset = 0 === dow ? 6 : dow - 1;
+                tryAdd(new Date(weekStart.getTime() + offset * I));
+              }
+              weekStart.setDate(weekStart.getDate() + 7 * interval);
+            }
+          } else {
+            let cursor = new Date(startDate);
+            for (let i = 0; i < MAX_ITER && !stop; i++) {
+              tryAdd(new Date(cursor));
+              "DAILY" === freq
+                ? cursor.setDate(cursor.getDate() + interval)
+                : "WEEKLY" === freq
+                  ? cursor.setDate(cursor.getDate() + 7 * interval)
+                  : "MONTHLY" === freq
+                    ? cursor.setMonth(cursor.getMonth() + interval)
+                    : cursor.setFullYear(cursor.getFullYear() + interval);
+            }
+          }
+          return occurrences;
+        },
+        getIcsCalendars = () => {
+          try {
+            return JSON.parse(localStorage.getItem("icsCalendars") || "[]");
+          } catch (err) {
+            return [];
+          }
+        },
+        setIcsCalendars = (calendars) =>
+          localStorage.setItem("icsCalendars", JSON.stringify(calendars)),
+        fetchAndExpandOneCalendar = async (calendar) => {
+          const res = await fetchWithTimeout(
+            `/api/ics-proxy?url=${encodeURIComponent(calendar.url)}`,
+            {},
+            15000
+          );
+          if (!res.ok) throw new Error("fetch failed: " + res.status);
+          const body = await res.json();
+          if (body.error) throw new Error(body.error);
+          const events = parseICS(body.ics || ""),
+            rangeStart = new Date(Date.now() - ICS_EXPAND_PAST_DAYS * I),
+            rangeEnd = new Date(Date.now() + ICS_EXPAND_FUTURE_DAYS * I),
+            byDate = {};
+          events.forEach((event) => {
+            expandICSEvent(event, rangeStart, rangeEnd).forEach((occ) => {
+              const key = toDateKey(occ.date);
+              (byDate[key] = byDate[key] || []).push({
+                summary: event.summary || "(無題の予定)",
+                time: occ.time,
+                allDay: occ.allDay,
+                color: calendar.color,
+              });
+            });
+          });
+          return byDate;
+        },
+        renderIcsStatus = (text) => {
+          icsStatusTextEl && (icsStatusTextEl.textContent = text || "");
+        },
+        renderIcsCalendarList = () => {
+          if (!icsCalendarListEl) return;
+          icsCalendarListEl.innerHTML = "";
+          getIcsCalendars().forEach((calendar) => {
+            const row = document.createElement("div");
+            row.className = "ics-calendar-row";
+            const dot = document.createElement("span");
+            (dot.className = "ics-color-dot"),
+              (dot.style.backgroundColor =
+                CELL_COLORS[calendar.color] || "#999");
+            const urlSpan = document.createElement("span");
+            (urlSpan.className = "ics-calendar-url"),
+              (urlSpan.textContent = calendar.url),
+              (urlSpan.title = calendar.url);
+            const removeBtn = document.createElement("button");
+            (removeBtn.type = "button"),
+              (removeBtn.className = "ics-remove-btn"),
+              (removeBtn.title = "削除"),
+              (removeBtn.textContent = "×"),
+              removeBtn.addEventListener("click", () => {
+                setIcsCalendars(
+                  getIcsCalendars().filter((c) => c.id !== calendar.id)
+                ),
+                  renderIcsCalendarList(),
+                  refreshAllICSCalendars();
+              }),
+              row.appendChild(dot),
+              row.appendChild(urlSpan),
+              row.appendChild(removeBtn),
+              icsCalendarListEl.appendChild(row);
+          });
+        },
+        refreshAllICSCalendars = async () => {
+          const calendars = getIcsCalendars();
+          if (!calendars.length) {
+            (icsEventsCache = {}),
+              localStorage.removeItem("icsEventsCache"),
+              localStorage.removeItem("icsLastFetchedAt"),
+              renderScheduleBar(),
+              renderIcsStatus("");
+            return;
+          }
+          renderIcsStatus("更新中…");
+          const results = await Promise.allSettled(
+            calendars.map(fetchAndExpandOneCalendar)
+          );
+          const merged = {};
+          let errorCount = 0;
+          results.forEach((result) => {
+            "fulfilled" === result.status
+              ? Object.entries(result.value).forEach(([key, events]) => {
+                (merged[key] = merged[key] || []).push(...events);
+              })
+              : errorCount++;
+          });
+          (icsEventsCache = merged),
+            localStorage.setItem("icsEventsCache", JSON.stringify(merged)),
+            localStorage.setItem("icsLastFetchedAt", new Date().toISOString()),
+            renderScheduleBar(),
+            renderIcsStatus(
+              errorCount > 0
+                ? `${calendars.length}件中${errorCount}件の取得に失敗しました`
+                : `最終更新: ${new Date().toLocaleString("ja-JP")}`
+            );
+        },
+        maybeAutoRefreshICS = () => {
+          if (!getIcsCalendars().length) return;
+          const lastFetched = localStorage.getItem("icsLastFetchedAt"),
+            stale =
+              !lastFetched ||
+              Date.now() - new Date(lastFetched).getTime() >
+              ICS_REFRESH_INTERVAL_MS;
+          stale && refreshAllICSCalendars();
+        },
         closeCellColorPicker = () => {
           cellColorPickerEl.classList.remove("open");
         },
@@ -3263,6 +3688,32 @@
             (holidayLabel.className = "schedule-holiday"),
               (holidayLabel.textContent = holidayName);
           }
+          let icsEventsEl = null;
+          const icsEvents = icsEventsCache[key];
+          if (icsEvents && icsEvents.length) {
+            icsEventsEl = document.createElement("div");
+            icsEventsEl.className = "schedule-ics-events";
+            const ICS_MAX_SHOWN = 3,
+              formatEvent = (ev) =>
+                ev.allDay ? ev.summary : `${ev.time} ${ev.summary}`;
+            icsEvents.slice(0, ICS_MAX_SHOWN).forEach((ev) => {
+              const line = document.createElement("div");
+              (line.className = "schedule-ics-event"),
+                line.style.setProperty(
+                  "--ics-color",
+                  CELL_COLORS[ev.color] || "currentColor"
+                ),
+                (line.textContent = formatEvent(ev)),
+                icsEventsEl.appendChild(line);
+            }),
+              icsEvents.length > ICS_MAX_SHOWN &&
+              ((more) => {
+                (more.className = "schedule-ics-event schedule-ics-more"),
+                  (more.textContent = `+${icsEvents.length - ICS_MAX_SHOWN}`),
+                  icsEventsEl.appendChild(more);
+              })(document.createElement("div")),
+              (icsEventsEl.title = icsEvents.map(formatEvent).join("\n"));
+          }
           const noteInput = document.createElement("textarea");
           (noteInput.className = "schedule-note"),
             (noteInput.placeholder = "予定を入力"),
@@ -3275,6 +3726,7 @@
           }),
             cell.appendChild(dateLabel),
             holidayLabel && cell.appendChild(holidayLabel),
+            icsEventsEl && cell.appendChild(icsEventsEl),
             cell.appendChild(noteInput);
           return cell;
         },
@@ -4111,6 +4563,38 @@
           cell && applyCellColor(cell, dateKey, getGlobalMaxDayLen()),
             maybeSyncPush();
         }),
+        icsAddColorPickerEl.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-color]");
+          if (!btn) return;
+          icsAddColorPickerEl
+            .querySelectorAll(".ics-color-swatch.selected")
+            .forEach((el) => el.classList.remove("selected")),
+            btn.classList.add("selected"),
+            (icsAddColor = btn.dataset.color);
+        }),
+        icsAddBtnEl.addEventListener("click", () => {
+          const url = icsUrlInputEl.value.trim();
+          if (!url) return;
+          let parsedUrl;
+          try {
+            parsedUrl = new URL(url);
+          } catch (err) {
+            return void showToast("正しいURLを入力してください", "error");
+          }
+          if (!["http:", "https:"].includes(parsedUrl.protocol))
+            return void showToast("http/httpsのURLを入力してください", "error");
+          const calendars = getIcsCalendars();
+          calendars.push({
+            id: Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+            url,
+            color: icsAddColor,
+          }),
+            setIcsCalendars(calendars),
+            (icsUrlInputEl.value = ""),
+            renderIcsCalendarList(),
+            refreshAllICSCalendars();
+        }),
+        icsRefreshBtnEl.addEventListener("click", refreshAllICSCalendars),
         r.addEventListener("change", (e) => {
           const t = e.target.files[0];
           if (t) {
@@ -4177,6 +4661,9 @@
           observer.observe(dd, { childList: true, subtree: true });
           // 同期が有効なら読み込み時にバックグラウンドで取得する
           pullAndMerge();
+          // ICSカレンダーの一覧を表示し、古ければバックグラウンドで再取得する
+          renderIcsCalendarList();
+          maybeAutoRefreshICS();
           // バージョン更新によるリロード直後なら、そのことを知らせる
           sessionStorage.getItem("justUpdatedToast") &&
             (sessionStorage.removeItem("justUpdatedToast"),
@@ -4187,10 +4674,11 @@
       });
       // ページ/タブが再びアクティブになったとき、サーバー側が新しければ取り込む
       // (オンラインで未保存の変更がない前提。競合解決は行わない)。
-      // 併せて、配信されているHTML自体が新しければ再読み込みする。
+      // 併せて、配信されているHTML自体が新しければ再読み込みする。ICSカレンダーも
+      // 古ければこのタイミングで再取得する。
       document.addEventListener("visibilitychange", () => {
         "visible" === document.visibilityState &&
-          (pullAndMerge(), checkForUpdate());
+          (pullAndMerge(), checkForUpdate(), maybeAutoRefreshICS());
       });
       // 全画面カレンダー表示中にウィンドウが広がった場合も、
       // スクロール可能になるまでセルを補充する。

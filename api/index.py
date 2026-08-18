@@ -1,5 +1,10 @@
+import ipaddress
 import os
 import re
+import socket
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 
 import psycopg2
@@ -11,6 +16,8 @@ app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB request body cap
 SYNC_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 CODE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 HANDOFF_TTL_SECONDS = 600  # 6桁コードの有効期限(10分)
+ICS_FETCH_TIMEOUT_SECONDS = 10
+ICS_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap on the fetched ICS body
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sync_blobs (
@@ -59,6 +66,33 @@ def to_utc_iso8601(dt):
     # psycopg2 returns TIMESTAMPTZ values in the connection's session
     # timezone, not necessarily UTC — normalize before echoing to clients.
     return dt.astimezone(timezone.utc).isoformat()
+
+
+def is_fetchable_url(url):
+    # ICSプロキシは任意のURLをサーバー側から取得するため、内部/ループバック
+    # アドレスへのSSRFを防ぐ最低限のチェック。ホスト名がどのIPに解決されるか
+    # まで見て、プライベート/ループバック/リンクローカルなら拒否する。
+    try:
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return False
+        if not parsed.hostname:
+            return False
+        for family, _, _, _, sockaddr in socket.getaddrinfo(
+            parsed.hostname, None
+        ):
+            ip = ipaddress.ip_address(sockaddr[0])
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_link_local
+                or ip.is_reserved
+                or ip.is_multicast
+            ):
+                return False
+        return True
+    except Exception:
+        return False
 
 
 @app.route("/api/push", methods=["POST", "DELETE"])
@@ -273,6 +307,36 @@ def handoff_pull():
         return jsonify(found=True, ciphertext=ciphertext, iv=iv, salt=salt)
     finally:
         conn.close()
+
+
+@app.route("/api/ics-proxy", methods=["GET"])
+def ics_proxy():
+    # ICSはブラウザから直接fetchするとCORSで弾かれるホストが多いため、
+    # サーバー側で代わりに取得してテキストをそのまま返す(自ドメインなので
+    # ブラウザ側のCORS制約を受けない)。DBは使わないので同期機能が
+    # 未設定でも独立して動く。
+    url = request.args.get("url", "")
+    if not url:
+        return jsonify(error="url is required"), 400
+    if not is_fetchable_url(url):
+        return jsonify(error="url is not fetchable"), 400
+
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "ihcimen-ics-proxy/1.0"}
+        )
+        with urllib.request.urlopen(
+            req, timeout=ICS_FETCH_TIMEOUT_SECONDS
+        ) as resp:
+            body = resp.read(ICS_MAX_BYTES + 1)
+        if len(body) > ICS_MAX_BYTES:
+            return jsonify(error="ICS file too large"), 413
+        text = body.decode("utf-8", errors="replace")
+        return jsonify(ics=text)
+    except urllib.error.URLError as err:
+        return jsonify(error=f"failed to fetch: {err}"), 502
+    except Exception as err:
+        return jsonify(error=f"failed to fetch: {err}"), 502
 
 
 @app.route("/api/cleanup", methods=["GET"])
