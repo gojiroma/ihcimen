@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="18" />
+  <meta name="app-version" content="19" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -1355,26 +1355,46 @@
       right: 10px;
     }
 
+    .history-modal-content {
+      margin: 4vh auto;
+      height: 92vh;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+    }
+
     #historySlider {
       width: 100%;
       margin: 10px 0;
+      flex-shrink: 0;
     }
 
     #historyMeta {
       font-size: 13px;
       opacity: 0.7;
+      flex-shrink: 0;
     }
 
     .history-preview {
-      white-space: pre-wrap;
       word-break: break-all;
       border: 1px solid rgba(128, 128, 128, 0.3);
       border-radius: 4px;
       padding: 10px;
-      max-height: 300px;
+      flex: 1;
+      min-height: 0;
       overflow-y: auto;
       font-size: 14px;
       margin: 10px 0;
+      display: block;
+      width: 100%;
+    }
+
+    .history-diff-changed {
+      background-color: rgba(46, 204, 113, 0.25);
+      outline: 2px solid rgba(46, 204, 113, 0.6);
+      outline-offset: 2px;
+      border-radius: 4px;
     }
 
     /* h1ショートカット */
@@ -1821,11 +1841,11 @@
     </div>
   </div>
   <div id="historyModal" class="search-modal close-on-click-outside">
-    <div class="search-modal-content">
+    <div class="search-modal-content history-modal-content">
       <h2>バージョン履歴</h2>
       <div id="historyMeta"></div>
       <input type="range" id="historySlider" min="0" max="0" value="0" />
-      <div id="historyPreview" class="history-preview"></div>
+      <div id="historyPreview" class="history-preview markdown-viewer"></div>
       <button id="historyRestoreBtn" type="button">このバージョンで上書き</button>
     </div>
   </div>
@@ -2363,19 +2383,56 @@
           (historySliderEl.min = 0),
             (historySliderEl.max = hist.length - 1),
             (historySliderEl.value = hist.length - 1),
-            renderHistoryPreview(),
-            O(historyModalEl, !0);
+            O(historyModalEl, !0),
+            renderHistoryPreview();
+        },
+        diffHistoryBlocks = (oldHtml, newHtml) => {
+          const oldContainer = document.createElement("div");
+          oldContainer.innerHTML = oldHtml;
+          const newContainer = document.createElement("div");
+          newContainer.innerHTML = newHtml;
+          const oldKeys = Array.from(oldContainer.children).map((el) => el.outerHTML),
+            newBlocks = Array.from(newContainer.children),
+            newKeys = newBlocks.map((el) => el.outerHTML),
+            n = oldKeys.length,
+            m = newKeys.length,
+            dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+          for (let i = n - 1; i >= 0; i--)
+            for (let j = m - 1; j >= 0; j--)
+              dp[i][j] =
+                oldKeys[i] === newKeys[j]
+                  ? dp[i + 1][j + 1] + 1
+                  : Math.max(dp[i + 1][j], dp[i][j + 1]);
+          let i = 0,
+            j = 0;
+          const matched = new Array(m).fill(false);
+          while (i < n && j < m)
+            if (oldKeys[i] === newKeys[j]) (matched[j] = !0), i++, j++;
+            else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
+            else j++;
+          newBlocks.forEach((el, idx) => {
+            matched[idx] || el.classList.add("history-diff-changed");
+          });
+          return newContainer;
         },
         renderHistoryPreview = () => {
           const dateKey = toDateKey(f),
             hist = loadHistory(dateKey),
             idx = Number(historySliderEl.value),
             entry = hist[idx];
-          entry &&
-            ((historyMetaEl.textContent = `${idx + 1} / ${hist.length}  ${new Date(
-              entry.ts
-            ).toLocaleString("ja-JP")}  (${entry.content.length} 文字)`),
-              (historyPreviewEl.textContent = entry.content));
+          if (!entry) return;
+          historyMetaEl.textContent = `${idx + 1} / ${hist.length}  ${new Date(
+            entry.ts
+          ).toLocaleString("ja-JP")}  (${entry.content.length} 文字)`;
+          const prevContent = idx > 0 ? hist[idx - 1].content : "",
+            diffed = diffHistoryBlocks(
+              marked.parse(prevContent),
+              marked.parse(entry.content)
+            );
+          historyPreviewEl.innerHTML = diffed.innerHTML;
+          const changed = historyPreviewEl.querySelector(".history-diff-changed");
+          changed &&
+            changed.scrollIntoView({ block: "center", behavior: "auto" });
         },
         restoreHistoryVersion = () => {
           const dateKey = toDateKey(f),
