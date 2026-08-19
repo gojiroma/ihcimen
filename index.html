@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="22" />
+  <meta name="app-version" content="23" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -949,14 +949,6 @@
       opacity: 0.4;
     }
 
-    #tocList li.dragging {
-      opacity: 0.4;
-    }
-
-    #tocList li {
-      touch-action: none;
-    }
-
     .new-block-box {
       display: block;
       width: 700px;
@@ -1360,65 +1352,7 @@
       overflow-y: auto;
     }
 
-    /* 目次パネル */
-    .toc-panel {
-      position: fixed;
-      right: 176px;
-      top: 46px;
-      z-index: 410;
-      max-width: 220px;
-      max-height: calc(100vh - 160px);
-      overflow-y: auto;
-      font-size: 12px;
-      background-color: var(--bg-color);
-      border: 1px solid rgba(128, 128, 128, 0.3);
-      border-radius: 6px;
-      padding: 6px 10px;
-      opacity: 0.55;
-      transition: opacity 0.2s ease, right 0.25s ease;
-    }
-
-    .toc-panel:hover {
-      opacity: 1;
-    }
-
-    .toc-panel.toc-empty {
-      display: none;
-    }
-
-    body.week-pane-collapsed .toc-panel {
-      right: 10px;
-    }
-
-    /* 画面幅が狭いと本文と重なってしまうため非表示にする */
-    @media (max-width: 900px) {
-      .toc-panel {
-        display: none;
-      }
-    }
-
-    .toc-panel ul {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    .toc-panel li {
-      padding: 3px 2px;
-      cursor: pointer;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      border-radius: 3px;
-      transition: background-color 0.15s ease;
-    }
-
-    .toc-panel li:hover {
-      text-decoration: underline;
-      background-color: rgba(59, 130, 196, 0.18);
-    }
-
-    /* h1へのジャンプ時に、目次項目・ジャンプ先の両方を一瞬ハイライトする */
+    /* h1へのジャンプ時にジャンプ先を一瞬ハイライトする */
     .jump-highlight {
       animation: jumpHighlightFade 1.3s ease;
     }
@@ -1760,9 +1694,6 @@
       </p>
       <textarea class="text-box" id="textBox" placeholder="メモを入力してください... (? またはメニューから)"></textarea>
       <div class="markdown-viewer" id="markdownViewer"></div>
-      <div id="tocPanel" class="toc-panel toc-empty">
-        <ul id="tocList"></ul>
-      </div>
     </div>
   </div>
   <div id="modalTemplate" class="modal-template">
@@ -1781,7 +1712,7 @@
           <li>本文はクリックで編集モードに切り替わります。</li>
           <li>下段カレンダーはノブのクリックで開閉、上へドラッグで全画面表示になります(下へドラッグ/クリックで戻ります)。</li>
           <li>右のWeek pane・左の検索パネルは端のタブで開閉、ノブへのホバーで一時的にプレビューできます。</li>
-          <li>目次・見出しのショートカット・バージョン履歴は、本文エリア右下/右上/左上のアイコンから利用できます。</li>
+          <li>見出しのショートカット・バージョン履歴は、本文エリア右下/左上のアイコンから利用できます。</li>
         </ul>
       </details>
       <details>
@@ -2077,8 +2008,6 @@
         icsRefreshBtnEl = document.getElementById("icsRefreshBtn"),
         icsStatusTextEl = document.getElementById("icsStatusText"),
         contentAreaEl = document.querySelector(".content-area"),
-        tocPanelEl = document.getElementById("tocPanel"),
-        tocListEl = document.getElementById("tocList"),
         historyBtnEl = document.getElementById("historyBtn"),
         historyModalEl = document.getElementById("historyModal"),
         historySliderEl = document.getElementById("historySlider"),
@@ -2350,44 +2279,13 @@
             });
           return headings;
         },
-        // --- 目次 ---
-        renderToc = () => {
-          const dayText = localStorage.getItem(toDateKey(f)) || "# ",
-            headings = getHeadings(dayText),
-            // getHeadings は見出しのみを見るが、reorderBlocks が使う
-            // getLocalHeadingBlocks は先頭に見出し無しブロックを含みうる
-            // ため、その分だけindexをずらす。
-            localBlocks = getLocalHeadingBlocks(dayText),
-            offset =
-              localBlocks.length && null === localBlocks[0].headingText ? 1 : 0;
-          tocListEl.innerHTML = "";
-          headings.forEach((h, idx) => {
-            const li = document.createElement("li");
-            (li.textContent = h.text),
-              li.addEventListener("mouseenter", () =>
-                scrollToHeading(idx, li)
-              ),
-              setupReorderHandle(li, li, tocListEl, "li", null, (a, b) =>
-                reorderBlocks(a + offset, b + offset)
-              ),
-              tocListEl.appendChild(li);
-          }),
-            tocPanelEl.classList.toggle("toc-empty", 0 === headings.length);
-        },
-        // ジャンプ元(目次項目など)・ジャンプ先(見出し)の両方を
-        // 一瞬ハイライトして、どこへ移動したか分かりやすくする。
+        // ジャンプ元・ジャンプ先の要素を一瞬ハイライトして、どこへ移動したか
+        // 分かりやすくする(h1ショートカット・検索パネルのジャンプで使用)。
         flashHighlight = (el) => {
           if (!el) return;
           el.classList.remove("jump-highlight"),
             void el.offsetWidth,
             el.classList.add("jump-highlight");
-        },
-        scrollToHeading = (idx, liEl) => {
-          const el = o.querySelectorAll("h1")[idx];
-          el &&
-            (el.scrollIntoView({ behavior: "smooth", block: "center" }),
-              flashHighlight(el));
-          flashHighlight(liEl);
         },
         // --- h1ブロック分割・日またぎ参照 ---
         // 生テキストを、見出し行(あれば)+本文からなるブロックの配列に分割する。
@@ -2753,8 +2651,7 @@
           o.innerHTML = "";
           blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
           o.appendChild(newBlockBoxEl),
-            (newBlockBoxEl.style.height = ""),
-            renderToc();
+            (newBlockBoxEl.style.height = "");
         },
         // キャレット位置を .content-area の縦方向中央に来るようスクロールする
         centerCaretInView = () => {
@@ -4813,13 +4710,9 @@
             clearTimeout(L),
             (L = setTimeout(saveCurrentMemo, 3e3)),
             resizeTextBox(),
-            scrollCaretIntoView(),
-            activeBlockKey === toDateKey(f) && renderToc();
+            scrollCaretIntoView();
         }),
         s.addEventListener("mouseleave", (e) => {
-          // 目次パネルへ直接カーソルを移した場合は、編集状態を保ったまま
-          // カーソル移動のみ行いたいので、閲覧モードへは切り替えない。
-          if (e.relatedTarget && tocPanelEl.contains(e.relatedTarget)) return;
           0 === e.buttons && document.activeElement === s && s.blur();
         }),
         s.addEventListener("blur", () => {
