@@ -4,5 +4,14 @@
   ],
   "crons": [
     { "path": "/api/cleanup", "schedule": "0 3 * * *" }
+  ],
+  "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    }
   ]
 }

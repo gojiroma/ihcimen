@@ -7,6 +7,14 @@
   <title>Daily Notes</title>
   <meta name="app-version" content="20" />
   <link rel="icon" id="favicon" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Daily Notes" />
   <style>
     ::-webkit-scrollbar {
       display: none;
@@ -202,14 +210,16 @@
       right: 180px;
     }
 
-    /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示 */
+    /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
+       画面全体を覆う表示にしたいので、Week paneより手前(高いz-index)に
+       置き、幅が狭い画面でもWeek paneの裏に隠れないようにする。 */
     .fullscreen-year-watermark {
       display: none;
       position: fixed;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      z-index: 499;
+      z-index: 503;
       font-size: clamp(120px, 30vw, 400px);
       font-weight: 700;
       color: var(--text-color);
@@ -1356,10 +1366,10 @@
     .toc-panel {
       position: fixed;
       right: 176px;
-      bottom: 130px;
+      top: 46px;
       z-index: 410;
       max-width: 220px;
-      max-height: calc(100vh - 170px);
+      max-height: calc(100vh - 160px);
       overflow-y: auto;
       font-size: 12px;
       background-color: var(--bg-color);
@@ -1367,7 +1377,7 @@
       border-radius: 6px;
       padding: 6px 10px;
       opacity: 0.55;
-      transition: opacity 0.2s ease;
+      transition: opacity 0.2s ease, right 0.25s ease;
     }
 
     .toc-panel:hover {
@@ -1379,7 +1389,7 @@
     }
 
     body.week-pane-collapsed .toc-panel {
-      right: 20px;
+      right: 10px;
     }
 
     /* 画面幅が狭いと本文と重なってしまうため非表示にする */
@@ -4925,7 +4935,7 @@
             } else if (n > 1) {
               e.preventDefault();
               const l = a + "\n\n# " + s.value.substring(t);
-              (s.value = l), (s.selectionStart = s.selectionEnd = t + 6);
+              (s.value = l), (s.selectionStart = s.selectionEnd = t + 4);
             }
           } else if ("Backspace" === e.key) {
             if ("-" === o.trim()) {
@@ -5447,6 +5457,14 @@
       };
       scheduleNextMidnightRollover();
     })();
+  </script>
+  <script>
+    "serviceWorker" in navigator &&
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .catch((err) => console.warn("[sw] registration failed:", err));
+      });
   </script>
 </body>
 
