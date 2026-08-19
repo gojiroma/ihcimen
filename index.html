@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="23" />
+  <meta name="app-version" content="24" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -4440,11 +4440,18 @@
           sb.scrollLeft -= clientX - cellCenterX;
         },
         extendScheduleBarStart = (days = 14) => {
+          const fullscreen = document.body.classList.contains(
+            "schedule-bar-fullscreen"
+          );
+          // 全画面カレンダーは折り返しflexで、1行あたりの列数が画面幅で
+          // 変わる。先頭に追加する日数が列数の倍数でないと、追加分だけ
+          // 既存セルの列位置がずれて折り返し直してしまい、見た目上セルが
+          // シフトしたように見える。列数の倍数に切り上げて丸ごと行単位で
+          // 追加することで、既存セルの列位置を保つ。
+          fullscreen &&
+            (days = Math.ceil(days / getFullscreenColumns()) * getFullscreenColumns());
           const maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment(),
-            fullscreen = document.body.classList.contains(
-              "schedule-bar-fullscreen"
-            );
+            frag = document.createDocumentFragment();
           for (let i = days; i >= 1; i--)
             frag.appendChild(
               createScheduleCell(
@@ -4479,14 +4486,18 @@
           sb.appendChild(frag),
             (scheduleLatest = new Date(scheduleLatest.getTime() + days * I));
         },
-        // 全画面カレンダーのセル幅は、1列あたり約120pxを目安にしつつ、
-        // 実際の表示幅にちょうど収まる列数へ丸めて均等割りする。
-        // これにより右端に余る半端な空白を無くす。
+        // 全画面カレンダーの1行あたりの列数(1列あたり約120px目安)。
+        // 表示幅が取れない場合は7列(1週間分)を仮定しておく。
+        getFullscreenColumns = () => {
+          const available = sb.clientWidth;
+          return available ? Math.max(1, Math.round(available / 120)) : 7;
+        },
+        // 全画面カレンダーのセル幅は、実際の表示幅にちょうど収まる列数へ
+        // 丸めて均等割りする。これにより右端に余る半端な空白を無くす。
         adjustFullscreenCellWidth = () => {
           const available = sb.clientWidth;
           if (!available) return;
-          const targetWidth = 120,
-            columns = Math.max(1, Math.round(available / targetWidth)),
+          const columns = getFullscreenColumns(),
             cellWidth = available / columns;
           sb.style.setProperty("--fs-cell-width", `${cellWidth}px`);
         },
