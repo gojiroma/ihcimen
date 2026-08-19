@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="20" />
+  <meta name="app-version" content="21" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -2684,6 +2684,12 @@
             (delBtn.className = "block-delete"),
             (delBtn.textContent = "×"),
             (delBtn.title = "このブロックを削除"),
+            // ボタン押下でs(textarea)からフォーカスが外れると、blurハンドラが
+            // 即座にブロック一覧を再描画してこのボタン自体を作り直してしまい、
+            // クリックイベントが確定する前にボタンが消えて何も起きなくなる。
+            // pointerdown時点でフォーカス移動そのものを止めておく。
+            delBtn.addEventListener("pointerdown", (e) => e.preventDefault()),
+            delBtn.addEventListener("mousedown", (e) => e.preventDefault()),
             delBtn.addEventListener("click", (e) => {
               e.stopPropagation(), deleteBlock(blockEl);
             });
