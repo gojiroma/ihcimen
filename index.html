@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="21" />
+  <meta name="app-version" content="22" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -893,6 +893,8 @@
       width: 700px;
       max-width: 100%;
       margin: 0 auto;
+      padding-left: 30px;
+      box-sizing: border-box;
     }
 
     .content-block .markdown-viewer {
@@ -910,10 +912,10 @@
     }
 
     .block-delete {
-      display: none;
+      display: block;
       position: absolute;
-      top: 18px;
-      right: -6px;
+      top: 16px;
+      left: 0px;
       width: 26px;
       height: 26px;
       border-radius: 50%;
@@ -924,10 +926,6 @@
       line-height: 1;
       cursor: pointer;
       z-index: 5;
-    }
-
-    .content-block.block-active .block-delete {
-      display: block;
     }
 
     .block-drag-handle {
