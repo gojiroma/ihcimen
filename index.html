@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="19" />
+  <meta name="app-version" content="20" />
   <link rel="icon" id="favicon" />
   <style>
     ::-webkit-scrollbar {
@@ -867,6 +867,111 @@
     .markdown-viewer table {
       display: block;
       overflow-x: auto;
+    }
+
+    /* h1見出し単位のブロック表示。各ブロックは自分の.markdown-viewer(閲覧)と
+       アクティブ時だけ差し込まれる共有textareaを持つ。 */
+    #markdownViewer {
+      display: block;
+      width: 100%;
+      margin-top: 0;
+      padding: 0;
+    }
+
+    .content-block {
+      position: relative;
+      width: 700px;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    .content-block .markdown-viewer {
+      display: block;
+    }
+
+    .content-block.block-active .markdown-viewer.block-view {
+      display: none;
+    }
+
+    /* フォーカスモード: どれか1ブロックを編集中は、他ブロックを控えめにする */
+    #markdownViewer.has-active-block .content-block:not(.block-active) {
+      opacity: 0.35;
+      transition: opacity 0.15s ease;
+    }
+
+    .block-delete {
+      display: none;
+      position: absolute;
+      top: 18px;
+      right: -6px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+      background: var(--bg-color, #fff);
+      color: #888;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      z-index: 5;
+    }
+
+    .content-block.block-active .block-delete {
+      display: block;
+    }
+
+    .block-drag-handle {
+      position: absolute;
+      top: 16px;
+      right: 24px;
+      width: 22px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ccc;
+      cursor: grab;
+      touch-action: none;
+      font-size: 15px;
+      user-select: none;
+      z-index: 5;
+    }
+
+    .content-block.dragging {
+      opacity: 0.4;
+    }
+
+    #tocList li.dragging {
+      opacity: 0.4;
+    }
+
+    #tocList li {
+      touch-action: none;
+    }
+
+    .new-block-box {
+      display: block;
+      width: 700px;
+      max-width: 100%;
+      min-width: 0;
+      margin: 20px auto 0;
+      border: none;
+      border-top: 1px dashed #ccc;
+      padding: 10px 5px 5px;
+      font-size: large;
+      line-height: 200%;
+      word-break: break-all;
+      flex-shrink: 0;
+      box-sizing: border-box;
+      resize: none;
+      outline: 0;
+      color: inherit;
+      background-color: inherit;
+      opacity: 0.7;
+    }
+
+    .new-block-box:focus {
+      opacity: 1;
     }
 
     /* Save Status Indicator */
@@ -1987,6 +2092,11 @@
         sDirty = !1,
         editBaseline = "",
         sessionSnapshotDone = !1,
+        activeBlockKey = null,
+        activeBlockPrefix = "",
+        activeBlockSuffix = "",
+        activeBlockEl = null,
+        newBlockBoxEl = null,
         syncPushTimer = null,
         syncScanStream = null,
         handoffCountdownTimer = null,
@@ -2059,25 +2169,10 @@
         // 発生させない)。
         resizeTextBox = () => {
           (s.style.height = "0px"),
-            (s.style.height =
-              Math.max(
-                s.scrollHeight,
-                Math.max(contentAreaEl.clientHeight - 40, 300)
-              ) + "px");
+            (s.style.height = Math.max(s.scrollHeight, 80) + "px");
         },
         A = (e) => {
-          const t = toDateKey(e),
-            a = localStorage.getItem(t) || "# ";
-          s.value = a;
-          editBaseline = a;
-          sessionSnapshotDone = !1;
-          resizeTextBox();
-          o.innerHTML = marked.parse(a);
-          const l = Z(a);
-          (o.style.display = l ? "block" : "none"),
-            (s.style.display = l ? "none" : "block"),
-            (sDirty = !1);
-          renderToc();
+          renderDayBlocks(e);
         },
         O = (e, t) => {
           e.style.display = t ? "block" : "none";
@@ -2249,13 +2344,23 @@
         },
         // --- 目次 ---
         renderToc = () => {
-          const headings = getHeadings(s.value);
+          const dayText = localStorage.getItem(toDateKey(f)) || "# ",
+            headings = getHeadings(dayText),
+            // getHeadings は見出しのみを見るが、reorderBlocks が使う
+            // getLocalHeadingBlocks は先頭に見出し無しブロックを含みうる
+            // ため、その分だけindexをずらす。
+            localBlocks = getLocalHeadingBlocks(dayText),
+            offset =
+              localBlocks.length && null === localBlocks[0].headingText ? 1 : 0;
           tocListEl.innerHTML = "";
           headings.forEach((h, idx) => {
             const li = document.createElement("li");
             (li.textContent = h.text),
               li.addEventListener("mouseenter", () =>
-                scrollToHeading(idx, h.end, li)
+                scrollToHeading(idx, li)
+              ),
+              setupReorderHandle(li, li, tocListEl, "li", null, (a, b) =>
+                reorderBlocks(a + offset, b + offset)
               ),
               tocListEl.appendChild(li);
           }),
@@ -2269,16 +2374,373 @@
             void el.offsetWidth,
             el.classList.add("jump-highlight");
         },
-        scrollToHeading = (idx, pos, liEl) => {
-          if ("block" === s.style.display) {
-            (s.selectionStart = s.selectionEnd = pos), centerCaretInView();
-          } else {
-            const el = o.querySelectorAll("h1")[idx];
-            el &&
-              (el.scrollIntoView({ behavior: "smooth", block: "center" }),
-                flashHighlight(el));
-          }
+        scrollToHeading = (idx, liEl) => {
+          const el = o.querySelectorAll("h1")[idx];
+          el &&
+            (el.scrollIntoView({ behavior: "smooth", block: "center" }),
+              flashHighlight(el));
           flashHighlight(liEl);
+        },
+        // --- h1ブロック分割・日またぎ参照 ---
+        // 生テキストを、見出し行(あれば)+本文からなるブロックの配列に分割する。
+        // 見出しより前に本文がある場合(過去データ等)は見出し無しブロックとして扱う。
+        getLocalHeadingBlocks = (text) => {
+          const headings = getHeadings(text),
+            blocks = [];
+          if (!headings.length)
+            return Z(text)
+              ? [{ headingText: null, headStart: 0, headEnd: 0, bodyStart: 0, bodyEnd: text.length }]
+              : [];
+          if (headings[0].start > 0) {
+            const pre = text.slice(0, headings[0].start);
+            Z(pre) &&
+              blocks.push({
+                headingText: null,
+                headStart: 0,
+                headEnd: 0,
+                bodyStart: 0,
+                bodyEnd: headings[0].start,
+              });
+          }
+          return (
+            headings.forEach((h, i) => {
+              const bodyEnd =
+                i + 1 < headings.length ? headings[i + 1].start : text.length;
+              blocks.push({
+                headingText: h.text,
+                headStart: h.start,
+                headEnd: h.end,
+                bodyStart: h.end,
+                bodyEnd,
+              });
+            }),
+            blocks
+          );
+        },
+        // 完全一致する見出し(本文あり)を、指定日以外の全日程から探す。
+        findExternalHeadingBlock = (headingText, excludeKey) => {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key === excludeKey) continue;
+            const text = localStorage.getItem(key),
+              match = getLocalHeadingBlocks(text).find(
+                (b) =>
+                  b.headingText === headingText &&
+                  Z(text.slice(b.bodyStart, b.bodyEnd))
+              );
+            if (match) return { dateKey: key, rawText: text, ...match };
+          }
+          return null;
+        },
+        // 指定日のテキストを、日またぎ参照も解決した表示用ブロック配列にする。
+        buildDayBlocks = (date) => {
+          const dateKey = toDateKey(date),
+            rawText = localStorage.getItem(dateKey) || "# ";
+          return getLocalHeadingBlocks(rawText).map((b) => {
+            const localBody = rawText.slice(b.bodyStart, b.bodyEnd),
+              headingLine = rawText.slice(b.headStart, b.headEnd);
+            if (b.headingText !== null && !Z(localBody)) {
+              const origin = findExternalHeadingBlock(b.headingText, dateKey);
+              if (origin) {
+                const originBody = origin.rawText.slice(
+                  origin.bodyStart,
+                  origin.bodyEnd
+                );
+                return {
+                  headingText: b.headingText,
+                  isReference: !0,
+                  boundDateKey: origin.dateKey,
+                  localStart: b.headStart,
+                  localEnd: b.bodyEnd,
+                  editStart: origin.headStart,
+                  editEnd: origin.bodyEnd,
+                  headingLine,
+                  bodyText: originBody,
+                  fullText: headingLine + originBody,
+                };
+              }
+            }
+            return {
+              headingText: b.headingText,
+              isReference: !1,
+              boundDateKey: dateKey,
+              localStart: b.headStart,
+              localEnd: b.bodyEnd,
+              editStart: b.headStart,
+              editEnd: b.bodyEnd,
+              headingLine,
+              bodyText: localBody,
+              fullText: rawText.slice(b.headStart, b.bodyEnd),
+            };
+          });
+        },
+        // 現在アクティブなブロックを保存・確定し、textareaをブロックから
+        // 切り離す(閲覧表示に戻す描画は呼び出し側の責務)。
+        flushActiveBlock = () => {
+          if (!activeBlockEl) return null;
+          clearTimeout(L);
+          saveCurrentMemo();
+          const blockEl = activeBlockEl,
+            headingText = blockEl._block.headingText,
+            caretPos = s.selectionStart;
+          activeBlockEl = null;
+          activeBlockKey = null;
+          blockEl.classList.remove("block-active");
+          o.classList.remove("has-active-block");
+          O(s, !1);
+          contentAreaEl.appendChild(s);
+          document.body.classList.remove("touch-editing");
+          return { headingText, caretPos };
+        },
+        // 指定ブロックを編集可能にする(共有textareaをそのブロックへ差し込む)。
+        // 呼び出し側は、他のブロックが編集中なら先にs.blur()で確定してから
+        // (renderDayBlocksで再描画された)最新のblockElを渡すこと。
+        activateBlock = (blockEl, caretPos) => {
+          if (activeBlockEl === blockEl) return void s.focus();
+          const block = blockEl._block,
+            dayText = localStorage.getItem(block.boundDateKey) || "# ";
+          activeBlockKey = block.boundDateKey;
+          activeBlockPrefix = dayText.slice(0, block.editStart);
+          activeBlockSuffix = dayText.slice(block.editEnd);
+          editBaseline = dayText;
+          sessionSnapshotDone = !1;
+          sDirty = !1;
+          activeBlockEl = blockEl;
+          const viewEl = blockEl.querySelector(".block-view");
+          blockEl.insertBefore(s, viewEl);
+          s.value = block.fullText;
+          O(s, !0);
+          resizeTextBox();
+          blockEl.classList.add("block-active");
+          o.classList.add("has-active-block");
+          s.focus();
+          const pos = "number" == typeof caretPos ? caretPos : s.value.length;
+          (s.selectionStart = s.selectionEnd = pos), centerCaretInView();
+        },
+        deleteBlock = (blockEl) => {
+          const block = blockEl._block;
+          if (activeBlockEl === blockEl) flushActiveBlock();
+          const dateKey = toDateKey(f),
+            text = localStorage.getItem(dateKey) || "# ",
+            next = (text.slice(0, block.localStart) + text.slice(block.localEnd)) || "# ";
+          snapshotHistory(dateKey, text),
+            localStorage.setItem(dateKey, next),
+            H(),
+            maybeSyncPush(),
+            renderDayBlocks(f);
+        },
+        // 今日のテキスト内で、見出し単位のブロックの並び順を入れ替える
+        // (見出し行〜次の見出し直前までをひとかたまりとして移動するだけ)。
+        reorderBlocks = (fromIdx, toIdx) => {
+          if (fromIdx === toIdx) return;
+          const dateKey = toDateKey(f),
+            text = localStorage.getItem(dateKey) || "# ",
+            locals = getLocalHeadingBlocks(text);
+          if (
+            fromIdx < 0 ||
+            fromIdx >= locals.length ||
+            toIdx < 0 ||
+            toIdx >= locals.length
+          )
+            return;
+          const segments = locals.map((b) =>
+              text.slice(b.headStart, b.bodyEnd).replace(/\n+$/, "")
+            ),
+            moved = segments.splice(fromIdx, 1)[0];
+          segments.splice(toIdx, 0, moved);
+          const next = segments.join("\n");
+          snapshotHistory(dateKey, text),
+            localStorage.setItem(dateKey, next),
+            H(),
+            maybeSyncPush(),
+            renderDayBlocks(f);
+        },
+        // 起動時に1回だけ実行する後始末: 本文ありの同名見出しが複数日に
+        // またがって存在する場合、日付が古い方を残し、それ以外の見出しに
+        // ランダム2文字のサフィックスを付けて重複を解消する。以降は新規
+        // ブロック作成時の「完全一致なら呼び出す」ルールにより、新たな
+        // 重複は基本的に発生しない想定。
+        dedupeDuplicateHeadings = () => {
+          const owners = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+            const text = localStorage.getItem(key);
+            getLocalHeadingBlocks(text).forEach((b) => {
+              null === b.headingText ||
+                !Z(text.slice(b.bodyStart, b.bodyEnd)) ||
+                ((owners[b.headingText] = owners[b.headingText] || []),
+                  owners[b.headingText].push(key));
+            });
+          }
+          let renamed = 0;
+          Object.keys(owners).forEach((headingText) => {
+            const keys = Array.from(new Set(owners[headingText])).sort();
+            if (keys.length < 2) return;
+            keys.slice(1).forEach((key) => {
+              const original = localStorage.getItem(key);
+              let text = original,
+                shift = 0;
+              getLocalHeadingBlocks(original)
+                .filter(
+                  (b) =>
+                    b.headingText === headingText &&
+                    Z(original.slice(b.bodyStart, b.bodyEnd))
+                )
+                .forEach((b) => {
+                  const suffix = ` ${Math.random().toString(36).slice(2, 4)}`,
+                    insertPos = b.headEnd + shift;
+                  (text =
+                    text.slice(0, insertPos) + suffix + text.slice(insertPos)),
+                    (shift += suffix.length);
+                });
+              text !== original &&
+                (localStorage.setItem(key, text), renamed++);
+            });
+          });
+          return renamed;
+        },
+        // ポインタドラッグでリスト内の項目を並べ替える汎用ヘルパー。
+        // handleEl: ドラッグ開始点。itemEl: 実際に動かすDOM要素。
+        // listEl/itemSelector: 兄弟項目を数えるためのスコープ。
+        // beforeEl: 一番下まで動かした時に挿入する基準(末尾固定要素の手前など)。
+        setupReorderHandle = (handleEl, itemEl, listEl, itemSelector, beforeEl, onCommit) => {
+          const currentIndex = () =>
+            Array.from(listEl.querySelectorAll(itemSelector)).indexOf(itemEl);
+          handleEl.addEventListener("pointerdown", (e) => {
+            if ("mouse" === e.pointerType && 0 !== e.button) return;
+            e.preventDefault();
+            const startY = e.clientY,
+              startIndex = currentIndex();
+            let dragging = !1,
+              done = !1;
+            try {
+              handleEl.setPointerCapture(e.pointerId);
+            } catch (err) { }
+            const move = (ev) => {
+              const dy = ev.clientY - startY;
+              if (!dragging && Math.abs(dy) < 6) return;
+              dragging = !0;
+              itemEl.classList.add("dragging");
+              const siblings = Array.from(
+                listEl.querySelectorAll(itemSelector)
+              ).filter((el) => el !== itemEl);
+              let target = null;
+              for (const sib of siblings) {
+                const rect = sib.getBoundingClientRect();
+                if (ev.clientY < rect.top + rect.height / 2) {
+                  target = sib;
+                  break;
+                }
+              }
+              target
+                ? listEl.insertBefore(itemEl, target)
+                : listEl.insertBefore(itemEl, beforeEl || null);
+            },
+              up = () => {
+                if (done) return;
+                done = !0;
+                itemEl.classList.remove("dragging"),
+                  handleEl.removeEventListener("pointermove", move),
+                  handleEl.removeEventListener("pointerup", up),
+                  handleEl.removeEventListener("pointercancel", up),
+                  document.removeEventListener("pointerup", up),
+                  document.removeEventListener("pointercancel", up),
+                  document.removeEventListener("mouseup", up);
+                if (dragging) {
+                  const newIndex = currentIndex();
+                  newIndex !== startIndex && onCommit(startIndex, newIndex);
+                }
+              };
+            // setPointerCaptureが効かない環境でも確実に後始末できるよう、
+            // document側にもフォールバックのリスナーを張っておく。
+            handleEl.addEventListener("pointermove", move),
+              handleEl.addEventListener("pointerup", up),
+              handleEl.addEventListener("pointercancel", up),
+              document.addEventListener("pointerup", up),
+              document.addEventListener("pointercancel", up),
+              document.addEventListener("mouseup", up);
+          });
+        },
+        buildBlockElement = (block) => {
+          const blockEl = document.createElement("div");
+          blockEl.className = "content-block";
+          blockEl._block = block;
+          const viewEl = document.createElement("div");
+          (viewEl.className = "markdown-viewer block-view"),
+            (viewEl.innerHTML = marked.parse(block.fullText));
+          const delBtn = document.createElement("button");
+          (delBtn.type = "button"),
+            (delBtn.className = "block-delete"),
+            (delBtn.textContent = "×"),
+            (delBtn.title = "このブロックを削除"),
+            delBtn.addEventListener("click", (e) => {
+              e.stopPropagation(), deleteBlock(blockEl);
+            });
+          const dragHandle = document.createElement("div");
+          (dragHandle.className = "block-drag-handle"),
+            (dragHandle.textContent = "⠿"),
+            (dragHandle.title = "ドラッグで並べ替え"),
+            setupReorderHandle(
+              dragHandle,
+              blockEl,
+              o,
+              ".content-block",
+              newBlockBoxEl,
+              reorderBlocks
+            );
+          return (
+            blockEl.appendChild(viewEl),
+            blockEl.appendChild(delBtn),
+            blockEl.appendChild(dragHandle),
+            blockEl
+          );
+        },
+        // 新規ブロック用の常設textarea(末尾固定)を初期化する。
+        setupNewBlockBox = () => {
+          const box = document.createElement("textarea");
+          return (
+            (box.className = "new-block-box"),
+            (box.placeholder = "新しいメモ..."),
+            (box.rows = 1),
+            box.addEventListener("input", () => {
+              box.style.height = "0px";
+              box.style.height = Math.max(box.scrollHeight, 30) + "px";
+            }),
+            box.addEventListener("blur", () => commitNewBlockBox(box)),
+            box
+          );
+        },
+        commitNewBlockBox = (box) => {
+          const raw = box.value;
+          if (!Z(raw)) return void (box.value = "");
+          const lines = raw.split("\n"),
+            headingText = lines[0].trim(),
+            rest = lines.slice(1).join("\n"),
+            dateKey = toDateKey(f),
+            dayText = localStorage.getItem(dateKey) || "# ",
+            base = Z(dayText) ? dayText : "",
+            newBlock = `# ${headingText}${rest ? "\n" + rest : ""}`,
+            next = base ? base + "\n" + newBlock : newBlock;
+          snapshotHistory(dateKey, dayText),
+            localStorage.setItem(dateKey, next),
+            (box.value = ""),
+            (box.style.height = ""),
+            H(),
+            maybeSyncPush(),
+            renderDayBlocks(f);
+        },
+        // 指定日をブロック単位で描画する(旧A()相当)。
+        renderDayBlocks = (date) => {
+          flushActiveBlock();
+          O(s, !1);
+          const blocks = buildDayBlocks(date);
+          newBlockBoxEl || (newBlockBoxEl = setupNewBlockBox());
+          o.innerHTML = "";
+          blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
+          o.appendChild(newBlockBoxEl),
+            (newBlockBoxEl.style.height = ""),
+            renderToc();
         },
         // キャレット位置を .content-area の縦方向中央に来るようスクロールする
         centerCaretInView = () => {
@@ -2303,7 +2765,9 @@
         // 閲覧モードでのクリック位置(画面座標)から、対応するソース内の
         // 文字位置を推定する。クリックされたテキストノードの前後数文字を
         // 手がかりに本文(s.value)から一致箇所を探す簡易的な方法。
-        findSourcePositionForClick = (clientX, clientY) => {
+        // sourceText: クリック位置の照合対象になるブロック単位のテキスト
+        // (ブロックがアクティブになった時にs.valueへセットされるものと同じ)。
+        findSourcePositionForClick = (clientX, clientY, sourceText) => {
           let node = null,
             offset = 0;
           if (document.caretRangeFromPoint) {
@@ -2313,29 +2777,34 @@
             const pos = document.caretPositionFromPoint(clientX, clientY);
             pos && ((node = pos.offsetNode), (offset = pos.offset));
           }
-          if (!node || 3 !== node.nodeType) return s.value.length;
+          if (!node || 3 !== node.nodeType) return sourceText.length;
           const text = node.textContent || "",
             before = text.slice(Math.max(0, offset - 12), offset),
             after = text.slice(offset, offset + 12),
             snippet = before + after;
-          if (!snippet.trim()) return s.value.length;
-          const idx = s.value.indexOf(snippet);
+          if (!snippet.trim()) return sourceText.length;
+          const idx = sourceText.indexOf(snippet);
           if (-1 !== idx) return idx + before.length;
-          const idx2 = before.length >= 4 ? s.value.indexOf(before) : -1;
-          return -1 !== idx2 ? idx2 + before.length : s.value.length;
+          const idx2 = before.length >= 4 ? sourceText.indexOf(before) : -1;
+          return -1 !== idx2 ? idx2 + before.length : sourceText.length;
         },
-        // findSourcePositionForClick の逆方向: 本文中のソース位置(文字数)
+        // findSourcePositionForClick の逆方向: ブロック単位のソース位置(文字数)
         // から、レンダリング後(閲覧モード)の対応する画面位置を探す。編集→
         // 閲覧モードに切り替えたときに、カーソルがあった場所までスクロール
         // 位置を合わせるために使う。段落が長いと要素全体のscrollIntoViewでは
         // 位置がずれるため、Rangeで一致箇所そのものの座標を求める。
-        findRenderedRectForSourcePos = (pos) => {
-          const value = s.value,
+        // sourceText/containerEl はクリック時と同じ、そのブロックのfullTextと
+        // 閲覧用DOM要素。
+        findRenderedRectForSourcePos = (pos, sourceText, containerEl) => {
+          const value = sourceText,
             before = value.slice(Math.max(0, pos - 12), pos),
             after = value.slice(pos, pos + 12),
             tryFind = (needle) => {
               if (!needle || needle.trim().length < 3) return null;
-              const walker = document.createTreeWalker(o, NodeFilter.SHOW_TEXT);
+              const walker = document.createTreeWalker(
+                containerEl,
+                NodeFilter.SHOW_TEXT
+              );
               let node;
               for (; (node = walker.nextNode());) {
                 const idx = node.textContent.indexOf(needle);
@@ -2632,17 +3101,19 @@
           flashHighlight(liEl);
         },
         commitSearchResult = (r, liEl) => {
+          activeBlockEl && s.blur();
           saveCurrentMemo(),
             (f = new Date(r.date)),
             T(f),
-            renderScheduleBar(),
-            O(s, !0),
-            O(o, !1),
-            s.focus(),
-            (s.selectionStart = s.selectionEnd = r.jumpPos || 0),
-            centerCaretInView(),
-            pullAndMerge(),
-            flashHighlight(liEl);
+            renderScheduleBar();
+          if (null !== r.headingIdx) {
+            const blockEl = Array.from(
+              o.querySelectorAll(".content-block")
+            ).find((el) => el._block.headingText === r.headingText);
+            blockEl &&
+              activateBlock(blockEl, blockEl._block.headingLine.length);
+          }
+          pullAndMerge(), flashHighlight(liEl);
         },
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
@@ -2755,9 +3226,9 @@
         },
         saveCurrentMemo = () => {
           // 実際の編集がなければ、保存もサーバーへの同期アクセスも不要。
-          if (!sDirty) return;
-          const e = s.value;
-          const t = toDateKey(f);
+          if (!sDirty || !activeBlockKey) return;
+          const e = activeBlockPrefix + s.value + activeBlockSuffix;
+          const t = activeBlockKey;
 
           // Show saving indicator
           showSaveStatus("saving", "保存中...");
@@ -4303,7 +4774,7 @@
                 O(historyModalEl, !1),
                 stopQrScan(),
                 document.body.classList.remove("schedule-bar-fullscreen"),
-                "block" == s.style.display && (O(s, !1), O(o, !0)));
+                activeBlockEl && s.blur());
           }
         }),
         searchPaneInputEl.addEventListener("input", () => {
@@ -4316,15 +4787,20 @@
               localStorage.setItem("searchPaneCollapsed", "1"));
         }),
         s.addEventListener("input", () => {
-          const e = toDateKey(f);
-          sessionSnapshotDone || (snapshotHistory(e, editBaseline), (sessionSnapshotDone = !0)),
+          if (!activeBlockKey) return;
+          sessionSnapshotDone ||
+            (snapshotHistory(activeBlockKey, editBaseline),
+              (sessionSnapshotDone = !0)),
             (sDirty = !0),
-            localStorage.setItem(e, s.value),
+            localStorage.setItem(
+              activeBlockKey,
+              activeBlockPrefix + s.value + activeBlockSuffix
+            ),
             clearTimeout(L),
             (L = setTimeout(saveCurrentMemo, 3e3)),
             resizeTextBox(),
             scrollCaretIntoView(),
-            renderToc();
+            activeBlockKey === toDateKey(f) && renderToc();
         }),
         s.addEventListener("mouseleave", (e) => {
           // 目次パネルへ直接カーソルを移した場合は、編集状態を保ったまま
@@ -4333,14 +4809,19 @@
           0 === e.buttons && document.activeElement === s && s.blur();
         }),
         s.addEventListener("blur", () => {
-          const caretPos = s.selectionStart;
-          saveCurrentMemo();
-          document.body.classList.remove("touch-editing");
-          const e = s.value;
-          if (!Z(e)) return;
-          O(s, !1), O(o, !0), (o.innerHTML = marked.parse(e));
-          // カーソルがあった位置に対応する箇所までスクロール位置を合わせる。
-          const rect = findRenderedRectForSourcePos(caretPos);
+          const info = flushActiveBlock();
+          if (!info) return;
+          renderDayBlocks(f);
+          const blockEl = Array.from(o.querySelectorAll(".content-block")).find(
+            (el) => el._block.headingText === info.headingText
+          );
+          if (!blockEl) return;
+          const viewEl = blockEl.querySelector(".block-view"),
+            rect = findRenderedRectForSourcePos(
+              info.caretPos,
+              blockEl._block.fullText,
+              viewEl
+            );
           if (rect) {
             const caRect = contentAreaEl.getBoundingClientRect(),
               delta = rect.top - caRect.top - caRect.height / 2;
@@ -4348,10 +4829,6 @@
           }
         }),
         s.addEventListener("focus", () => {
-          // ホバープレビューなどで表示中の内容が f(実際の選択日)と
-          // ズレている可能性があるため、未編集(sDirty=false)なら
-          // 編集開始前に必ず f の内容へ再同期しておく。
-          sDirty || A(f), O(s, !0), O(o, !1);
           isTouchDevice && document.body.classList.add("touch-editing");
         }),
         s.addEventListener("keydown", (e) => {
@@ -4575,9 +5052,23 @@
             };
           setupDaySwipe(dd, () => window.moveToToday()),
             setupDaySwipe(o, (e) => {
-              const pos = findSourcePositionForClick(e.clientX, e.clientY);
-              O(s, !0), O(o, !1), s.focus();
-              s.selectionStart = s.selectionEnd = pos;
+              const clickedEl = e.target.closest(".content-block");
+              if (!clickedEl) return;
+              const headingText = clickedEl._block.headingText,
+                pos = findSourcePositionForClick(
+                  e.clientX,
+                  e.clientY,
+                  clickedEl._block.fullText
+                );
+              if (activeBlockEl && activeBlockEl !== clickedEl) {
+                s.blur();
+                const freshEl = Array.from(
+                  o.querySelectorAll(".content-block")
+                ).find((el) => el._block.headingText === headingText);
+                freshEl && activateBlock(freshEl, pos);
+              } else {
+                activateBlock(clickedEl, pos);
+              }
             });
         })(),
         (() => {
@@ -4822,12 +5313,24 @@
             "textarea" !== tag &&
             "input" !== tag &&
             !e.target.isContentEditable &&
-            "none" == s.style.display &&
+            !activeBlockEl &&
             "block" !== p.style.display &&
             "block" !== historyModalEl.style.display &&
-            (e.preventDefault(), O(s, !0), O(o, !1), s.focus());
+            (e.preventDefault(),
+              (() => {
+                const first = o.querySelector(".content-block");
+                first
+                  ? activateBlock(first, first._block.fullText.length)
+                  : newBlockBoxEl && newBlockBoxEl.focus();
+              })());
         }),
         document.addEventListener("DOMContentLoaded", () => {
+          const renamedCount = dedupeDuplicateHeadings();
+          renamedCount &&
+            showToast(
+              `重複していた見出し名を${renamedCount}件リネームしました`,
+              "info"
+            );
           T(f);
           renderScheduleBar();
           renderH1ShortcutBar();
@@ -4853,11 +5356,10 @@
             "search-pane-collapsed",
             "0" !== localStorage.getItem("searchPaneCollapsed")
           );
-          // ページを開いたとき、その日に内容があれば閲覧モードのままにし、
-          // 空の日だけ編集モードでカーソルをアクティブにする(A(f) が
-          // 既に内容の有無で表示モードを決めているので、それに従う)。
-          "block" === s.style.display &&
-            (s.focus(), (s.selectionStart = s.selectionEnd = s.value.length));
+          // ページを開いたとき、その日にブロックが0個なら新規作成用の
+          // textareaへフォーカスする(ページを開いた直後だけ。日付を
+          // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
+          o.querySelector(".content-block") || (newBlockBoxEl && newBlockBoxEl.focus());
           // 初回設定
           H();
           renderSyncPanel();
