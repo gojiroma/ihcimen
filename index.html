@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="26" />
+  <meta name="app-version" content="27" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -3363,11 +3363,9 @@
         // 端末が積み上げた新しい内容をまるごと上書きしてしまう不具合が
         // あった。実際の最終編集時刻を送ることで、本当に新しい方が勝つ
         // ようにする。
-        pullAndMerge = async (opts = {}) => {
+        pullAndMerge = async () => {
           const seed = getSyncSeed();
           if (!seed || !navigator.onLine) return !1;
-          if (!opts.force && !localStorage.getItem("syncRecoveryResolved"))
-            return !1;
           try {
             const syncId = await deriveSyncId(seed),
               res = await fetchWithTimeout(
@@ -3392,7 +3390,6 @@
               localStorage.getItem("syncContentUpdatedAt") ||
               localStorage.getItem("syncLastUpdatedAt");
             if (
-              !opts.force &&
               localUpdatedAt &&
               new Date(body.updated_at) <= new Date(localUpdatedAt)
             ) {
@@ -3416,7 +3413,7 @@
             return !1;
           }
         },
-        doSyncPush = async (seed, opts = {}) => {
+        doSyncPush = async (seed) => {
           try {
             const syncId = await deriveSyncId(seed),
               aesKey = await deriveAesKey(seed),
@@ -3438,7 +3435,6 @@
                     ciphertext,
                     iv,
                     updated_at: updatedAt,
-                    ...(opts.force ? { force: !0 } : {}),
                   }),
                 },
                 8000
@@ -3451,10 +3447,8 @@
               markSyncHealthy(!0);
               return !0;
             }
-            if (!opts.force) {
-              await pullAndMerge();
-              showToast("別の端末の内容と同期しました", "info");
-            }
+            await pullAndMerge();
+            showToast("別の端末の内容と同期しました", "info");
             return !1;
           } catch (err) {
             markSyncHealthy(!1);
@@ -3469,125 +3463,6 @@
           if (!seed || !navigator.onLine) return;
           clearTimeout(syncPushTimer),
             (syncPushTimer = setTimeout(() => doSyncPush(seed), 5000));
-        },
-        // ============================================================
-        // TEMP RECOVERY (2026-08-20): 上記の「pushがwall-clockのnow()を
-        // updated_atとして送っていた」不具合により、久しぶりに開いた古い
-        // 端末が最新のDB内容を上書きしてしまっていた可能性がある。
-        // 各端末で一度だけ「この端末とサーバー、どちらの内容を残すか」を
-        // 手動確認してもらうための一時的なダイアログ。全端末でこの確認を
-        // 通過し、DBの内容が最新であることが確認できたら、この関数定義と
-        // maybeShowSyncRecoveryDialog()の呼び出し箇所を削除してよい
-        // (localStorageの syncRecoveryResolved フラグも併せて不要になる)。
-        // ============================================================
-        fetchServerSyncState = async (seed) => {
-          const syncId = await deriveSyncId(seed),
-            res = await fetchWithTimeout(
-              `/api/pull?sync_id=${syncId}`,
-              {},
-              8000
-            );
-          if (!res.ok) throw new Error("pull failed: " + res.status);
-          return res.json();
-        },
-        formatSyncTimestamp = (iso) => {
-          if (!iso) return "不明";
-          try {
-            return new Date(iso).toLocaleString("ja-JP");
-          } catch (err) {
-            return iso;
-          }
-        },
-        maybeShowSyncRecoveryDialog = async () => {
-          const seed = getSyncSeed();
-          if (
-            !seed ||
-            !navigator.onLine ||
-            localStorage.getItem("syncRecoveryResolved")
-          )
-            return;
-          let body;
-          try {
-            body = await fetchServerSyncState(seed);
-          } catch (err) {
-            return; // オフライン等。次回ロード時に再度試す
-          }
-          if (!body.found) {
-            // サーバーに何もなければ競合の余地がない
-            localStorage.setItem("syncRecoveryResolved", "1");
-            pullAndMerge({ force: !0 });
-            return;
-          }
-          const local = collectSyncableData();
-          if (!Object.keys(local.entries).length) {
-            // この端末に日誌データがなければ確認不要でサーバーの内容を採用する
-            localStorage.setItem("syncRecoveryResolved", "1");
-            await pullAndMerge({ force: !0 });
-            return;
-          }
-          const localUpdatedAt =
-            localStorage.getItem("syncContentUpdatedAt") ||
-            localStorage.getItem("syncLastUpdatedAt");
-
-          const overlay = document.createElement("div");
-          overlay.className = "search-modal";
-          overlay.style.display = "block";
-          overlay.style.zIndex = "3000";
-          const box = document.createElement("div");
-          box.className = "search-modal-content";
-          box.style.maxWidth = "420px";
-          box.innerHTML =
-            "<h2>同期データの確認</h2>" +
-            "<p>以前のバージョンの不具合により、しばらく開いていなかった端末のデータが" +
-            "サーバー上の新しい内容を上書きしてしまう場合がありました。" +
-            "この端末とサーバー、どちらの内容を残すか一度だけ確認してください。</p>" +
-            "<p>この端末の最終編集: " +
-            formatSyncTimestamp(localUpdatedAt) +
-            "<br>サーバーの最終更新: " +
-            formatSyncTimestamp(body.updated_at) +
-            "</p>";
-          const btnRow = document.createElement("div");
-          btnRow.style.display = "flex";
-          btnRow.style.gap = "8px";
-          btnRow.style.marginTop = "12px";
-          btnRow.style.flexWrap = "wrap";
-          const localBtn = document.createElement("button");
-          localBtn.textContent = "この端末を優先(サーバーへ保存)";
-          const serverBtn = document.createElement("button");
-          serverBtn.textContent = "サーバーを優先(この端末に反映)";
-          btnRow.appendChild(localBtn);
-          btnRow.appendChild(serverBtn);
-          box.appendChild(btnRow);
-          overlay.appendChild(box);
-          document.body.appendChild(overlay);
-
-          const finish = (msg) => {
-            localStorage.setItem("syncRecoveryResolved", "1");
-            overlay.remove();
-            showToast(msg, "success");
-          };
-          localBtn.addEventListener("click", async () => {
-            localBtn.disabled = serverBtn.disabled = !0;
-            const ok = await doSyncPush(seed, { force: !0 });
-            ok
-              ? finish("この端末のデータをサーバーに保存しました")
-              : ((localBtn.disabled = serverBtn.disabled = !1),
-                showToast(
-                  "保存に失敗しました。オンライン環境で再度お試しください",
-                  "error"
-                ));
-          });
-          serverBtn.addEventListener("click", async () => {
-            localBtn.disabled = serverBtn.disabled = !0;
-            const ok = await pullAndMerge({ force: !0 });
-            ok
-              ? finish("サーバーのデータをこの端末に反映しました")
-              : ((localBtn.disabled = serverBtn.disabled = !1),
-                showToast(
-                  "取得に失敗しました。オンライン環境で再度お試しください",
-                  "error"
-                ));
-          });
         },
         showToast = (message, type = "info", duration = 3000) => {
           const toast = document.createElement("div");
@@ -3909,11 +3784,7 @@
             on && ((syncSeedTextEl.value = seed), renderSyncQr(seed));
         },
         enableSync = () => {
-          getSyncSeed() ||
-            (setSyncSeed(generateSeed()),
-              // 新規シードを生成した場合、まだ他端末とデータが存在しえないため
-              // 復旧ダイアログの対象外にする。
-              localStorage.setItem("syncRecoveryResolved", "1")),
+          getSyncSeed() || setSyncSeed(generateSeed()),
             renderSyncPanel(),
             showToast("同期を有効にしました", "success");
         },
@@ -5472,9 +5343,6 @@
               return;
             }
             showToast(`${okCount} 件のメモをインポートしました`, "success");
-            // 復元した内容が正しいことを、この端末では確認済みとして扱う
-            // (復旧ダイアログの対象から外す)。
-            localStorage.setItem("syncRecoveryResolved", "1");
             const seed = getSyncSeed();
             if (seed && navigator.onLine) {
               try {
@@ -5548,9 +5416,6 @@
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
           // 同期が有効なら読み込み時にバックグラウンドで取得する
-          // (復旧ダイアログが必要な場合は先にそちらを表示し、解決するまで
-          // 自動pullは行わない。詳細はmaybeShowSyncRecoveryDialogの定義を参照)
-          maybeShowSyncRecoveryDialog();
           pullAndMerge();
           // ICSカレンダーの一覧を表示し、古ければバックグラウンドで再取得する
           renderIcsCalendarList();
