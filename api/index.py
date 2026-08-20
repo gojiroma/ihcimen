@@ -123,6 +123,7 @@ def push():
     ciphertext = body.get("ciphertext")
     iv = body.get("iv")
     updated_at_raw = body.get("updated_at")
+    force = body.get("force") is True
 
     if not (isinstance(sync_id, str) and SYNC_ID_RE.match(sync_id)):
         return jsonify(error="sync_id must be a 64-character hex string"), 400
@@ -152,7 +153,11 @@ def push():
             row = cur.fetchone()
             server_updated_at = row[0] if row else None
 
-            if server_updated_at is not None and server_updated_at >= updated_at:
+            if (
+                not force
+                and server_updated_at is not None
+                and server_updated_at >= updated_at
+            ):
                 # Server already has data at least as new — reject the
                 # write but still record that this sync_id was touched.
                 cur.execute(
@@ -164,6 +169,29 @@ def push():
                     applied=False,
                     updated_at=to_utc_iso8601(server_updated_at),
                 )
+
+            if force:
+                # Manual conflict-recovery override: the user has explicitly
+                # picked this device as the source of truth. Stamp the row
+                # with the server's own clock (not the client-supplied
+                # updated_at) so it is guaranteed to win any future
+                # timestamp comparison regardless of client clock skew.
+                cur.execute(
+                    """
+                    INSERT INTO sync_blobs (sync_id, ciphertext, iv, content_updated_at, last_synced_at)
+                    VALUES (%s, %s, %s, now(), now())
+                    ON CONFLICT (sync_id) DO UPDATE SET
+                        ciphertext = EXCLUDED.ciphertext,
+                        iv = EXCLUDED.iv,
+                        content_updated_at = now(),
+                        last_synced_at = now()
+                    RETURNING content_updated_at
+                    """,
+                    (sync_id, ciphertext, iv),
+                )
+                applied_updated_at = cur.fetchone()[0]
+                conn.commit()
+                return jsonify(applied=True, updated_at=to_utc_iso8601(applied_updated_at))
 
             cur.execute(
                 """
