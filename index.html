@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="27" />
+  <meta name="app-version" content="28" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -954,10 +954,10 @@
       width: 700px;
       max-width: 100%;
       min-width: 0;
-      margin: 20px auto 0;
+      margin: 0 auto 20px;
       border: none;
-      border-top: 1px dashed #ccc;
-      padding: 10px 5px 5px;
+      border-bottom: 1px dashed #ccc;
+      padding: 5px 5px 10px;
       font-size: large;
       line-height: 200%;
       word-break: break-all;
@@ -2192,7 +2192,7 @@
         activeBlockSuffix = "",
         activeBlockEl = null,
         newBlockBoxEl = null,
-        syncPushTimer = null,
+        syncPushTimers = { entries: null, calendar: null },
         syncScanStream = null,
         handoffCountdownTimer = null,
         syncHealthy = !0,
@@ -2590,7 +2590,7 @@
           snapshotHistory(dateKey, text),
             localStorage.setItem(dateKey, next),
             H(),
-            maybeSyncPush(),
+            maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
         },
         // 今日のテキスト内で、見出し単位のブロックの並び順を入れ替える
@@ -2616,7 +2616,7 @@
           snapshotHistory(dateKey, text),
             localStorage.setItem(dateKey, next),
             H(),
-            maybeSyncPush(),
+            maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
         },
         // 起動時に1回だけ実行する後始末: 本文ありの同名見出しが複数日に
@@ -2756,7 +2756,7 @@
               blockEl,
               o,
               ".content-block",
-              newBlockBoxEl,
+              null,
               reorderBlocks
             );
           return (
@@ -2808,13 +2808,13 @@
             dayText = localStorage.getItem(dateKey) || "# ",
             base = Z(dayText) ? dayText : "",
             newBlock = `# ${headingText}${rest ? "\n" + rest : ""}`,
-            next = base ? base + "\n" + newBlock : newBlock;
+            next = base ? newBlock + "\n" + base : newBlock;
           snapshotHistory(dateKey, dayText),
             localStorage.setItem(dateKey, next),
             (box.value = ""),
             (box.style.height = ""),
             H(),
-            maybeSyncPush(),
+            maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
         },
         // 指定日をブロック単位で描画する(旧A()相当)。
@@ -2824,9 +2824,9 @@
           const blocks = buildDayBlocks(date);
           newBlockBoxEl || (newBlockBoxEl = setupNewBlockBox());
           o.innerHTML = "";
-          blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
           o.appendChild(newBlockBoxEl),
             (newBlockBoxEl.style.height = "");
+          blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
         },
         // キャレット位置を .content-area の縦方向中央に来るようスクロールする
         centerCaretInView = () => {
@@ -3003,7 +3003,7 @@
             H(),
             O(historyModalEl, !1),
             showToast("このバージョンで上書きしました", "success"),
-            maybeSyncPush();
+            maybeSyncPushChannel("entries");
         },
         // --- h1ショートカット(閲覧モードで見出しを右クリックして追加) ---
         loadH1Shortcuts = () => {
@@ -3199,7 +3199,7 @@
             blockEl &&
               activateBlock(blockEl, blockEl._block.headingLine.length);
           }
-          pullAndMerge(), flashHighlight(liEl);
+          pullAndMergeAll(), flashHighlight(liEl);
         },
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
@@ -3324,7 +3324,7 @@
             sDirty = !1;
             showSaveStatus("saved", "保存しました");
             H();
-            maybeSyncPush();
+            maybeSyncPushChannel("entries");
             // Auto-hide after 2 seconds
             setTimeout(() => hideSaveStatus(), 2000);
           } catch (err) {
@@ -3355,19 +3355,41 @@
                 "info"
               ));
         },
-        // pullAndMerge/doSyncPushの「どちらが新しいか」判定は、常に
-        // syncContentUpdatedAt(このデバイスの内容が実際に最後に編集された
-        // 時刻)を基準にする。以前はpush時点の壁時計(now())をそのまま
-        // updated_atとして送っていたため、久しぶりに開いた古い端末が
-        // 何か1つ編集しただけで「今pushしたから最新」とみなされ、他の
-        // 端末が積み上げた新しい内容をまるごと上書きしてしまう不具合が
-        // あった。実際の最終編集時刻を送ることで、本当に新しい方が勝つ
-        // ようにする。
-        pullAndMerge = async () => {
-          const seed = getSyncSeed();
+        // 本文とカレンダーは、それぞれ独立したsync_id・タイムスタンプで
+        // 同期する(SYNC_CHANNELS参照)。「どちらが新しいか」の判定は、
+        // 各チャンネルのcontentKey(実際に最後に編集された時刻)を基準にする。
+        // 以前はpush時点の壁時計(now())をそのままupdated_atとして送っていた
+        // ため、久しぶりに開いた古い端末が何か1つ編集しただけで「今push
+        // したから最新」とみなされ、他の端末が積み上げた新しい内容をまるごと
+        // 上書きしてしまう不具合があった。
+        // 内容を比較するときはオブジェクトのキー順に依存しないよう、キーを
+        // ソートしてから文字列化する(端末ごとにlocalStorageの列挙順が
+        // 異なっていても、同じ内容なら同じ文字列になるようにするため)。
+        stableStringify = (v) => {
+          if (null === v || "object" !== typeof v) return JSON.stringify(v);
+          return Array.isArray(v)
+            ? "[" + v.map(stableStringify).join(",") + "]"
+            : "{" +
+            Object.keys(v)
+              .sort()
+              .map((k) => JSON.stringify(k) + ":" + stableStringify(v[k]))
+              .join(",") +
+            "}";
+        },
+        refreshUIAfterSync = () => {
+          !sDirty && A(f);
+          renderScheduleBar();
+          renderWeekPane();
+          renderH1ShortcutBar();
+          renderIcsCalendarList();
+          maybeAutoRefreshICS();
+        },
+        pullAndMergeChannel = async (channel) => {
+          const cfg = SYNC_CHANNELS[channel],
+            seed = getSyncSeed();
           if (!seed || !navigator.onLine) return !1;
           try {
-            const syncId = await deriveSyncId(seed),
+            const syncId = await deriveSyncId(seed, cfg.idInfo),
               res = await fetchWithTimeout(
                 `/api/pull?sync_id=${syncId}`,
                 {},
@@ -3378,17 +3400,14 @@
             if (!body.found) {
               // サーバー側に何もない(初回、または7日間の未同期で削除された)場合、
               // ローカルに実データがあれば直ちに復元(再push)しておく。
-              const local = collectSyncableData();
-              (Object.keys(local.entries).length ||
-                Object.keys(local.notes).length ||
-                Object.keys(local.weekNotes).length) &&
-                (await doSyncPush(seed));
+              const local = cfg.collect();
+              cfg.hasData(local) && (await doSyncPushChannel(channel, seed));
               markSyncHealthy(!0);
               return !0;
             }
             const localUpdatedAt =
-              localStorage.getItem("syncContentUpdatedAt") ||
-              localStorage.getItem("syncLastUpdatedAt");
+              localStorage.getItem(cfg.contentKey) ||
+              localStorage.getItem(cfg.lastKey);
             if (
               localUpdatedAt &&
               new Date(body.updated_at) <= new Date(localUpdatedAt)
@@ -3398,14 +3417,10 @@
             }
             const aesKey = await deriveAesKey(seed),
               data = await decryptBlob(body.ciphertext, body.iv, aesKey);
-            applySyncedData(data);
-            localStorage.setItem("syncLastUpdatedAt", body.updated_at);
-            localStorage.setItem("syncContentUpdatedAt", body.updated_at);
-            !sDirty && A(f);
-            renderScheduleBar();
-            renderH1ShortcutBar();
-            renderIcsCalendarList();
-            maybeAutoRefreshICS();
+            cfg.apply(data);
+            localStorage.setItem(cfg.lastKey, body.updated_at);
+            localStorage.setItem(cfg.contentKey, body.updated_at);
+            refreshUIAfterSync();
             markSyncHealthy(!0);
             return !0;
           } catch (err) {
@@ -3413,16 +3428,23 @@
             return !1;
           }
         },
-        doSyncPush = async (seed) => {
+        pullAndMergeAll = () =>
+          Promise.all(
+            Object.keys(SYNC_CHANNELS).map((channel) =>
+              pullAndMergeChannel(channel)
+            )
+          ),
+        doSyncPushChannel = async (channel, seed) => {
+          const cfg = SYNC_CHANNELS[channel];
           try {
-            const syncId = await deriveSyncId(seed),
+            const syncId = await deriveSyncId(seed, cfg.idInfo),
               aesKey = await deriveAesKey(seed),
-              data = collectSyncableData(),
+              localData = cfg.collect(),
               updatedAt =
-                localStorage.getItem("syncContentUpdatedAt") ||
+                localStorage.getItem(cfg.contentKey) ||
                 new Date().toISOString(),
               { ciphertext, iv } = await encryptBlob(
-                { version: 1, updatedAt, ...data },
+                { version: 1, updatedAt, ...localData },
                 aesKey
               ),
               res = await fetchWithTimeout(
@@ -3442,27 +3464,134 @@
             if (!res.ok) throw new Error("push failed: " + res.status);
             const body = await res.json();
             if (body.applied) {
-              localStorage.setItem("syncLastUpdatedAt", body.updated_at);
-              localStorage.setItem("syncContentUpdatedAt", body.updated_at);
+              localStorage.setItem(cfg.lastKey, body.updated_at);
+              localStorage.setItem(cfg.contentKey, body.updated_at);
               markSyncHealthy(!0);
               return !0;
             }
-            await pullAndMerge();
-            showToast("別の端末の内容と同期しました", "info");
+            // 拒否された = サーバー側に、こちらの知らない変更がある。
+            await handlePushConflict(channel, seed, localData);
             return !1;
           } catch (err) {
             markSyncHealthy(!1);
             return !1;
           }
         },
-        maybeSyncPush = () => {
+        // pushが拒否されたとき、サーバーの内容を取得して実際に差分があるか
+        // 確認する。中身が完全に一致する(単なるタイムスタンプのズレ等)場合は
+        // 黙って取り込み、実際に食い違う場合だけ、どちらを残すか選ぶダイアログ
+        // を出す(参照: showSyncConflictDialog)。
+        handlePushConflict = async (channel, seed, localData) => {
+          const cfg = SYNC_CHANNELS[channel];
+          try {
+            const syncId = await deriveSyncId(seed, cfg.idInfo),
+              res = await fetchWithTimeout(
+                `/api/pull?sync_id=${syncId}`,
+                {},
+                8000
+              );
+            if (!res.ok) throw new Error("pull failed: " + res.status);
+            const body = await res.json();
+            markSyncHealthy(!0);
+            if (!body.found) return;
+            const aesKey = await deriveAesKey(seed),
+              serverData = await decryptBlob(body.ciphertext, body.iv, aesKey),
+              { version, updatedAt, ...serverContent } = serverData;
+            if (stableStringify(serverContent) === stableStringify(localData)) {
+              // 内容は同じなので、タイムスタンプだけサーバーに合わせて終える。
+              localStorage.setItem(cfg.lastKey, body.updated_at);
+              localStorage.setItem(cfg.contentKey, body.updated_at);
+              return;
+            }
+            showSyncConflictDialog(
+              channel,
+              seed,
+              localData,
+              serverContent,
+              body.updated_at
+            );
+          } catch (err) {
+            markSyncHealthy(!1);
+          }
+        },
+        // 競合時、この端末とサーバーのどちらの内容を残すか選ばせる。
+        showSyncConflictDialog = (
+          channel,
+          seed,
+          localData,
+          serverContent,
+          serverUpdatedAt
+        ) => {
+          const cfg = SYNC_CHANNELS[channel],
+            overlay = document.createElement("div");
+          overlay.className = "search-modal";
+          overlay.style.display = "block";
+          overlay.style.zIndex = "3000";
+          const box = document.createElement("div");
+          box.className = "search-modal-content";
+          box.style.maxWidth = "420px";
+          box.innerHTML =
+            `<h2>${cfg.label}の同期で競合</h2>` +
+            `<p>この端末とは別の場所で、${cfg.label}に別の変更がありました。` +
+            "どちらの内容を残すか選んでください。</p>";
+          const btnRow = document.createElement("div");
+          btnRow.style.display = "flex";
+          btnRow.style.gap = "8px";
+          btnRow.style.marginTop = "12px";
+          btnRow.style.flexWrap = "wrap";
+          const localBtn = document.createElement("button");
+          localBtn.textContent = "この端末を優先";
+          const serverBtn = document.createElement("button");
+          serverBtn.textContent = "サーバーを優先";
+          btnRow.appendChild(localBtn);
+          btnRow.appendChild(serverBtn);
+          box.appendChild(btnRow);
+          overlay.appendChild(box);
+          document.body.appendChild(overlay);
+
+          localBtn.addEventListener("click", async () => {
+            localBtn.disabled = serverBtn.disabled = !0;
+            // サーバーが記録した時刻より確実に新しくしてから送り直す。
+            const bumpedAt = new Date(
+              Math.max(Date.now(), new Date(serverUpdatedAt).getTime() + 1000)
+            ).toISOString();
+            localStorage.setItem(cfg.contentKey, bumpedAt);
+            const ok = await doSyncPushChannel(channel, seed);
+            ok
+              ? (overlay.remove(),
+                showToast(
+                  `${cfg.label}をこの端末の内容でサーバーに保存しました`,
+                  "success"
+                ))
+              : ((localBtn.disabled = serverBtn.disabled = !1),
+                showToast(
+                  "保存に失敗しました。オンライン環境で再度お試しください",
+                  "error"
+                ));
+          });
+          serverBtn.addEventListener("click", () => {
+            cfg.apply(serverContent);
+            localStorage.setItem(cfg.lastKey, serverUpdatedAt);
+            localStorage.setItem(cfg.contentKey, serverUpdatedAt);
+            refreshUIAfterSync();
+            overlay.remove();
+            showToast(`${cfg.label}をサーバーの内容で上書きしました`, "success");
+          });
+        },
+        maybeSyncPushChannel = (channel) => {
           // 実際に編集が起きた時刻を記録する(pushが何秒後に行われるかとは
           // 無関係に、常にこの時刻がそのままupdated_atとして送られる)。
-          localStorage.setItem("syncContentUpdatedAt", new Date().toISOString());
+          localStorage.setItem(
+            SYNC_CHANNELS[channel].contentKey,
+            new Date().toISOString()
+          );
           const seed = getSyncSeed();
           if (!seed || !navigator.onLine) return;
-          clearTimeout(syncPushTimer),
-            (syncPushTimer = setTimeout(() => doSyncPush(seed), 5000));
+          clearTimeout(syncPushTimers[channel]),
+            (syncPushTimers[channel] = setTimeout(
+              () => doSyncPushChannel(channel, seed),
+              5000
+            ));
         },
         showToast = (message, type = "info", duration = 3000) => {
           const toast = document.createElement("div");
@@ -3513,19 +3642,37 @@
           const seed = getSyncSeed();
           if (seed && navigator.onLine)
             try {
-              const syncId = await deriveSyncId(seed);
-              await fetchWithTimeout(
-                `/api/push?sync_id=${syncId}`,
-                { method: "DELETE" },
-                8000
-              );
+              const entriesSyncId = await deriveSyncId(
+                seed,
+                SYNC_ID_INFO_ENTRIES
+              ),
+                calendarSyncId = await deriveSyncId(
+                  seed,
+                  SYNC_ID_INFO_CALENDAR
+                );
+              await Promise.all([
+                fetchWithTimeout(
+                  `/api/push?sync_id=${entriesSyncId}`,
+                  { method: "DELETE" },
+                  8000
+                ),
+                fetchWithTimeout(
+                  `/api/push?sync_id=${calendarSyncId}`,
+                  { method: "DELETE" },
+                  8000
+                ),
+              ]);
             } catch (err) { }
           setTimeout(() => {
             localStorage.clear(), location.reload();
           }, 500);
         },
         // --- 同期: シード / 暗号化 / QRコード ---
-        SYNC_ID_INFO = new TextEncoder().encode("ihcimen-sync-id-v1"),
+        // 本文とカレンダー(予定メモ・色分け・ICS購読)は別々のsync_idで
+        // 同期する(＝別々のタイムスタンプで競合判定する)。情報文字列を
+        // 変えるだけでSHA-256の出力が変わるので、導出方法はそのまま流用できる。
+        SYNC_ID_INFO_ENTRIES = new TextEncoder().encode("ihcimen-sync-id-entries-v1"),
+        SYNC_ID_INFO_CALENDAR = new TextEncoder().encode("ihcimen-sync-id-calendar-v1"),
         AES_INFO = new TextEncoder().encode("ihcimen-aes-key-v1"),
         HKDF_SALT = new TextEncoder().encode("ihcimen-fixed-salt-v1"),
         bytesToBase64 = (bytes) => {
@@ -3555,10 +3702,10 @@
             .join(""),
         generateSeed = () =>
           bytesToBase64Url(crypto.getRandomValues(new Uint8Array(16))),
-        deriveSyncId = async (seed) => {
+        deriveSyncId = async (seed, info) => {
           const seedBytes = base64UrlToBytes(seed),
-            combined = new Uint8Array(seedBytes.length + SYNC_ID_INFO.length);
-          combined.set(seedBytes), combined.set(SYNC_ID_INFO, seedBytes.length);
+            combined = new Uint8Array(seedBytes.length + info.length);
+          combined.set(seedBytes), combined.set(info, seedBytes.length);
           const digest = await crypto.subtle.digest("SHA-256", combined);
           return bytesToHex(new Uint8Array(digest));
         },
@@ -3714,42 +3861,55 @@
             showToast("コードの読み込みに失敗しました", "error");
           }
         },
-        collectSyncableData = () => {
-          const entries = {},
-            notes = {},
+        // 本文チャンネル: 各日の日誌テキストと、見出しショートカット。
+        collectEntriesData = () => {
+          const entries = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            /^\d{4}-\d{2}-\d{2}$/.test(key) &&
+              (entries[key] = localStorage.getItem(key));
+          }
+          return {
+            entries,
+            h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
+          };
+        },
+        applyEntriesData = (data) => {
+          Object.entries(data.entries || {}).forEach(([k, v]) =>
+            localStorage.setItem(k, v)
+          ),
+            "string" == typeof data.h1Shortcuts &&
+            localStorage.setItem("h1Shortcuts", data.h1Shortcuts);
+        },
+        // カレンダーチャンネル: 予定メモ・色分け・ICS購読(セルの中身)。
+        collectCalendarData = () => {
+          const notes = {},
             weekNotes = {},
             cellColors = {},
             weekColors = {};
           for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            /^\d{4}-\d{2}-\d{2}$/.test(key)
-              ? (entries[key] = localStorage.getItem(key))
-              : key.startsWith("note:")
-                ? (notes[key.slice(5)] = localStorage.getItem(key))
-                : key.startsWith("weeknote:")
-                  ? (weekNotes[key.slice(9)] = localStorage.getItem(key))
-                  : key.startsWith("cellColor:")
-                    ? (cellColors[key.slice(10)] = localStorage.getItem(key))
-                    : key.startsWith("weekColor:") &&
-                    (weekColors[key.slice(10)] = localStorage.getItem(key));
+            key.startsWith("note:")
+              ? (notes[key.slice(5)] = localStorage.getItem(key))
+              : key.startsWith("weeknote:")
+                ? (weekNotes[key.slice(9)] = localStorage.getItem(key))
+                : key.startsWith("cellColor:")
+                  ? (cellColors[key.slice(10)] = localStorage.getItem(key))
+                  : key.startsWith("weekColor:") &&
+                  (weekColors[key.slice(10)] = localStorage.getItem(key));
           }
           return {
-            entries,
             notes,
             weekNotes,
             cellColors,
             weekColors,
-            h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
             icsCalendars: localStorage.getItem("icsCalendars") || "[]",
           };
         },
-        applySyncedData = (data) => {
-          Object.entries(data.entries || {}).forEach(([k, v]) =>
-            localStorage.setItem(k, v)
+        applyCalendarData = (data) => {
+          Object.entries(data.notes || {}).forEach(([k, v]) =>
+            localStorage.setItem(`note:${k}`, v)
           ),
-            Object.entries(data.notes || {}).forEach(([k, v]) =>
-              localStorage.setItem(`note:${k}`, v)
-            ),
             Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
               localStorage.setItem(`weeknote:${k}`, v)
             ),
@@ -3759,10 +3919,32 @@
             Object.entries(data.weekColors || {}).forEach(([k, v]) =>
               localStorage.setItem(`weekColor:${k}`, v)
             ),
-            "string" == typeof data.h1Shortcuts &&
-            localStorage.setItem("h1Shortcuts", data.h1Shortcuts),
             "string" == typeof data.icsCalendars &&
             localStorage.setItem("icsCalendars", data.icsCalendars);
+        },
+        SYNC_CHANNELS = {
+          entries: {
+            label: "本文",
+            idInfo: SYNC_ID_INFO_ENTRIES,
+            contentKey: "entriesContentUpdatedAt",
+            lastKey: "entriesLastUpdatedAt",
+            collect: collectEntriesData,
+            apply: applyEntriesData,
+            hasData: (d) => Object.keys(d.entries).length > 0,
+          },
+          calendar: {
+            label: "カレンダー",
+            idInfo: SYNC_ID_INFO_CALENDAR,
+            contentKey: "calendarContentUpdatedAt",
+            lastKey: "calendarLastUpdatedAt",
+            collect: collectCalendarData,
+            apply: applyCalendarData,
+            hasData: (d) =>
+              Object.keys(d.notes).length > 0 ||
+              Object.keys(d.weekNotes).length > 0 ||
+              Object.keys(d.cellColors).length > 0 ||
+              Object.keys(d.weekColors).length > 0,
+          },
         },
         getSyncSeed = () => localStorage.getItem("syncSeed"),
         setSyncSeed = (seed) => localStorage.setItem("syncSeed", seed),
@@ -3945,7 +4127,7 @@
             (contentAreaEl.scrollTop -= caRect.top + buffer - caretTop);
         },
         selectScheduleDate = (d) => {
-          (f = d), T(f), renderScheduleBar(), pullAndMerge();
+          (f = d), T(f), renderScheduleBar(), pullAndMergeAll();
         },
         previewScheduleDate = (d) => {
           // 編集中(テキストエリアにフォーカスがある間)はプレビューで
@@ -4256,7 +4438,8 @@
                   getIcsCalendars().filter((c) => c.id !== calendar.id)
                 ),
                   renderIcsCalendarList(),
-                  refreshAllICSCalendars();
+                  refreshAllICSCalendars(),
+                  maybeSyncPushChannel("calendar");
               }),
               row.appendChild(dot),
               row.appendChild(urlSpan),
@@ -4422,7 +4605,7 @@
             v
               ? localStorage.setItem(`note:${key}`, v)
               : localStorage.removeItem(`note:${key}`);
-            maybeSyncPush();
+            maybeSyncPushChannel("calendar");
           }),
             cell.appendChild(dateLabel),
             holidayLabel && cell.appendChild(holidayLabel),
@@ -4509,7 +4692,7 @@
             v
               ? localStorage.setItem(`weeknote:${weekKey}`, v)
               : localStorage.removeItem(`weeknote:${weekKey}`);
-            maybeSyncPush();
+            maybeSyncPushChannel("calendar");
           }),
             cell.appendChild(weekLabel),
             cell.appendChild(noteInput);
@@ -5266,7 +5449,7 @@
             );
             cell && applyCellColor(cell, targetKey, getGlobalMaxDayLen());
           }
-          maybeSyncPush();
+          maybeSyncPushChannel("calendar");
         }),
         icsAddColorPickerEl.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-color]");
@@ -5297,7 +5480,8 @@
             setIcsCalendars(calendars),
             (icsUrlInputEl.value = ""),
             renderIcsCalendarList(),
-            refreshAllICSCalendars();
+            refreshAllICSCalendars(),
+            maybeSyncPushChannel("calendar");
         }),
         icsRefreshBtnEl.addEventListener("click", refreshAllICSCalendars),
         r.addEventListener("change", (e) => {
@@ -5328,10 +5512,18 @@
               }
             });
             // インポートした内容を「たった今この端末で編集した」ものとして扱う。
-            // これを更新しないと、直後のreloadで自動実行されるpullAndMergeが
-            // 古いsyncContentUpdatedAtを基準に「サーバーの方が新しい」と誤判定し、
-            // 今読み込んだばかりの内容を即座に上書きしてしまう(本文が消える不具合)。
-            localStorage.setItem("syncContentUpdatedAt", new Date().toISOString());
+            // これを更新しないと、直後のreloadで自動実行されるpullAndMergeChannelが
+            // 古いcontentKeyを基準に「サーバーの方が新しい」と誤判定し、今読み込んだ
+            // ばかりの内容を即座に上書きしてしまう(本文が消える不具合)。
+            const nowIso = new Date().toISOString();
+            localStorage.setItem(
+              SYNC_CHANNELS.entries.contentKey,
+              nowIso
+            );
+            localStorage.setItem(
+              SYNC_CHANNELS.calendar.contentKey,
+              nowIso
+            );
             if (failedKeys.length) {
               showToast(
                 `${okCount}/${keys.length} 件のみインポートできました(${failedKeys.length}件失敗。端末の空き容量不足の可能性があります)`,
@@ -5346,7 +5538,10 @@
             const seed = getSyncSeed();
             if (seed && navigator.onLine) {
               try {
-                await doSyncPush(seed);
+                await Promise.all([
+                  doSyncPushChannel("entries", seed),
+                  doSyncPushChannel("calendar", seed),
+                ]);
               } catch (err) { }
             }
             location.reload();
@@ -5416,7 +5611,7 @@
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
           // 同期が有効なら読み込み時にバックグラウンドで取得する
-          pullAndMerge();
+          pullAndMergeAll();
           // ICSカレンダーの一覧を表示し、古ければバックグラウンドで再取得する
           renderIcsCalendarList();
           maybeAutoRefreshICS();
@@ -5426,15 +5621,18 @@
               showToast("最新バージョンに更新しました", "success"));
         });
       window.addEventListener("online", () => {
-        pullAndMerge(), maybeSyncPush();
+        pullAndMergeAll(),
+          maybeSyncPushChannel("entries"),
+          maybeSyncPushChannel("calendar");
       });
       // ページ/タブが再びアクティブになったとき、サーバー側が新しければ取り込む
-      // (オンラインで未保存の変更がない前提。競合解決は行わない)。
+      // (オンラインで未保存の変更がない前提。競合が見つかった場合は
+      // showSyncConflictDialogで都度確認する)。
       // 併せて、配信されているHTML自体が新しければ再読み込みする。ICSカレンダーも
       // 古ければこのタイミングで再取得する。
       document.addEventListener("visibilitychange", () => {
         "visible" === document.visibilityState &&
-          (pullAndMerge(), checkForUpdate(), maybeAutoRefreshICS());
+          (pullAndMergeAll(), checkForUpdate(), maybeAutoRefreshICS());
       });
       // 全画面カレンダー表示中にウィンドウが広がった場合も、
       // スクロール可能になるまでセルを補充する。
@@ -5469,7 +5667,7 @@
         f = new Date();
         T(f);
         renderScheduleBar();
-        pullAndMerge();
+        pullAndMergeAll();
         showToast("今日に移動しました", "info");
       };
       // 日付をまたいだら(0時になったら)、それまで今日のページを見ていた
