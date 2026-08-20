@@ -1213,6 +1213,46 @@
       color: var(--text-color);
     }
 
+    /* リモートの同期データを取得し終えるまで操作を封じる初期ロード用オーバーレイ */
+    #initialLoadOverlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: opacity 0.25s ease;
+    }
+
+    #initialLoadOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #initialLoadOverlay .initial-load-spinner {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid rgba(128, 128, 128, 0.3);
+      border-top-color: var(--text-color);
+      animation: initial-load-spin 0.8s linear infinite;
+    }
+
+    #initialLoadOverlay .initial-load-text {
+      font-size: 13px;
+      opacity: 0.7;
+    }
+
+    @keyframes initial-load-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
     .schedule-bar {
       position: fixed;
       left: 0;
@@ -1690,6 +1730,10 @@
 </head>
 
 <body>
+  <div id="initialLoadOverlay" aria-live="polite" aria-busy="true">
+    <div class="initial-load-spinner"></div>
+    <div class="initial-load-text">同期データを取得中...</div>
+  </div>
   <button id="menuTrigger" class="menu-trigger" type="button" aria-label="メニュー" title="メニュー (?)">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
       stroke-linecap="round">
@@ -5568,7 +5612,16 @@
                   : newBlockBoxEl && newBlockBoxEl.focus();
               })());
         }),
-        document.addEventListener("DOMContentLoaded", () => {
+        document.addEventListener("DOMContentLoaded", async () => {
+          // リモートのデータを取得し終えるまで描画・操作を待つ
+          // (取得中は#initialLoadOverlayが画面全体を覆い操作を封じる)。
+          // 同期未設定/オフラインの場合はpullAndMergeChannel内で即falseが
+          // 返るため、ここでの待ち時間は発生しない。
+          try {
+            await pullAndMergeAll();
+          } catch (err) {
+            console.warn("[sync] initial pull failed:", err);
+          }
           const renamedCount = dedupeDuplicateHeadings();
           renamedCount &&
             showToast(
@@ -5610,8 +5663,6 @@
           // 日付表示内容が変更されたときに title を更新する
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
-          // 同期が有効なら読み込み時にバックグラウンドで取得する
-          pullAndMergeAll();
           // ICSカレンダーの一覧を表示し、古ければバックグラウンドで再取得する
           renderIcsCalendarList();
           maybeAutoRefreshICS();
@@ -5619,6 +5670,13 @@
           sessionStorage.getItem("justUpdatedToast") &&
             (sessionStorage.removeItem("justUpdatedToast"),
               showToast("最新バージョンに更新しました", "success"));
+          // リモート取得(またはその判定)が完了したので操作を解放する
+          const initialLoadOverlayEl = document.getElementById(
+            "initialLoadOverlay"
+          );
+          initialLoadOverlayEl &&
+            (initialLoadOverlayEl.classList.add("hidden"),
+              setTimeout(() => initialLoadOverlayEl.remove(), 300));
         });
       window.addEventListener("online", () => {
         pullAndMergeAll(),
