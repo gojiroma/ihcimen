@@ -1200,12 +1200,14 @@
     :root {
       --bg-color: #ffffff;
       --text-color: #000000;
+      --month-divider-color: rgba(0, 0, 0, 0.4);
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
         --bg-color: #000000;
         --text-color: #ffffff;
+        --month-divider-color: rgba(255, 255, 255, 0.4);
       }
     }
 
@@ -1285,6 +1287,11 @@
 
     .schedule-cell.selected {
       box-shadow: inset 0 0 0 2px rgba(80, 80, 80, 0.6);
+    }
+
+    /* 月が変わる最初の日のセルは、区切りが分かるよう左端を太線にする */
+    .schedule-cell.month-start {
+      border-left: 3px solid var(--month-divider-color);
     }
 
     .schedule-date {
@@ -4556,6 +4563,7 @@
             cell = document.createElement("div");
           (cell.className = "schedule-cell"),
             (cell.dataset.date = key),
+            1 === d.getDate() && cell.classList.add("month-start"),
             applyCellColor(cell, key, maxDayLen);
           holidayName
             ? cell.setAttribute(
