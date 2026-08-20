@@ -3,9 +3,9 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="30" />
+  <meta name="app-version" content="31" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -139,7 +139,9 @@
     }
 
     body.schedule-bar-collapsed .schedule-bar-toggle {
-      bottom: 0;
+      /* iPhoneのホームインジケーターのスワイプジェスチャー領域と重ならないよう、
+         画面最下端からの余白をセーフエリア分(+最低8px)確保する */
+      bottom: max(8px, env(safe-area-inset-bottom));
       transform: translate(-50%, 0);
     }
 
@@ -179,7 +181,7 @@
     }
 
     body.schedule-bar-fullscreen .schedule-bar-toggle {
-      bottom: 0;
+      bottom: max(8px, env(safe-area-inset-bottom));
       transform: translate(-50%, 0);
       z-index: 501;
     }
