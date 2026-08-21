@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="32" />
+  <meta name="app-version" content="33" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -900,7 +900,8 @@
     }
 
     /* 横幅に余裕がある画面では、縦に長くなりがちなブロック一覧を
-       2段組みにして無駄な余白を使う。 */
+       段組みにして無駄な余白を使う。段数は画面幅に応じて2→3→4と増やす
+       (目安: FullHDで2段、WQHDで3段、4Kで4段)。 */
     @media (min-width: 1600px) {
       #markdownViewer {
         column-count: 2;
@@ -911,6 +912,22 @@
 
       .content-block {
         break-inside: avoid;
+      }
+    }
+
+    @media (min-width: 2400px) {
+      #markdownViewer {
+        column-count: 3;
+        column-gap: 64px;
+        max-width: 2280px;
+      }
+    }
+
+    @media (min-width: 3200px) {
+      #markdownViewer {
+        column-count: 4;
+        column-gap: 56px;
+        max-width: 2968px;
       }
     }
 
