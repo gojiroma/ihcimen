@@ -2230,6 +2230,7 @@
         icsRefreshBtnEl = document.getElementById("icsRefreshBtn"),
         icsStatusTextEl = document.getElementById("icsStatusText"),
         contentAreaEl = document.querySelector(".content-area"),
+        containerEl = document.querySelector(".container"),
         historyBtnEl = document.getElementById("historyBtn"),
         historyModalEl = document.getElementById("historyModal"),
         historySliderEl = document.getElementById("historySlider"),
@@ -4150,12 +4151,13 @@
         applyCellColor = (cell, dateKey, maxDayLen) => {
           cell.style.backgroundColor = getDayColorValue(dateKey, maxDayLen);
         },
-        // 日セルと同じ色を、その日を表示中のメインエリア(本文欄)と
-        // 上部の日付表示の背景色としても適用する。
+        // 日セルと同じ色を、その日を表示中のコンテナ全体
+        // (日付表示+メインエリア)の背景色としても適用する。
         applyMainAreaColor = (dateKey) => {
-          const color = getDayColorValue(dateKey, getGlobalMaxDayLen());
-          contentAreaEl.style.backgroundColor = color;
-          dd.style.backgroundColor = color;
+          containerEl.style.backgroundColor = getDayColorValue(
+            dateKey,
+            getGlobalMaxDayLen()
+          );
         },
         getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
         getWeekColor = (weekKey) =>
