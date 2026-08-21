@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="31" />
+  <meta name="app-version" content="32" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -899,6 +899,21 @@
       box-sizing: border-box;
     }
 
+    /* 横幅に余裕がある画面では、縦に長くなりがちなブロック一覧を
+       2段組みにして無駄な余白を使う。 */
+    @media (min-width: 1600px) {
+      #markdownViewer {
+        column-count: 2;
+        column-gap: 80px;
+        max-width: 1520px;
+        margin: 0 auto;
+      }
+
+      .content-block {
+        break-inside: avoid;
+      }
+    }
+
     .content-block .markdown-viewer {
       display: block;
     }
@@ -928,27 +943,6 @@
       line-height: 1;
       cursor: pointer;
       z-index: 5;
-    }
-
-    .block-drag-handle {
-      position: absolute;
-      top: 16px;
-      right: 24px;
-      width: 22px;
-      height: 26px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #ccc;
-      cursor: grab;
-      touch-action: none;
-      font-size: 15px;
-      user-select: none;
-      z-index: 5;
-    }
-
-    .content-block.dragging {
-      opacity: 0.4;
     }
 
     .new-block-box {
@@ -2646,32 +2640,6 @@
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
         },
-        // 今日のテキスト内で、見出し単位のブロックの並び順を入れ替える
-        // (見出し行〜次の見出し直前までをひとかたまりとして移動するだけ)。
-        reorderBlocks = (fromIdx, toIdx) => {
-          if (fromIdx === toIdx) return;
-          const dateKey = toDateKey(f),
-            text = localStorage.getItem(dateKey) || "# ",
-            locals = getLocalHeadingBlocks(text);
-          if (
-            fromIdx < 0 ||
-            fromIdx >= locals.length ||
-            toIdx < 0 ||
-            toIdx >= locals.length
-          )
-            return;
-          const segments = locals.map((b) =>
-              text.slice(b.headStart, b.bodyEnd).replace(/\n+$/, "")
-            ),
-            moved = segments.splice(fromIdx, 1)[0];
-          segments.splice(toIdx, 0, moved);
-          const next = segments.join("\n");
-          snapshotHistory(dateKey, text),
-            localStorage.setItem(dateKey, next),
-            H(),
-            maybeSyncPushChannel("entries"),
-            renderDayBlocks(f);
-        },
         // 起動時に1回だけ実行する後始末: 本文ありの同名見出しが複数日に
         // またがって存在する場合、日付が古い方を残し、それ以外の見出しに
         // ランダム2文字のサフィックスを付けて重複を解消する。以降は新規
@@ -2717,68 +2685,6 @@
           });
           return renamed;
         },
-        // ポインタドラッグでリスト内の項目を並べ替える汎用ヘルパー。
-        // handleEl: ドラッグ開始点。itemEl: 実際に動かすDOM要素。
-        // listEl/itemSelector: 兄弟項目を数えるためのスコープ。
-        // beforeEl: 一番下まで動かした時に挿入する基準(末尾固定要素の手前など)。
-        setupReorderHandle = (handleEl, itemEl, listEl, itemSelector, beforeEl, onCommit) => {
-          const currentIndex = () =>
-            Array.from(listEl.querySelectorAll(itemSelector)).indexOf(itemEl);
-          handleEl.addEventListener("pointerdown", (e) => {
-            if ("mouse" === e.pointerType && 0 !== e.button) return;
-            e.preventDefault();
-            const startY = e.clientY,
-              startIndex = currentIndex();
-            let dragging = !1,
-              done = !1;
-            try {
-              handleEl.setPointerCapture(e.pointerId);
-            } catch (err) { }
-            const move = (ev) => {
-              const dy = ev.clientY - startY;
-              if (!dragging && Math.abs(dy) < 6) return;
-              dragging = !0;
-              itemEl.classList.add("dragging");
-              const siblings = Array.from(
-                listEl.querySelectorAll(itemSelector)
-              ).filter((el) => el !== itemEl);
-              let target = null;
-              for (const sib of siblings) {
-                const rect = sib.getBoundingClientRect();
-                if (ev.clientY < rect.top + rect.height / 2) {
-                  target = sib;
-                  break;
-                }
-              }
-              target
-                ? listEl.insertBefore(itemEl, target)
-                : listEl.insertBefore(itemEl, beforeEl || null);
-            },
-              up = () => {
-                if (done) return;
-                done = !0;
-                itemEl.classList.remove("dragging"),
-                  handleEl.removeEventListener("pointermove", move),
-                  handleEl.removeEventListener("pointerup", up),
-                  handleEl.removeEventListener("pointercancel", up),
-                  document.removeEventListener("pointerup", up),
-                  document.removeEventListener("pointercancel", up),
-                  document.removeEventListener("mouseup", up);
-                if (dragging) {
-                  const newIndex = currentIndex();
-                  newIndex !== startIndex && onCommit(startIndex, newIndex);
-                }
-              };
-            // setPointerCaptureが効かない環境でも確実に後始末できるよう、
-            // document側にもフォールバックのリスナーを張っておく。
-            handleEl.addEventListener("pointermove", move),
-              handleEl.addEventListener("pointerup", up),
-              handleEl.addEventListener("pointercancel", up),
-              document.addEventListener("pointerup", up),
-              document.addEventListener("pointercancel", up),
-              document.addEventListener("mouseup", up);
-          });
-        },
         buildBlockElement = (block) => {
           const blockEl = document.createElement("div");
           blockEl.className = "content-block";
@@ -2800,22 +2706,9 @@
             delBtn.addEventListener("click", (e) => {
               e.stopPropagation(), deleteBlock(blockEl);
             });
-          const dragHandle = document.createElement("div");
-          (dragHandle.className = "block-drag-handle"),
-            (dragHandle.textContent = "⠿"),
-            (dragHandle.title = "ドラッグで並べ替え"),
-            setupReorderHandle(
-              dragHandle,
-              blockEl,
-              o,
-              ".content-block",
-              null,
-              reorderBlocks
-            );
           return (
             blockEl.appendChild(viewEl),
             blockEl.appendChild(delBtn),
-            blockEl.appendChild(dragHandle),
             blockEl
           );
         },
