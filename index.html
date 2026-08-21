@@ -2784,6 +2784,7 @@
         renderDayBlocks = (date) => {
           flushActiveBlock();
           O(s, !1);
+          applyMainAreaColor(toDateKey(date));
           const blocks = buildDayBlocks(date);
           newBlockBoxEl || (newBlockBoxEl = setupNewBlockBox());
           o.innerHTML = "";
@@ -4139,15 +4140,23 @@
             ? localStorage.setItem(getCellColorKey(dateKey), color)
             : localStorage.removeItem(getCellColorKey(dateKey));
         },
-        applyCellColor = (cell, dateKey, maxDayLen) => {
+        getDayColorValue = (dateKey, maxDayLen) => {
           const custom = getCellColor(dateKey);
-          if (custom && CELL_COLORS[custom]) {
-            cell.style.backgroundColor = CELL_COLORS[custom];
-            return;
-          }
+          if (custom && CELL_COLORS[custom]) return CELL_COLORS[custom];
           const dayLen = (localStorage.getItem(dateKey) || "").length,
-            heat = (dayLen / maxDayLen) * 0.5;
-          cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
+            heat = (dayLen / (maxDayLen || 1)) * 0.5;
+          return `rgba(59, 130, 196, ${heat})`;
+        },
+        applyCellColor = (cell, dateKey, maxDayLen) => {
+          cell.style.backgroundColor = getDayColorValue(dateKey, maxDayLen);
+        },
+        // 日セルと同じ色を、その日を表示中のメインエリア(本文欄)の
+        // 背景色としても適用する。
+        applyMainAreaColor = (dateKey) => {
+          contentAreaEl.style.backgroundColor = getDayColorValue(
+            dateKey,
+            getGlobalMaxDayLen()
+          );
         },
         getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
         getWeekColor = (weekKey) =>
@@ -5412,6 +5421,7 @@
               `.schedule-cell[data-date="${targetKey}"]`
             );
             cell && applyCellColor(cell, targetKey, getGlobalMaxDayLen());
+            targetKey === toDateKey(f) && applyMainAreaColor(targetKey);
           }
           maybeSyncPushChannel("calendar");
         }),
