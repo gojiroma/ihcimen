@@ -4150,13 +4150,12 @@
         applyCellColor = (cell, dateKey, maxDayLen) => {
           cell.style.backgroundColor = getDayColorValue(dateKey, maxDayLen);
         },
-        // 日セルと同じ色を、その日を表示中のメインエリア(本文欄)の
-        // 背景色としても適用する。
+        // 日セルと同じ色を、その日を表示中のメインエリア(本文欄)と
+        // 上部の日付表示の背景色としても適用する。
         applyMainAreaColor = (dateKey) => {
-          contentAreaEl.style.backgroundColor = getDayColorValue(
-            dateKey,
-            getGlobalMaxDayLen()
-          );
+          const color = getDayColorValue(dateKey, getGlobalMaxDayLen());
+          contentAreaEl.style.backgroundColor = color;
+          dd.style.backgroundColor = color;
         },
         getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
         getWeekColor = (weekKey) =>
