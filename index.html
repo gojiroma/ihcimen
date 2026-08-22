@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="34" />
+  <meta name="app-version" content="35" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -998,7 +998,8 @@
       }
     }
 
-    .content-block .markdown-viewer {
+    .content-block .markdown-viewer,
+    .history-block .markdown-viewer {
       display: block;
     }
 
@@ -1649,6 +1650,32 @@
       outline: 2px solid rgba(46, 204, 113, 0.6);
       outline-offset: 2px;
       border-radius: 4px;
+    }
+
+    .history-block {
+      position: relative;
+      margin-bottom: 16px;
+      padding: 4px 110px 4px 4px;
+    }
+
+    .history-block-insert {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font: inherit;
+      font-size: 11px;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 6px;
+      background: none;
+      color: inherit;
+      cursor: pointer;
+      opacity: 0.65;
+    }
+
+    .history-block-insert:hover {
+      opacity: 1;
     }
 
     /* h1ショートカット */
@@ -3075,34 +3102,28 @@
             O(historyModalEl, !0),
             renderHistoryPreview();
         },
-        diffHistoryBlocks = (oldHtml, newHtml) => {
-          const oldContainer = document.createElement("div");
-          oldContainer.innerHTML = oldHtml;
-          const newContainer = document.createElement("div");
-          newContainer.innerHTML = newHtml;
-          const oldKeys = Array.from(oldContainer.children).map((el) => el.outerHTML),
-            newBlocks = Array.from(newContainer.children),
-            newKeys = newBlocks.map((el) => el.outerHTML),
-            n = oldKeys.length,
-            m = newKeys.length,
-            dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-          for (let i = n - 1; i >= 0; i--)
-            for (let j = m - 1; j >= 0; j--)
-              dp[i][j] =
-                oldKeys[i] === newKeys[j]
-                  ? dp[i + 1][j + 1] + 1
-                  : Math.max(dp[i + 1][j], dp[i][j + 1]);
-          let i = 0,
-            j = 0;
-          const matched = new Array(m).fill(false);
-          while (i < n && j < m)
-            if (oldKeys[i] === newKeys[j]) (matched[j] = !0), i++, j++;
-            else if (dp[i + 1][j] >= dp[i][j + 1]) i++;
-            else j++;
-          newBlocks.forEach((el, idx) => {
-            matched[idx] || el.classList.add("history-diff-changed");
-          });
-          return newContainer;
+        // 履歴中の1バージョンのテキストを、h1見出し単位のブロック配列にする
+        // (buildDayBlocksと違い、日またぎ参照の解決は行わない単純な分割)。
+        buildHistoryBlocks = (content) =>
+          getLocalHeadingBlocks(content).map((b) => ({
+            headingText: b.headingText,
+            bodyText: content.slice(b.bodyStart, b.bodyEnd),
+            fullText: content.slice(b.headStart, b.bodyEnd),
+          })),
+        // 履歴で選んだ1ブロックの内容を、その日の「今のバージョン」の先頭に挿入する。
+        // (全体上書きのrestoreHistoryVersionと違い、他のブロックには触れない)
+        insertHistoryBlockIntoCurrent = (blockText) => {
+          const dateKey = toDateKey(f),
+            current = localStorage.getItem(dateKey) || "# ";
+          snapshotHistory(dateKey, current);
+          const base = Z(current) ? current : "",
+            next = base ? `${blockText}\n${base}` : blockText;
+          localStorage.setItem(dateKey, next),
+            A(f),
+            renderScheduleBar(),
+            H(),
+            maybeSyncPushChannel("entries"),
+            showToast("今のバージョンに挿入しました", "success");
         },
         renderHistoryPreview = () => {
           const dateKey = toDateKey(f),
@@ -3114,14 +3135,40 @@
             entry.ts
           ).toLocaleString("ja-JP")}  (${entry.content.length} 文字)`;
           const prevContent = idx > 0 ? hist[idx - 1].content : "",
-            diffed = diffHistoryBlocks(
-              marked.parse(prevContent),
-              marked.parse(entry.content)
-            );
-          historyPreviewEl.innerHTML = diffed.innerHTML;
-          const changed = historyPreviewEl.querySelector(".history-diff-changed");
-          changed &&
-            changed.scrollIntoView({ block: "center", behavior: "auto" });
+            // 見出し行以降の空行の有無など、レンダリング結果に影響しない
+            // 差異までブロックの変更として拾わないよう、生テキストではなく
+            // マークダウン変換後のHTMLで比較する。
+            prevHtmls = new Set(
+              buildHistoryBlocks(prevContent).map((b) => marked.parse(b.fullText))
+            ),
+            blocks = buildHistoryBlocks(entry.content);
+          historyPreviewEl.innerHTML = "";
+          let firstChanged = null;
+          blocks.forEach((block) => {
+            const wrap = document.createElement("div");
+            wrap.className = "history-block";
+            const html = marked.parse(block.fullText);
+            prevHtmls.has(html) ||
+              (wrap.classList.add("history-diff-changed"),
+                firstChanged || (firstChanged = wrap));
+            const viewEl = document.createElement("div");
+            (viewEl.className = "markdown-viewer block-view"),
+              (viewEl.innerHTML = html);
+            const insertBtn = document.createElement("button");
+            (insertBtn.type = "button"),
+              (insertBtn.className = "history-block-insert"),
+              (insertBtn.textContent = "今のバージョンに挿入"),
+              (insertBtn.title = "このブロックを今のバージョンに挿入"),
+              insertBtn.addEventListener("click", (e) => {
+                e.stopPropagation(),
+                  insertHistoryBlockIntoCurrent(block.fullText);
+              }),
+              wrap.appendChild(viewEl),
+              wrap.appendChild(insertBtn),
+              historyPreviewEl.appendChild(wrap);
+          });
+          firstChanged &&
+            firstChanged.scrollIntoView({ block: "center", behavior: "auto" });
         },
         restoreHistoryVersion = () => {
           const dateKey = toDateKey(f),
