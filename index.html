@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="33" />
+  <meta name="app-version" content="34" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -153,6 +153,7 @@
     /* 下段カレンダーの全画面モード(ノブを上にドラッグ) */
     body.schedule-bar-fullscreen .menu-trigger,
     body.schedule-bar-fullscreen .history-btn,
+    body.schedule-bar-fullscreen .copy-day-btn,
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
     body.schedule-bar-fullscreen .search-pane-toggle,
@@ -233,6 +234,27 @@
     }
 
     body.schedule-bar-fullscreen .fullscreen-year-watermark {
+      display: block;
+    }
+
+    /* 下段カレンダーを折りたたんでいる間、画面中央にうっすらと現在時刻を表示する */
+    .idle-clock-watermark {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 503;
+      font-size: clamp(80px, 20vw, 260px);
+      font-weight: 700;
+      color: var(--text-color);
+      opacity: 0.06;
+      pointer-events: none;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    body.schedule-bar-collapsed:not(.schedule-bar-fullscreen) .idle-clock-watermark {
       display: block;
     }
 
@@ -370,6 +392,7 @@
     body.touch-editing .search-pane,
     body.touch-editing .search-pane-toggle,
     body.touch-editing .history-btn,
+    body.touch-editing .copy-day-btn,
     body.touch-editing .h1-shortcut-bar {
       display: none;
     }
@@ -585,6 +608,50 @@
       background: none;
       color: inherit;
       cursor: pointer;
+    }
+
+    .ics-publish-row {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(128, 128, 128, 0.2);
+    }
+
+    .ics-publish-row:first-of-type {
+      margin-top: 6px;
+    }
+
+    .ics-publish-label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .ics-publish-url-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .ics-publish-url-row[hidden] {
+      display: none;
+    }
+
+    .ics-publish-url-input {
+      flex: 1;
+      min-width: 0;
+      box-sizing: border-box;
+      font: inherit;
+      font-size: 12px;
+      padding: 6px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 6px;
+      background-color: var(--bg-color);
+      color: inherit;
+    }
+
+    .ics-publish-status {
+      margin-top: 4px;
     }
 
     .menu-danger-btn {
@@ -993,6 +1060,7 @@
        裏に隠れてしまう問題への対処)。 */
     body.new-entry-focus .menu-trigger,
     body.new-entry-focus .history-btn,
+    body.new-entry-focus .copy-day-btn,
     body.new-entry-focus .h1-shortcut-bar,
     body.new-entry-focus .search-pane,
     body.new-entry-focus .search-pane-toggle,
@@ -1487,9 +1555,32 @@
       opacity: 1;
     }
 
+    /* 本文コピー */
+    .copy-day-btn {
+      position: fixed;
+      top: 10px;
+      right: 212px;
+      z-index: 450;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.55;
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      padding: 6px;
+      transition: right 0.25s ease, opacity 0.2s ease;
+    }
+
+    .copy-day-btn:hover {
+      opacity: 1;
+    }
+
     /* 操作がしばらくないと、ノブ/アイコン類を控えめにフェードする */
     body.ui-idle .menu-trigger,
     body.ui-idle .history-btn,
+    body.ui-idle .copy-day-btn,
     body.ui-idle .schedule-bar-toggle,
     body.ui-idle .week-pane-toggle,
     body.ui-idle .search-pane-toggle {
@@ -1498,6 +1589,10 @@
 
     body.week-pane-collapsed .history-btn {
       right: 10px;
+    }
+
+    body.week-pane-collapsed .copy-day-btn {
+      right: 46px;
     }
 
     .history-modal-content {
@@ -1769,6 +1864,13 @@
       <polyline points="12 7 12 12 16 14" />
     </svg>
   </button>
+  <button id="copyDayBtn" class="copy-day-btn" type="button" aria-label="本文をコピー" title="本文をコピー">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
+      stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  </button>
   <div id="h1ShortcutBar" class="h1-shortcut-bar"></div>
   <div id="searchPane" class="search-pane">
     <div class="search-input-wrap">
@@ -1978,6 +2080,52 @@
         </div>
         <p id="icsStatusText" class="sync-note"></p>
       </details>
+      <details>
+        <summary>ICS公開URL</summary>
+        <p class="sync-note">
+          日カレンダー・週カレンダーの予定メモを、外部のカレンダーアプリから購読できるICSとして公開します。発行したURLを知っている人は誰でも内容を読めます(サーバーに平文で保存されます)。
+        </p>
+        <div class="ics-publish-row" data-kind="day">
+          <span class="ics-publish-label">日カレンダー</span>
+          <div class="menu-inline-actions">
+            <button type="button" class="menu-inline-btn ics-publish-toggle-btn">
+              公開する
+            </button>
+          </div>
+          <div class="ics-publish-url-row" hidden>
+            <input type="text" readonly class="ics-publish-url-input" />
+            <div class="menu-inline-actions">
+              <button type="button" class="menu-inline-btn ics-publish-copy-btn">
+                コピー
+              </button>
+              <button type="button" class="menu-inline-btn ics-publish-regen-btn">
+                再発行
+              </button>
+            </div>
+          </div>
+          <p class="sync-note ics-publish-status" data-kind="day"></p>
+        </div>
+        <div class="ics-publish-row" data-kind="week">
+          <span class="ics-publish-label">週カレンダー</span>
+          <div class="menu-inline-actions">
+            <button type="button" class="menu-inline-btn ics-publish-toggle-btn">
+              公開する
+            </button>
+          </div>
+          <div class="ics-publish-url-row" hidden>
+            <input type="text" readonly class="ics-publish-url-input" />
+            <div class="menu-inline-actions">
+              <button type="button" class="menu-inline-btn ics-publish-copy-btn">
+                コピー
+              </button>
+              <button type="button" class="menu-inline-btn ics-publish-regen-btn">
+                再発行
+              </button>
+            </div>
+          </div>
+          <p class="sync-note ics-publish-status" data-kind="week"></p>
+        </div>
+      </details>
       <div id="storageUsagePanel" class="storage-usage-panel">
         <p id="storageUsageText" class="storage-usage-text"></p>
         <div class="storage-usage-bar">
@@ -2016,6 +2164,7 @@
     ×
   </button>
   <div id="fullscreenYearWatermark" class="fullscreen-year-watermark"></div>
+  <div id="idleClockWatermark" class="idle-clock-watermark"></div>
   <div id="cellColorPicker" class="cell-color-picker">
     <button type="button" class="cell-color-swatch" data-color="pink" style="background-color: #fadce3" title="ピンク"></button>
     <button type="button" class="cell-color-swatch" data-color="blue" style="background-color: #d6e9f5" title="水色"></button>
@@ -2217,6 +2366,7 @@
         fullscreenYearWatermarkEl = document.getElementById(
           "fullscreenYearWatermark"
         ),
+        idleClockWatermarkEl = document.getElementById("idleClockWatermark"),
         cellColorPickerEl = document.getElementById("cellColorPicker"),
         yearRulerEl = document.getElementById("yearRuler"),
         storageUsageTextEl = document.getElementById("storageUsageText"),
@@ -2232,6 +2382,7 @@
         contentAreaEl = document.querySelector(".content-area"),
         containerEl = document.querySelector(".container"),
         historyBtnEl = document.getElementById("historyBtn"),
+        copyDayBtnEl = document.getElementById("copyDayBtn"),
         historyModalEl = document.getElementById("historyModal"),
         historySliderEl = document.getElementById("historySlider"),
         historyMetaEl = document.getElementById("historyMeta"),
@@ -2691,7 +2842,7 @@
                     Z(original.slice(b.bodyStart, b.bodyEnd))
                 )
                 .forEach((b) => {
-                  const suffix = ` ${Math.random().toString(36).slice(2, 4)}`,
+                  const suffix = `_${key.slice(2).replace(/-/g, "")}`,
                     insertPos = b.headEnd + shift;
                   (text =
                     text.slice(0, insertPos) + suffix + text.slice(insertPos)),
@@ -3348,6 +3499,7 @@
           renderH1ShortcutBar();
           renderIcsCalendarList();
           maybeAutoRefreshICS();
+          renderIcsPublishPanel();
         },
         pullAndMergeChannel = async (channel) => {
           const cfg = SYNC_CHANNELS[channel],
@@ -3386,6 +3538,7 @@
             localStorage.setItem(cfg.lastKey, body.updated_at);
             localStorage.setItem(cfg.contentKey, body.updated_at);
             refreshUIAfterSync();
+            "calendar" === channel && scheduleIcsPublishRefresh();
             markSyncHealthy(!0);
             return !0;
           } catch (err) {
@@ -3550,6 +3703,7 @@
             SYNC_CHANNELS[channel].contentKey,
             new Date().toISOString()
           );
+          "calendar" === channel && scheduleIcsPublishRefresh();
           const seed = getSyncSeed();
           if (!seed || !navigator.onLine) return;
           clearTimeout(syncPushTimers[channel]),
@@ -3604,6 +3758,21 @@
           )
             return;
           downloadBackup();
+          if (navigator.onLine)
+            try {
+              await Promise.all(
+                ["day", "week"]
+                  .map((kind) => getIcsPublishId(kind))
+                  .filter(Boolean)
+                  .map((publishId) =>
+                    fetchWithTimeout(
+                      `/api/ics-publish?publish_id=${publishId}`,
+                      { method: "DELETE" },
+                      8000
+                    )
+                  )
+              );
+            } catch (err) { }
           const seed = getSyncSeed();
           if (seed && navigator.onLine)
             try {
@@ -3869,6 +4038,8 @@
             cellColors,
             weekColors,
             icsCalendars: localStorage.getItem("icsCalendars") || "[]",
+            icsPublishIdDay: localStorage.getItem("icsPublishId:day") || "",
+            icsPublishIdWeek: localStorage.getItem("icsPublishId:week") || "",
           };
         },
         applyCalendarData = (data) => {
@@ -3885,7 +4056,18 @@
               localStorage.setItem(`weekColor:${k}`, v)
             ),
             "string" == typeof data.icsCalendars &&
-            localStorage.setItem("icsCalendars", data.icsCalendars);
+            localStorage.setItem("icsCalendars", data.icsCalendars),
+            "string" == typeof data.icsPublishIdDay &&
+            (data.icsPublishIdDay
+              ? localStorage.setItem("icsPublishId:day", data.icsPublishIdDay)
+              : localStorage.removeItem("icsPublishId:day")),
+            "string" == typeof data.icsPublishIdWeek &&
+            (data.icsPublishIdWeek
+              ? localStorage.setItem(
+                "icsPublishId:week",
+                data.icsPublishIdWeek
+              )
+              : localStorage.removeItem("icsPublishId:week"));
         },
         SYNC_CHANNELS = {
           entries: {
@@ -4462,6 +4644,246 @@
               ICS_REFRESH_INTERVAL_MS;
           stale && refreshAllICSCalendars();
         },
+        // --- ICS公開URL(この端末の日/週カレンダーを外部に公開する) ---
+        // ここだけは意図的にE2E暗号化の対象外(サーバーに平文で保存される)。
+        // 標準的なカレンダークライアントはURLへの素のHTTP GETでICSテキストを
+        // そのまま読むため、復号なしに配信できる形でなければ購読できない。
+        ICS_PUBLISH_LABELS = { day: "日カレンダー", week: "週カレンダー" },
+        getIcsPublishId = (kind) =>
+          localStorage.getItem(`icsPublishId:${kind}`) || "",
+        setIcsPublishId = (kind, id) =>
+          localStorage.setItem(`icsPublishId:${kind}`, id),
+        clearIcsPublishId = (kind) =>
+          localStorage.removeItem(`icsPublishId:${kind}`),
+        generatePublishId = () =>
+          bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
+        icsPublishUrl = (publishId) =>
+          `${location.origin}/api/ics/${publishId}.ics`,
+        escapeICSText = (s) =>
+          String(s)
+            .replace(/\\/g, "\\\\")
+            .replace(/;/g, "\\;")
+            .replace(/,/g, "\\,")
+            .replace(/\n/g, "\\n"),
+        foldICSLine = (line) => {
+          const bytes = new TextEncoder().encode(line);
+          if (bytes.length <= 75) return line;
+          const parts = [];
+          let start = 0;
+          while (start < bytes.length) {
+            const end = Math.min(start + 75, bytes.length);
+            parts.push(new TextDecoder().decode(bytes.slice(start, end)));
+            start = end;
+          }
+          return parts.join("\r\n ");
+        },
+        formatICSDateOnly = (date) =>
+          `${date.getFullYear()}${String(date.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}${String(date.getDate()).padStart(2, "0")}`,
+        formatICSStamp = () => {
+          const now = new Date();
+          return `${now.getUTCFullYear()}${String(
+            now.getUTCMonth() + 1
+          ).padStart(2, "0")}${String(now.getUTCDate()).padStart(
+            2,
+            "0"
+          )}T${String(now.getUTCHours()).padStart(2, "0")}${String(
+            now.getUTCMinutes()
+          ).padStart(2, "0")}${String(now.getUTCSeconds()).padStart(
+            2,
+            "0"
+          )}Z`;
+        },
+        // getISOWeekInfoの逆算: ISO週番号(YYYY-Www)からその週の月曜日を求める。
+        // ISO8601では「1月4日は必ず第1週に属する」と定義されているので、
+        // 1月4日を含む週の月曜日を起点に、週番号-1週ぶん進める。
+        mondayFromIsoWeek = (weekKey) => {
+          const [isoYearStr, weekStr] = weekKey.split("-W"),
+            isoYear = +isoYearStr,
+            weekNum = +weekStr,
+            jan4 = new Date(isoYear, 0, 4),
+            jan4Dow = (jan4.getDay() + 6) % 7,
+            week1Monday = new Date(jan4.getTime() - jan4Dow * I);
+          return new Date(week1Monday.getTime() + (weekNum - 1) * 7 * I);
+        },
+        firstLineSummary = (text) => {
+          const line = text.split("\n").find((l) => l.trim()) || text;
+          return line.trim().slice(0, 80);
+        },
+        buildIcsVevent = ({
+          uid,
+          dtstart,
+          dtend,
+          summary,
+          description,
+          category,
+        }) => {
+          const lines = [
+            "BEGIN:VEVENT",
+            `UID:${uid}`,
+            `DTSTAMP:${formatICSStamp()}`,
+            `DTSTART;VALUE=DATE:${dtstart}`,
+            `DTEND;VALUE=DATE:${dtend}`,
+            `SUMMARY:${escapeICSText(summary)}`,
+            `DESCRIPTION:${escapeICSText(description)}`,
+          ];
+          return (
+            category && lines.push(`CATEGORIES:${escapeICSText(category)}`),
+            lines.push("END:VEVENT"),
+            lines
+          );
+        },
+        buildIcsCalendar = (calName, eventLineGroups) =>
+          [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//ihcimen//ics-publish//JA",
+            "CALSCALE:GREGORIAN",
+            "METHOD:PUBLISH",
+            `X-WR-CALNAME:${escapeICSText(calName)}`,
+            ...eventLineGroups.flat(),
+            "END:VCALENDAR",
+          ]
+            .map(foldICSLine)
+            .join("\r\n"),
+        buildDayCalendarIcsEvents = (notes, cellColors) =>
+          Object.keys(notes)
+            .sort()
+            .map((dateKey) => {
+              const text = (notes[dateKey] || "").trim();
+              if (!text) return null;
+              const [y, mo, d] = dateKey.split("-").map(Number),
+                start = new Date(y, mo - 1, d),
+                end = new Date(start.getTime() + I);
+              return buildIcsVevent({
+                uid: `day-${dateKey}@ihcimen`,
+                dtstart: formatICSDateOnly(start),
+                dtend: formatICSDateOnly(end),
+                summary: firstLineSummary(text),
+                description: text,
+                category: cellColors[dateKey],
+              });
+            })
+            .filter(Boolean),
+        buildWeekCalendarIcsEvents = (weekNotes, weekColors) =>
+          Object.keys(weekNotes)
+            .sort()
+            .map((weekKey) => {
+              const text = (weekNotes[weekKey] || "").trim();
+              if (!text) return null;
+              const monday = mondayFromIsoWeek(weekKey),
+                end = new Date(monday.getTime() + 7 * I);
+              return buildIcsVevent({
+                uid: `week-${weekKey}@ihcimen`,
+                dtstart: formatICSDateOnly(monday),
+                dtend: formatICSDateOnly(end),
+                summary: firstLineSummary(text),
+                description: text,
+                category: weekColors[weekKey],
+              });
+            })
+            .filter(Boolean),
+        renderIcsPublishStatus = (kind, text) => {
+          const el = document.querySelector(
+            `.ics-publish-status[data-kind="${kind}"]`
+          );
+          el && (el.textContent = text || "");
+        },
+        publishIcsKind = async (kind) => {
+          const calData = collectCalendarData(),
+            events =
+              "day" === kind
+                ? buildDayCalendarIcsEvents(calData.notes, calData.cellColors)
+                : buildWeekCalendarIcsEvents(
+                  calData.weekNotes,
+                  calData.weekColors
+                ),
+            icsText = buildIcsCalendar(
+              `ihcimen ${ICS_PUBLISH_LABELS[kind]}`,
+              events
+            );
+          let publishId = getIcsPublishId(kind);
+          if (!publishId) {
+            publishId = generatePublishId();
+            setIcsPublishId(kind, publishId);
+            maybeSyncPushChannel("calendar");
+          }
+          try {
+            const res = await fetchWithTimeout(
+              "/api/ics-publish",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  publish_id: publishId,
+                  ics_text: icsText,
+                }),
+              },
+              8000
+            );
+            if (!res.ok) throw new Error("publish failed: " + res.status);
+            renderIcsPublishStatus(kind, "公開中");
+            return !0;
+          } catch (err) {
+            renderIcsPublishStatus(kind, "更新に失敗しました");
+            return !1;
+          }
+        },
+        unpublishIcsKind = async (kind) => {
+          const publishId = getIcsPublishId(kind);
+          if (!publishId) return;
+          clearIcsPublishId(kind);
+          maybeSyncPushChannel("calendar");
+          try {
+            await fetchWithTimeout(
+              `/api/ics-publish?publish_id=${publishId}`,
+              { method: "DELETE" },
+              8000
+            );
+          } catch (err) { }
+        },
+        regenerateIcsPublishId = async (kind) => {
+          await unpublishIcsKind(kind);
+          const ok = await publishIcsKind(kind);
+          renderIcsPublishPanel();
+          return ok;
+        },
+        icsPublishTimers = {},
+        scheduleIcsPublishRefresh = () => {
+          if (!navigator.onLine) return;
+          ["day", "week"].forEach((kind) => {
+            if (!getIcsPublishId(kind)) return;
+            clearTimeout(icsPublishTimers[kind]);
+            icsPublishTimers[kind] = setTimeout(
+              () => publishIcsKind(kind),
+              5000
+            );
+          });
+        },
+        renderIcsPublishPanel = () => {
+          ["day", "week"].forEach((kind) => {
+            const row = document.querySelector(
+              `.ics-publish-row[data-kind="${kind}"]`
+            );
+            if (!row) return;
+            const publishId = getIcsPublishId(kind),
+              toggleBtn = row.querySelector(".ics-publish-toggle-btn"),
+              urlRow = row.querySelector(".ics-publish-url-row"),
+              urlInput = row.querySelector(".ics-publish-url-input");
+            if (publishId) {
+              (toggleBtn.textContent = "公開を停止"),
+                (urlRow.hidden = !1),
+                (urlInput.value = icsPublishUrl(publishId));
+            } else {
+              (toggleBtn.textContent = "公開する"),
+                (urlRow.hidden = !0),
+                (urlInput.value = ""),
+                renderIcsPublishStatus(kind, "");
+            }
+          });
+        },
         closeCellColorPicker = () => {
           cellColorPickerEl.classList.remove("open");
         },
@@ -4903,6 +5325,12 @@
         // 全画面カレンダーの中央に来ているセルの年を、透かし表示と
         // 左端の年ルーラーのアクティブ目盛りに反映する。あわせて
         // 右端のWeek paneもその日の週に追従させる。
+        updateIdleClockWatermark = () => {
+          idleClockWatermarkEl.textContent = new Date().toLocaleTimeString(
+            "ja-JP",
+            { hour: "2-digit", minute: "2-digit" }
+          );
+        },
         updateFullscreenYearWatermark = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
@@ -5367,6 +5795,18 @@
         historyBtnEl.addEventListener("click", (e) => {
           e.stopPropagation(), openHistoryModal();
         }),
+        copyDayBtnEl.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          const text = buildDayBlocks(f)
+            .map((b) => b.fullText)
+            .join("\n\n");
+          try {
+            await navigator.clipboard.writeText(text);
+            showToast("本文をコピーしました", "success");
+          } catch (err) {
+            showToast("コピーに失敗しました", "error");
+          }
+        }),
         historySliderEl.addEventListener("input", renderHistoryPreview),
         historyRestoreBtnEl.addEventListener("click", restoreHistoryVersion),
         o.addEventListener("contextmenu", (e) => {
@@ -5459,6 +5899,53 @@
             maybeSyncPushChannel("calendar");
         }),
         icsRefreshBtnEl.addEventListener("click", refreshAllICSCalendars),
+        document.querySelectorAll(".ics-publish-row").forEach((row) => {
+          const kind = row.dataset.kind,
+            toggleBtn = row.querySelector(".ics-publish-toggle-btn"),
+            copyBtn = row.querySelector(".ics-publish-copy-btn"),
+            regenBtn = row.querySelector(".ics-publish-regen-btn"),
+            urlInput = row.querySelector(".ics-publish-url-input");
+          toggleBtn.addEventListener("click", async () => {
+            toggleBtn.disabled = !0;
+            if (getIcsPublishId(kind)) {
+              await unpublishIcsKind(kind);
+              showToast(
+                `${ICS_PUBLISH_LABELS[kind]}の公開を停止しました`,
+                "info"
+              );
+            } else {
+              renderIcsPublishStatus(kind, "公開中…");
+              const ok = await publishIcsKind(kind);
+              showToast(
+                ok
+                  ? `${ICS_PUBLISH_LABELS[kind]}を公開しました`
+                  : "公開に失敗しました。オンライン環境で再度お試しください",
+                ok ? "success" : "error"
+              );
+            }
+            renderIcsPublishPanel();
+            toggleBtn.disabled = !1;
+          }),
+            copyBtn.addEventListener("click", async () => {
+              try {
+                await navigator.clipboard.writeText(urlInput.value);
+                showToast("URLをコピーしました", "success");
+              } catch (err) {
+                showToast("コピーに失敗しました", "error");
+              }
+            }),
+            regenBtn.addEventListener("click", async () => {
+              regenBtn.disabled = !0;
+              const ok = await regenerateIcsPublishId(kind);
+              showToast(
+                ok
+                  ? `${ICS_PUBLISH_LABELS[kind]}のURLを再発行しました`
+                  : "再発行に失敗しました。オンライン環境で再度お試しください",
+                ok ? "success" : "error"
+              );
+              regenBtn.disabled = !1;
+            });
+        }),
         r.addEventListener("change", (e) => {
           const file = e.target.files[0];
           if (!file) return;
@@ -5591,12 +6078,16 @@
           // 初回設定
           H();
           renderSyncPanel();
+          // 下段カレンダー折りたたみ中の現在時刻ウォーターマーク
+          updateIdleClockWatermark();
+          setInterval(updateIdleClockWatermark, 1000);
           // 日付表示内容が変更されたときに title を更新する
           const observer = new MutationObserver(H);
           observer.observe(dd, { childList: true, subtree: true });
           // ICSカレンダーの一覧を表示し、古ければバックグラウンドで再取得する
           renderIcsCalendarList();
           maybeAutoRefreshICS();
+          renderIcsPublishPanel();
           // バージョン更新によるリロード直後なら、そのことを知らせる
           sessionStorage.getItem("justUpdatedToast") &&
             (sessionStorage.removeItem("justUpdatedToast"),

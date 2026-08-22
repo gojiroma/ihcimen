@@ -8,16 +8,18 @@ import urllib.request
 from datetime import datetime, timezone
 
 import psycopg2
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB request body cap
 
 SYNC_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 CODE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+PUBLISH_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 HANDOFF_TTL_SECONDS = 600  # 6桁コードの有効期限(10分)
 ICS_FETCH_TIMEOUT_SECONDS = 10
 ICS_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap on the fetched ICS body
+ICS_PUBLISH_MAX_BYTES = 1 * 1024 * 1024  # 1 MB cap on a published ICS body
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sync_blobs (
@@ -36,6 +38,19 @@ CREATE TABLE IF NOT EXISTS seed_handoff (
     salt       TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 日/週カレンダーの「ICS公開URL」機能用。ここだけは仕様上、意図的に
+-- 平文で保存する(標準的なカレンダークライアントはJSを実行せず、
+-- URLへの素のHTTP GETでICSテキストをそのまま読むため、サーバー側で
+-- 復号なしに配信できる形でなければ購読できない)。publish_idはクライアント
+-- が生成するランダムな64桁hexで、同期用のsync_idとは無関係。
+CREATE TABLE IF NOT EXISTS published_ics (
+    publish_id     TEXT PRIMARY KEY,
+    ics_text       TEXT NOT NULL,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
 """
 
 
@@ -339,6 +354,103 @@ def ics_proxy():
         return jsonify(error=f"failed to fetch: {err}"), 502
 
 
+@app.route("/api/ics-publish", methods=["POST", "DELETE"])
+def ics_publish():
+    # 日/週カレンダーの内容を、外部のカレンダークライアントが購読できる
+    # ICSとして公開する機能。ここは意図的にE2E暗号化の対象外(平文保存)。
+    # クライアント側でユーザーが明示的に「公開する」を押したときだけ呼ばれる。
+    if request.method == "DELETE":
+        publish_id = request.args.get("publish_id", "")
+        if not PUBLISH_ID_RE.match(publish_id):
+            return jsonify(error="publish_id must be a 64-character hex string"), 400
+        try:
+            conn = get_connection()
+        except RuntimeError as err:
+            return jsonify(error=str(err)), 500
+        try:
+            ensure_schema(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM published_ics WHERE publish_id = %s", (publish_id,)
+                )
+                deleted = cur.rowcount
+            conn.commit()
+            return jsonify(deleted=deleted)
+        finally:
+            conn.close()
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify(error="invalid JSON body"), 400
+
+    publish_id = body.get("publish_id")
+    ics_text = body.get("ics_text")
+
+    if not (isinstance(publish_id, str) and PUBLISH_ID_RE.match(publish_id)):
+        return jsonify(error="publish_id must be a 64-character hex string"), 400
+    if not (isinstance(ics_text, str) and ics_text):
+        return jsonify(error="ics_text is required"), 400
+    if len(ics_text.encode("utf-8")) > ICS_PUBLISH_MAX_BYTES:
+        return jsonify(error="ics_text too large"), 413
+
+    try:
+        conn = get_connection()
+    except RuntimeError as err:
+        return jsonify(error=str(err)), 500
+
+    try:
+        ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO published_ics (publish_id, ics_text, updated_at, last_synced_at)
+                VALUES (%s, %s, now(), now())
+                ON CONFLICT (publish_id) DO UPDATE SET
+                    ics_text = EXCLUDED.ics_text,
+                    updated_at = now(),
+                    last_synced_at = now()
+                """,
+                (publish_id, ics_text),
+            )
+        conn.commit()
+        return jsonify(ok=True)
+    finally:
+        conn.close()
+
+
+@app.route("/api/ics/<publish_id>", methods=["GET"])
+def ics_serve(publish_id):
+    if publish_id.endswith(".ics"):
+        publish_id = publish_id[: -len(".ics")]
+    if not PUBLISH_ID_RE.match(publish_id):
+        return jsonify(error="publish_id must be a 64-character hex string"), 400
+
+    try:
+        conn = get_connection()
+    except RuntimeError as err:
+        return jsonify(error=str(err)), 500
+
+    try:
+        ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT ics_text FROM published_ics WHERE publish_id = %s",
+                (publish_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                conn.commit()
+                return jsonify(error="not found"), 404
+            cur.execute(
+                "UPDATE published_ics SET last_synced_at = now() WHERE publish_id = %s",
+                (publish_id,),
+            )
+        conn.commit()
+        return Response(row[0], mimetype="text/calendar")
+    finally:
+        conn.close()
+
+
 @app.route("/api/cleanup", methods=["GET"])
 def cleanup():
     cron_secret = os.environ.get("CRON_SECRET")
@@ -367,8 +479,16 @@ def cleanup():
                 f"DELETE FROM seed_handoff WHERE created_at < now() - interval '{HANDOFF_TTL_SECONDS} seconds'"
             )
             deleted_handoffs = cur.rowcount
+            cur.execute(
+                "DELETE FROM published_ics WHERE last_synced_at < now() - interval '7 days'"
+            )
+            deleted_published_ics = cur.rowcount
         conn.commit()
-        return jsonify(deleted=deleted, deleted_handoffs=deleted_handoffs)
+        return jsonify(
+            deleted=deleted,
+            deleted_handoffs=deleted_handoffs,
+            deleted_published_ics=deleted_published_ics,
+        )
     finally:
         conn.close()
 

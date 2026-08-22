@@ -25,3 +25,19 @@ CREATE TABLE IF NOT EXISTS seed_handoff (
     salt       TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Backs the "publish an ICS URL" feature for the day/week calendars. Unlike
+-- every other table here, this one is intentionally plaintext: standard
+-- calendar clients (Apple/Google Calendar, etc.) fetch the URL with a plain
+-- HTTP GET and expect readable iCalendar text, so there is no way to keep
+-- this data end-to-end encrypted and still have it work as a subscribable
+-- feed. publish_id is a random client-generated 64-hex ID, unrelated to any
+-- sync_id, created only when the user explicitly enables publishing.
+CREATE TABLE IF NOT EXISTS published_ics (
+    publish_id     TEXT PRIMARY KEY,
+    ics_text       TEXT NOT NULL,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now() -- bumped on every publish or client fetch; drives the 7-day inactivity cleanup
+);
+
+CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
