@@ -909,7 +909,7 @@
     }
 
     a {
-      color: rgb(127, 197, 255);
+      color: var(--link-color);
     }
 
     .markdown-viewer,
@@ -1280,6 +1280,11 @@
       --bg-color: #ffffff;
       --text-color: #000000;
       --month-divider-color: rgba(0, 0, 0, 0.4);
+      --link-color: #1a56db;
+      /* カスタム背景色(パステル)は明暗モードに関係なく明るいままなので、
+         その上の文字・リンクは常にライトモード相当の色で固定する。 */
+      --on-custom-bg-text-color: #000000;
+      --on-custom-bg-link-color: #1a56db;
     }
 
     @media (prefers-color-scheme: dark) {
@@ -1287,6 +1292,7 @@
         --bg-color: #000000;
         --text-color: #ffffff;
         --month-divider-color: rgba(255, 255, 255, 0.4);
+        --link-color: rgb(127, 197, 255);
       }
     }
 
@@ -1294,6 +1300,13 @@
       color-scheme: light dark;
       background-color: var(--bg-color);
       color: var(--text-color);
+    }
+
+    /* 日/週/セルにパステルのカスタム背景色が設定されているとき、
+       ダークモードの白文字のままだと読めなくなるため文字色を固定する。 */
+    .has-custom-bg {
+      color: var(--on-custom-bg-text-color);
+      --link-color: var(--on-custom-bg-link-color);
     }
 
     /* リモートの同期データを取得し終えるまで操作を封じる初期ロード用オーバーレイ */
@@ -4323,6 +4336,10 @@
             ? localStorage.setItem(getCellColorKey(dateKey), color)
             : localStorage.removeItem(getCellColorKey(dateKey));
         },
+        hasCustomCellColor = (dateKey) => {
+          const custom = getCellColor(dateKey);
+          return !!(custom && CELL_COLORS[custom]);
+        },
         getDayColorValue = (dateKey, maxDayLen) => {
           const custom = getCellColor(dateKey);
           if (custom && CELL_COLORS[custom]) return CELL_COLORS[custom];
@@ -4332,6 +4349,7 @@
         },
         applyCellColor = (cell, dateKey, maxDayLen) => {
           cell.style.backgroundColor = getDayColorValue(dateKey, maxDayLen);
+          cell.classList.toggle("has-custom-bg", hasCustomCellColor(dateKey));
         },
         // 日セルと同じ色を、その日を表示中のコンテナ全体
         // (日付表示+メインエリア)の背景色としても適用する。
@@ -4339,6 +4357,10 @@
           containerEl.style.backgroundColor = getDayColorValue(
             dateKey,
             getGlobalMaxDayLen()
+          );
+          containerEl.classList.toggle(
+            "has-custom-bg",
+            hasCustomCellColor(dateKey)
           );
         },
         getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
@@ -4353,8 +4375,10 @@
           const custom = getWeekColor(weekKey);
           if (custom && CELL_COLORS[custom]) {
             cell.style.backgroundColor = CELL_COLORS[custom];
+            cell.classList.add("has-custom-bg");
             return;
           }
+          cell.classList.remove("has-custom-bg");
           const heat = (weekTotal / maxWeekLen) * 0.5;
           cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
         },
