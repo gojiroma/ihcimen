@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="35" />
+  <meta name="app-version" content="36" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -1087,6 +1087,11 @@
       opacity: 1;
       z-index: 300;
       background-color: var(--bg-color);
+      /* 日にカスタム背景色(has-custom-bg)が設定されていると文字色が
+         黒固定で継承されるが、この全画面編集欄は背景を強制的に
+         var(--bg-color)にするため、文字色も明暗モードに合わせて
+         強制しないとダークモードで黒地に黒文字になってしまう。 */
+      color: var(--text-color);
       overflow-y: auto;
     }
 
@@ -3313,9 +3318,53 @@
           }
           return results;
         },
+        // 検索ワード未入力時に表示する、全期間のh1見出し一覧(辞書順)を作る
+        buildDictionaryH1List = () => {
+          const entries = [];
+          for (let idx = 0; idx < localStorage.length; idx++) {
+            const key = localStorage.key(idx);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
+            const text = localStorage.getItem(key);
+            getHeadings(text).forEach((h, hIdx) => {
+              entries.push({
+                date: key,
+                headingIdx: hIdx,
+                headingText: h.text,
+                jumpPos: h.end,
+              });
+            });
+          }
+          return entries.sort((a, b) =>
+            a.headingText.localeCompare(b.headingText, "ja")
+          );
+        },
+        renderH1DictionaryList = () => {
+          searchPaneResultsEl.innerHTML = "";
+          const entries = buildDictionaryH1List();
+          if (!entries.length) {
+            const empty = document.createElement("li");
+            (empty.className = "search-pane-empty"),
+              (empty.textContent = "見出し(h1)がありません"),
+              searchPaneResultsEl.appendChild(empty);
+            return;
+          }
+          entries.forEach((r) => {
+            const li = document.createElement("li"),
+              headingLine = document.createElement("div");
+            (li.className = "search-pane-result"),
+              (headingLine.className = "search-result-snippet"),
+              (headingLine.textContent = r.headingText),
+              li.appendChild(headingLine),
+              li.addEventListener("mouseenter", () =>
+                previewSearchResult(r, li)
+              ),
+              li.addEventListener("click", () => commitSearchResult(r, li)),
+              searchPaneResultsEl.appendChild(li);
+          });
+        },
         renderSearchPaneResults = (query) => {
           searchPaneResultsEl.innerHTML = "";
-          if (!query) return;
+          if (!query) return void renderH1DictionaryList();
           const results = searchAcrossDays(query);
           if (!results.length) {
             const empty = document.createElement("li");
@@ -3385,6 +3434,7 @@
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
             localStorage.setItem("searchPaneCollapsed", "0"),
+            renderSearchPaneResults(searchPaneInputEl.value),
             searchPaneInputEl.focus();
         },
         STORAGE_QUOTA_KB = 5120,
@@ -3815,6 +3865,44 @@
             URL.revokeObjectURL(url),
             showToast(`バックアップをダウンロードしました (${Object.keys(data).length} 件)`, "success");
         },
+        // 日本時間の日付が変わって最初にページを開いたタイミングで自動エクスポートする。
+        // 同期が有効な場合は専用sync_idでサーバーにフラグを問い合わせ、その日
+        // まだどの端末も自動エクスポートしていなければサーバー側が「claimed」を
+        // 返す(Postgresの行ロックにより、複数端末が同時に開いても最初の1台だけが
+        // claimedになる)。同期が無効/オフライン/通信失敗時は、この端末単独の
+        // localStorageフラグにフォールバックする。
+        getJstDateString = () =>
+          new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        maybeRunDailyAutoExport = async () => {
+          const localFlagKey = "lastAutoExportDateJst",
+            todayJst = getJstDateString();
+          if (localStorage.getItem(localFlagKey) === todayJst) return;
+          const seed = getSyncSeed();
+          if (seed && navigator.onLine) {
+            try {
+              const syncId = await deriveSyncId(seed, SYNC_ID_INFO_EXPORT_FLAG),
+                res = await fetchWithTimeout(
+                  "/api/export-flag",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ sync_id: syncId }),
+                  },
+                  8000
+                );
+              if (res.ok) {
+                const body = await res.json();
+                localStorage.setItem(localFlagKey, body.date || todayJst);
+                body.claimed && downloadBackup();
+                return;
+              }
+            } catch (err) {
+              console.warn("[auto-export] flag check failed:", err);
+            }
+          }
+          localStorage.setItem(localFlagKey, todayJst);
+          downloadBackup();
+        },
         resetEverything = async () => {
           if (
             !confirm(
@@ -3872,6 +3960,9 @@
         // 変えるだけでSHA-256の出力が変わるので、導出方法はそのまま流用できる。
         SYNC_ID_INFO_ENTRIES = new TextEncoder().encode("ihcimen-sync-id-entries-v1"),
         SYNC_ID_INFO_CALENDAR = new TextEncoder().encode("ihcimen-sync-id-calendar-v1"),
+        // 1日1回の自動エクスポート済みフラグの同期にのみ使う専用sync_id。
+        // 本文/カレンダーとは無関係な用途なので別のinfo文字列で導出する。
+        SYNC_ID_INFO_EXPORT_FLAG = new TextEncoder().encode("ihcimen-sync-id-export-flag-v1"),
         AES_INFO = new TextEncoder().encode("ihcimen-aes-key-v1"),
         HKDF_SALT = new TextEncoder().encode("ihcimen-fixed-salt-v1"),
         bytesToBase64 = (bytes) => {
@@ -5278,7 +5369,9 @@
               selectedCell.scrollIntoView(
                 document.body.classList.contains("schedule-bar-fullscreen")
                   ? { inline: "nearest", block: "center" }
-                  : { inline: "center", block: "nearest" }
+                  // 選択中の日を中央ではなく左端に置き、今日以降の
+                  // これからの日々が右側に見えるようにする。
+                  : { inline: "start", block: "nearest" }
               ),
               setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
             fillScheduleBarFullscreen(),
@@ -5867,6 +5960,7 @@
             "search-pane-collapsed"
           );
           localStorage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
+          collapsed || renderSearchPaneResults(searchPaneInputEl.value);
         }),
         historyBtnEl.addEventListener("click", (e) => {
           e.stopPropagation(), openHistoryModal();
@@ -6147,6 +6241,7 @@
             "search-pane-collapsed",
             "0" !== localStorage.getItem("searchPaneCollapsed")
           );
+          renderSearchPaneResults(searchPaneInputEl.value);
           // ページを開いたとき、その日にブロックが0個なら新規作成用の
           // textareaへフォーカスする(ページを開いた直後だけ。日付を
           // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
@@ -6175,6 +6270,10 @@
           initialLoadOverlayEl &&
             (initialLoadOverlayEl.classList.add("hidden"),
               setTimeout(() => initialLoadOverlayEl.remove(), 300));
+          // その日(JST)最初にページを開いたときの自動エクスポート
+          maybeRunDailyAutoExport().catch((err) =>
+            console.warn("[auto-export] failed:", err)
+          );
         });
       window.addEventListener("online", () => {
         pullAndMergeAll(),

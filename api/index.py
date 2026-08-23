@@ -5,7 +5,7 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import psycopg2
 from flask import Flask, Response, jsonify, request
@@ -20,6 +20,7 @@ HANDOFF_TTL_SECONDS = 600  # 6桁コードの有効期限(10分)
 ICS_FETCH_TIMEOUT_SECONDS = 10
 ICS_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap on the fetched ICS body
 ICS_PUBLISH_MAX_BYTES = 1 * 1024 * 1024  # 1 MB cap on a published ICS body
+JST = timezone(timedelta(hours=9))
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS sync_blobs (
@@ -51,6 +52,17 @@ CREATE TABLE IF NOT EXISTS published_ics (
     last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
+
+-- 「その日初めてページを開いたときの自動エクスポート」を、同じsync_idを
+-- 共有する端末間で1日1回だけに絞るためのフラグ。sync_idは同期データとは
+-- 無関係な専用のinfo文字列から導出されるため、本文/カレンダーの内容は
+-- ここには一切含まれない(JST日付文字列のみ)。
+CREATE TABLE IF NOT EXISTS export_flags (
+    sync_id           TEXT PRIMARY KEY,
+    last_export_date  TEXT NOT NULL,
+    last_synced_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_export_flags_last_synced_at ON export_flags (last_synced_at);
 """
 
 
@@ -233,6 +245,51 @@ def pull():
             iv=iv,
             updated_at=to_utc_iso8601(content_updated_at),
         )
+    finally:
+        conn.close()
+
+
+@app.route("/api/export-flag", methods=["POST"])
+def export_flag():
+    # その日(JST)最初にページを開いた端末だけが自動エクスポートを実行できる
+    # ように、sync_idごとに「最後に自動エクスポートを行った日付」を排他的に
+    # 更新する。ON CONFLICT ... WHERE ... RETURNING により、同じ日付へすでに
+    # 更新済みの行は0行しか返らない(=このリクエストは「今日はまだ」だと
+    # 主張できない)ため、Postgresの行ロックだけで複数端末の同時アクセスに
+    # 対しても排他が成立する。
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify(error="invalid JSON body"), 400
+
+    sync_id = body.get("sync_id")
+    if not (isinstance(sync_id, str) and SYNC_ID_RE.match(sync_id)):
+        return jsonify(error="sync_id must be a 64-character hex string"), 400
+
+    today_jst = datetime.now(JST).strftime("%Y-%m-%d")
+
+    try:
+        conn = get_connection()
+    except RuntimeError as err:
+        return jsonify(error=str(err)), 500
+
+    try:
+        ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO export_flags (sync_id, last_export_date, last_synced_at)
+                VALUES (%s, %s, now())
+                ON CONFLICT (sync_id) DO UPDATE SET
+                    last_export_date = EXCLUDED.last_export_date,
+                    last_synced_at = now()
+                WHERE export_flags.last_export_date IS DISTINCT FROM EXCLUDED.last_export_date
+                RETURNING last_export_date
+                """,
+                (sync_id, today_jst),
+            )
+            claimed = cur.fetchone() is not None
+        conn.commit()
+        return jsonify(claimed=claimed, date=today_jst)
     finally:
         conn.close()
 
@@ -483,11 +540,16 @@ def cleanup():
                 "DELETE FROM published_ics WHERE last_synced_at < now() - interval '7 days'"
             )
             deleted_published_ics = cur.rowcount
+            cur.execute(
+                "DELETE FROM export_flags WHERE last_synced_at < now() - interval '7 days'"
+            )
+            deleted_export_flags = cur.rowcount
         conn.commit()
         return jsonify(
             deleted=deleted,
             deleted_handoffs=deleted_handoffs,
             deleted_published_ics=deleted_published_ics,
+            deleted_export_flags=deleted_export_flags,
         )
     finally:
         conn.close()

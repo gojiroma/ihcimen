@@ -41,3 +41,18 @@ CREATE TABLE IF NOT EXISTS published_ics (
 );
 
 CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
+
+-- Backs the "first open of the day (JST) triggers an automatic export"
+-- feature. sync_id here is derived from a dedicated info string, unrelated
+-- to the entries/calendar sync_ids, so this table never carries any note
+-- content — only a JST calendar-date string per sync_id. A device claims
+-- the day's export by successfully changing last_export_date; Postgres's
+-- row-level locking on the UPSERT ensures only one device sharing the same
+-- seed can claim a given day, even if several open the app at once.
+CREATE TABLE IF NOT EXISTS export_flags (
+    sync_id           TEXT PRIMARY KEY,
+    last_export_date  TEXT NOT NULL,
+    last_synced_at    TIMESTAMPTZ NOT NULL DEFAULT now() -- bumped on every check; drives the 7-day inactivity cleanup
+);
+
+CREATE INDEX IF NOT EXISTS idx_export_flags_last_synced_at ON export_flags (last_synced_at);
