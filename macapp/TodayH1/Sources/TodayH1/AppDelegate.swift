@@ -33,8 +33,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "設定…", action: #selector(showSettings), keyEquivalent: ","))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        menu.items.forEach { $0.target = self }
+        let quitItem = NSMenuItem(title: "終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(quitItem)
+        // Every other item is handled by AppDelegate directly; "終了" must
+        // keep going through the responder chain to NSApplication itself,
+        // since AppDelegate has no terminate(_:) of its own.
+        menu.items.forEach { $0.target = ($0 === quitItem) ? nil : self }
         statusItem.menu = menu
     }
 

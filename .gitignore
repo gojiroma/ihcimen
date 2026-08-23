@@ -4,3 +4,12 @@ __pycache__/
 venv/
 .env
 .DS_Store
+
+# Android (android/)
+android/.gradle/
+android/local.properties
+android/**/build/
+android/.idea/
+android/**/*.iml
+android/captures/
+android/.cxx/

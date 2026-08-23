@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Daily Notes</string>
+    <string name="widget_label">今日のページ</string>
+
+    <string name="nav_today">今日</string>
+    <string name="nav_recent">最近</string>
+    <string name="nav_settings">設定</string>
+
+    <string name="today_save">保存</string>
+    <string name="today_sync_now">今すぐ同期</string>
+    <string name="today_syncing">同期中…</string>
+
+    <string name="capture_save">保存</string>
+    <string name="capture_cancel">キャンセル</string>
+
+    <string name="settings_sync_enable">同期を有効にする</string>
+    <string name="settings_sync_disable">同期を無効にする</string>
+    <string name="settings_seed_label">同期シード</string>
+    <string name="settings_seed_hint">Webアプリの「設定 &gt; 同期」に表示されているシードを貼り付け</string>
+    <string name="settings_seed_paste_save">貼り付けたシードを保存</string>
+    <string name="settings_api_url_label">API URL</string>
+    <string name="settings_last_synced">最終同期</string>
+    <string name="settings_never_synced">未同期</string>
+
+    <string name="conflict_title">同期で競合</string>
+    <string name="conflict_message">この端末とは別の場所で、本文に別の変更がありました。どちらの内容を残すか選んでください。</string>
+    <string name="conflict_keep_local">この端末を優先</string>
+    <string name="conflict_keep_server">サーバーを優先</string>
+</resources>

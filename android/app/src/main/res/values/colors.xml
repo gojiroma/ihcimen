@@ -1,0 +1,6 @@
+<resources>
+    <!-- Matches manifest.json's theme_color / background_color for the web app. -->
+    <color name="brand_primary">#3B82C4</color>
+    <color name="brand_on_primary">#FFFFFF</color>
+    <color name="launcher_background">#3B82C4</color>
+</resources>
