@@ -1543,6 +1543,16 @@
       text-overflow: ellipsis;
     }
 
+    .schedule-weather {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      font-size: 11px;
+      opacity: 0.75;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
     .schedule-ics-events {
       display: flex;
       flex-direction: column;
@@ -2187,6 +2197,7 @@
           <li>見出しのショートカット・バージョン履歴は、本文エリア右下/左上のアイコンから利用できます。</li>
           <li>右上の陽アイコンから、懸案事項・最初に着手すること・考えるテーマ・身体のケアをまとめたモーニングページを作成できます(直近14日分の未完了項目を自動で拾って懸案事項に並べます)。</li>
           <li>見出しの先頭に "!"(いくつでも)を付けると優先度が上がります。ICSの予定が多い日は本文の上に優先度順の一覧と時間配分の目安が表示されます。</li>
+          <li>下段カレンダーの各日セル右上には、天気予報のアイコンと最高気温が表示されます(位置情報が使えない場合は東京の予報)。</li>
         </ul>
       </details>
       <details>
@@ -2702,6 +2713,16 @@
           } catch (err) {
             return {};
           }
+        })(),
+        // 日付キー(YYYY-MM-DD) -> { tempMax, code } の、下段カレンダー用の日次天気予報キャッシュ。
+        dailyForecastCache = (() => {
+          try {
+            return JSON.parse(
+              localStorage.getItem("dailyForecastCache") || "{}"
+            );
+          } catch (err) {
+            return {};
+          }
         })();
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0,
@@ -3117,39 +3138,92 @@
                     : code >= 95
                       ? "⛈️"
                       : "🌡️",
-        fetchWeather = () =>
+        // 位置情報の解決はヘッダーの天気とカレンダーセルの予報で共有する
+        // (許可ダイアログを2回出さないため、また同じ地点で揃えるため)。
+        resolveWeatherCoords = () =>
           new Promise((resolve) => {
-            const withCoords = (lat, lon) => {
+            navigator.geolocation
+              ? navigator.geolocation.getCurrentPosition(
+                  (pos) =>
+                    resolve({
+                      lat: pos.coords.latitude.toFixed(2),
+                      lon: pos.coords.longitude.toFixed(2),
+                    }),
+                  () => resolve(TOKYO_LATLON),
+                  { timeout: 4000, maximumAge: 30 * 60 * 1000 }
+                )
+              : resolve(TOKYO_LATLON);
+          }),
+        fetchWeather = () =>
+          resolveWeatherCoords().then(
+            ({ lat, lon }) =>
               fetch(
                 `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
               )
                 .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
                 .then((data) => {
                   const cw = data && data.current_weather;
-                  resolve(
-                    cw && "number" == typeof cw.temperature
-                      ? {
-                          tempC: Math.round(cw.temperature),
-                          code: cw.weathercode,
+                  return cw && "number" == typeof cw.temperature
+                    ? {
+                        tempC: Math.round(cw.temperature),
+                        code: cw.weathercode,
+                        updatedAt: Date.now(),
+                      }
+                    : null;
+                })
+                .catch(() => null)
+          ),
+        // 下段カレンダーの各日セル用に、当日から先の予報と直近数日分をまとめて取得する。
+        DAILY_FORECAST_PAST_DAYS = 3,
+        DAILY_FORECAST_FUTURE_DAYS = 16,
+        DAILY_FORECAST_PRUNE_DAYS = 60,
+        fetchDailyForecast = () =>
+          resolveWeatherCoords().then(
+            ({ lat, lon }) =>
+              fetch(
+                `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max&timezone=auto&past_days=${DAILY_FORECAST_PAST_DAYS}&forecast_days=${DAILY_FORECAST_FUTURE_DAYS}`
+              )
+                .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+                .then((data) => {
+                  const daily = data && data.daily;
+                  if (!daily || !Array.isArray(daily.time)) return null;
+                  const map = {};
+                  return (
+                    daily.time.forEach((dateKey, i) => {
+                      const tempMax =
+                          daily.temperature_2m_max &&
+                          daily.temperature_2m_max[i],
+                        code = daily.weathercode && daily.weathercode[i];
+                      "number" == typeof tempMax &&
+                        (map[dateKey] = {
+                          tempMax: Math.round(tempMax),
+                          code,
                           updatedAt: Date.now(),
-                        }
-                      : null
+                        });
+                    }),
+                    map
                   );
                 })
-                .catch(() => resolve(null));
-            };
-            navigator.geolocation
-              ? navigator.geolocation.getCurrentPosition(
-                  (pos) =>
-                    withCoords(
-                      pos.coords.latitude.toFixed(2),
-                      pos.coords.longitude.toFixed(2)
-                    ),
-                  () => withCoords(TOKYO_LATLON.lat, TOKYO_LATLON.lon),
-                  { timeout: 4000, maximumAge: 30 * 60 * 1000 }
-                )
-              : withCoords(TOKYO_LATLON.lat, TOKYO_LATLON.lon);
-          }),
+                .catch(() => null)
+          ),
+        saveDailyForecastCache = (map) => {
+          const cutoffKey = toDateKey(
+            new Date(Date.now() - DAILY_FORECAST_PRUNE_DAYS * I)
+          );
+          Object.assign(dailyForecastCache, map);
+          Object.keys(dailyForecastCache).forEach((k) => {
+            k < cutoffKey && delete dailyForecastCache[k];
+          });
+          localStorage.setItem(
+            "dailyForecastCache",
+            JSON.stringify(dailyForecastCache)
+          );
+        },
+        refreshDailyForecast = () => {
+          fetchDailyForecast().then((map) => {
+            map && (saveDailyForecastCache(map), renderScheduleBar());
+          });
+        },
         fetchMarketQuote = (symbol) =>
           fetch(
             `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`
@@ -3237,6 +3311,10 @@
             refreshInfoWidget(),
             setInterval(refreshInfoWidget, INFO_WIDGET_REFRESH_MS),
             infoWidgetEl.addEventListener("click", refreshInfoWidget);
+        },
+        initDailyForecast = () => {
+          refreshDailyForecast(),
+            setInterval(refreshDailyForecast, INFO_WIDGET_REFRESH_MS);
         },
         // --- 多忙な日の優先度ソート・時間配分の目安 ---
         // 見出しの先頭に付けた "!" の数を優先度として扱う(例: "# !! 資料作成")。
@@ -5873,8 +5951,18 @@
               : localStorage.removeItem(`note:${key}`);
             maybeSyncPushChannel("calendar");
           }),
-            cell.appendChild(dateLabel),
-            holidayLabel && cell.appendChild(holidayLabel),
+            cell.appendChild(dateLabel);
+          const forecast = dailyForecastCache[key];
+          if (forecast) {
+            const weatherEl = document.createElement("div");
+            (weatherEl.className = "schedule-weather"),
+              (weatherEl.textContent = `${weatherCodeToEmoji(forecast.code)}${
+                forecast.tempMax
+              }°`),
+              (weatherEl.title = `予報: 最高${forecast.tempMax}℃`),
+              cell.appendChild(weatherEl);
+          }
+          holidayLabel && cell.appendChild(holidayLabel),
             icsEventsEl && cell.appendChild(icsEventsEl),
             cell.appendChild(noteInput);
           return cell;
@@ -6969,6 +7057,7 @@
           renderSearchPaneResults(searchPaneInputEl.value);
           renderSearchHistoryChips();
           initInfoWidget();
+          initDailyForecast();
           renderBusyDayPanel();
           setInterval(renderBusyDayPanel, 10 * 60 * 1000);
           // ページを開いたとき、その日にブロックが0個なら新規作成用の
