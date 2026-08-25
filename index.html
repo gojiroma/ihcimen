@@ -425,6 +425,49 @@
       margin-right: 10px;
     }
 
+    .info-widget {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: -10px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      opacity: 0.65;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .info-widget:empty {
+      display: none;
+    }
+
+    .info-widget:hover {
+      opacity: 0.95;
+    }
+
+    .info-widget-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .info-widget-item.is-stale {
+      opacity: 0.55;
+    }
+
+    .info-widget-item .info-widget-delta.up {
+      color: #c0392b;
+    }
+
+    .info-widget-item .info-widget-delta.down {
+      color: #2471a3;
+    }
+
+    body.touch-editing .info-widget {
+      display: none;
+    }
+
     .date-display .weekday {
       font-size: 18px;
       line-height: 1.2;
@@ -2033,6 +2076,7 @@
       <span class="month-day" id="monthDayDisplay">MM/DD</span>
       <span class="weekday" id="weekdayDisplay">EEEE</span>
     </div>
+    <div id="infoWidget" class="info-widget" title="クリックで更新"></div>
     <div class="content-area">
       <p id="privacyBanner" class="privacy-banner">
         同期を使う場合、内容は端末上で暗号化されます。詳しくは
@@ -2529,6 +2573,7 @@
         historyBtnEl = document.getElementById("historyBtn"),
         copyDayBtnEl = document.getElementById("copyDayBtn"),
         morningPageBtnEl = document.getElementById("morningPageBtn"),
+        infoWidgetEl = document.getElementById("infoWidget"),
         historyModalEl = document.getElementById("historyModal"),
         historySliderEl = document.getElementById("historySlider"),
         historyMetaEl = document.getElementById("historyMeta"),
@@ -2955,6 +3000,160 @@
             H(),
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
+        },
+        // --- 天気・日経平均・ドル円のミニウィジェット ---
+        // 位置情報はブラウザの許可が得られた場合のみ使い、拒否/取得失敗時は
+        // 東京の座標にフォールバックする。取得に失敗した項目はそのまま
+        // 表示しない(直近の成功値がキャッシュにあればそれを薄く表示する)。
+        INFO_WIDGET_CACHE_KEY = "infoWidgetCache",
+        INFO_WIDGET_REFRESH_MS = 15 * 60 * 1000,
+        INFO_WIDGET_STALE_MS = 3 * 60 * 60 * 1000,
+        TOKYO_LATLON = { lat: 35.6895, lon: 139.6917 },
+        loadInfoWidgetCache = () => {
+          try {
+            return JSON.parse(
+              localStorage.getItem(INFO_WIDGET_CACHE_KEY) || "{}"
+            );
+          } catch (e) {
+            return {};
+          }
+        },
+        saveInfoWidgetCache = (cache) =>
+          localStorage.setItem(INFO_WIDGET_CACHE_KEY, JSON.stringify(cache)),
+        weatherCodeToEmoji = (code) =>
+          0 === code
+            ? "☀️"
+            : code >= 1 && code <= 3
+              ? "⛅"
+              : 45 === code || 48 === code
+                ? "🌫️"
+                : (code >= 51 && code <= 67) || (code >= 80 && code <= 82)
+                  ? "🌧️"
+                  : code >= 71 && code <= 77
+                    ? "❄️"
+                    : code >= 95
+                      ? "⛈️"
+                      : "🌡️",
+        fetchWeather = () =>
+          new Promise((resolve) => {
+            const withCoords = (lat, lon) => {
+              fetch(
+                `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
+              )
+                .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+                .then((data) => {
+                  const cw = data && data.current_weather;
+                  resolve(
+                    cw && "number" == typeof cw.temperature
+                      ? {
+                          tempC: Math.round(cw.temperature),
+                          code: cw.weathercode,
+                          updatedAt: Date.now(),
+                        }
+                      : null
+                  );
+                })
+                .catch(() => resolve(null));
+            };
+            navigator.geolocation
+              ? navigator.geolocation.getCurrentPosition(
+                  (pos) =>
+                    withCoords(
+                      pos.coords.latitude.toFixed(2),
+                      pos.coords.longitude.toFixed(2)
+                    ),
+                  () => withCoords(TOKYO_LATLON.lat, TOKYO_LATLON.lon),
+                  { timeout: 4000, maximumAge: 30 * 60 * 1000 }
+                )
+              : withCoords(TOKYO_LATLON.lat, TOKYO_LATLON.lon);
+          }),
+        fetchMarketQuote = (symbol) =>
+          fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`
+          )
+            .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+            .then((data) => {
+              const meta =
+                data &&
+                data.chart &&
+                data.chart.result &&
+                data.chart.result[0] &&
+                data.chart.result[0].meta;
+              if (!meta || "number" != typeof meta.regularMarketPrice)
+                return null;
+              const price = meta.regularMarketPrice,
+                prevClose =
+                  "number" == typeof meta.chartPreviousClose
+                    ? meta.chartPreviousClose
+                    : meta.previousClose,
+                changePercent =
+                  "number" == typeof prevClose && prevClose
+                    ? ((price - prevClose) / prevClose) * 100
+                    : null;
+              return { price, changePercent, updatedAt: Date.now() };
+            })
+            .catch(() => null),
+        renderInfoWidget = () => {
+          const cache = loadInfoWidgetCache();
+          infoWidgetEl.innerHTML = "";
+          const addItem = (html, updatedAt) => {
+            const item = document.createElement("span");
+            (item.className = "info-widget-item"),
+              updatedAt &&
+                Date.now() - updatedAt > INFO_WIDGET_STALE_MS &&
+                item.classList.add("is-stale"),
+              (item.innerHTML = html),
+              infoWidgetEl.appendChild(item);
+          };
+          cache.weather &&
+            addItem(
+              `${weatherCodeToEmoji(cache.weather.code)} ${cache.weather.tempC}℃`,
+              cache.weather.updatedAt
+            );
+          if (cache.nikkei) {
+            const delta =
+                "number" == typeof cache.nikkei.changePercent
+                  ? cache.nikkei.changePercent
+                  : null,
+              deltaClass = null === delta ? "" : delta >= 0 ? "up" : "down",
+              deltaText =
+                null === delta
+                  ? ""
+                  : ` <span class="info-widget-delta ${deltaClass}">${
+                      delta >= 0 ? "+" : ""
+                    }${delta.toFixed(2)}%</span>`;
+            addItem(
+              `📈 日経 ${Math.round(cache.nikkei.price).toLocaleString(
+                "ja-JP"
+              )}${deltaText}`,
+              cache.nikkei.updatedAt
+            );
+          }
+          cache.usdjpy &&
+            addItem(
+              `💴 USD/JPY ${cache.usdjpy.price.toFixed(2)}`,
+              cache.usdjpy.updatedAt
+            );
+        },
+        refreshInfoWidget = () => {
+          Promise.all([
+            fetchWeather(),
+            fetchMarketQuote("^N225"),
+            fetchMarketQuote("JPY=X"),
+          ]).then(([weather, nikkei, usdjpy]) => {
+            const cache = loadInfoWidgetCache();
+            weather && (cache.weather = weather),
+              nikkei && (cache.nikkei = nikkei),
+              usdjpy && (cache.usdjpy = usdjpy),
+              saveInfoWidgetCache(cache),
+              renderInfoWidget();
+          });
+        },
+        initInfoWidget = () => {
+          renderInfoWidget(),
+            refreshInfoWidget(),
+            setInterval(refreshInfoWidget, INFO_WIDGET_REFRESH_MS),
+            infoWidgetEl.addEventListener("click", refreshInfoWidget);
         },
         // --- モーニングページ(懸案事項より大事なことを見渡すための朝テンプレート) ---
         MORNING_PAGE_HEADING = "🌅 モーニングページ",
@@ -6520,6 +6719,7 @@
           );
           renderSearchPaneResults(searchPaneInputEl.value);
           renderSearchHistoryChips();
+          initInfoWidget();
           // ページを開いたとき、その日にブロックが0個なら新規作成用の
           // textareaへフォーカスする(ページを開いた直後だけ。日付を
           // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
