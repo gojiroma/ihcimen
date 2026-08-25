@@ -20,6 +20,7 @@ HANDOFF_TTL_SECONDS = 600  # 6桁コードの有効期限(10分)
 ICS_FETCH_TIMEOUT_SECONDS = 10
 ICS_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap on the fetched ICS body
 ICS_PUBLISH_MAX_BYTES = 1 * 1024 * 1024  # 1 MB cap on a published ICS body
+ICS_PUBLISH_TTL_SECONDS = 3 * 60 * 60  # 公開URLの有効期限(3時間、一時的な共有リンク)
 JST = timezone(timedelta(hours=9))
 
 SCHEMA_SQL = """
@@ -491,19 +492,31 @@ def ics_serve(publish_id):
         ensure_schema(conn)
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT ics_text FROM published_ics WHERE publish_id = %s",
+                "SELECT ics_text, updated_at FROM published_ics WHERE publish_id = %s",
                 (publish_id,),
             )
             row = cur.fetchone()
             if row is None:
                 conn.commit()
                 return jsonify(error="not found"), 404
+            ics_text, updated_at = row
+            # 一時的な共有リンクとして、最後の更新(発行/再発行/内容変更)から
+            # ICS_PUBLISH_TTL_SECONDSが経過したら失効させる。last_synced_at
+            # (購読アプリからの定期フェッチ)では延長されない、更新時刻基準の
+            # 固定期限。
+            age = datetime.now(timezone.utc) - updated_at
+            if age.total_seconds() > ICS_PUBLISH_TTL_SECONDS:
+                cur.execute(
+                    "DELETE FROM published_ics WHERE publish_id = %s", (publish_id,)
+                )
+                conn.commit()
+                return jsonify(error="this share link has expired"), 410
             cur.execute(
                 "UPDATE published_ics SET last_synced_at = now() WHERE publish_id = %s",
                 (publish_id,),
             )
         conn.commit()
-        return Response(row[0], mimetype="text/calendar")
+        return Response(ics_text, mimetype="text/calendar")
     finally:
         conn.close()
 
@@ -538,6 +551,7 @@ def cleanup():
             deleted_handoffs = cur.rowcount
             cur.execute(
                 "DELETE FROM published_ics WHERE last_synced_at < now() - interval '7 days'"
+                f" OR updated_at < now() - interval '{ICS_PUBLISH_TTL_SECONDS} seconds'"
             )
             deleted_published_ics = cur.rowcount
             cur.execute(
