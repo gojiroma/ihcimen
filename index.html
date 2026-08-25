@@ -1884,6 +1884,67 @@
       font-size: 13px;
       opacity: 0.6;
     }
+
+    .search-pane-history {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+
+    .search-pane-history:empty {
+      display: none;
+      padding: 0;
+      border-bottom: none;
+    }
+
+    .search-history-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1.3;
+      max-width: 100%;
+      padding: 3px 4px 3px 10px;
+      border: 1px solid rgba(128, 128, 128, 0.35);
+      border-radius: 12px;
+      background-color: rgba(128, 128, 128, 0.08);
+      color: inherit;
+      cursor: pointer;
+    }
+
+    .search-history-chip:hover {
+      background-color: rgba(128, 128, 128, 0.18);
+    }
+
+    .search-history-chip-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 110px;
+    }
+
+    .search-history-chip-remove {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      opacity: 0.55;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .search-history-chip-remove:hover {
+      opacity: 1;
+      background-color: rgba(128, 128, 128, 0.25);
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
@@ -1927,6 +1988,7 @@
       </svg>
       <input type="text" id="searchPaneInput" placeholder="検索 (fキー)" />
     </div>
+    <div id="searchPaneHistory" class="search-pane-history"></div>
     <ul id="searchPaneResults"></ul>
   </div>
   <button id="searchPaneToggle" class="search-pane-toggle" type="button">検索</button>
@@ -2438,6 +2500,7 @@
         searchPaneToggleEl = document.getElementById("searchPaneToggle"),
         searchPaneInputEl = document.getElementById("searchPaneInput"),
         searchPaneResultsEl = document.getElementById("searchPaneResults"),
+        searchPaneHistoryEl = document.getElementById("searchPaneHistory"),
         v = {
           selectedDate: new Date(),
           saveTimer: void 0,
@@ -2943,9 +3006,22 @@
               box.style.height = "0px";
               box.style.height = Math.max(box.scrollHeight, 30) + "px";
             }),
-            box.addEventListener("keydown", (e) =>
-              applyMarkdownEditorKeydown(box, e)
-            ),
+            box.addEventListener("keydown", (e) => {
+              if (
+                !e.isComposing &&
+                229 !== e.keyCode &&
+                "Enter" === e.key &&
+                (e.metaKey || e.ctrlKey)
+              ) {
+                // Cmd/Ctrl+Enter: 今書いている話題を確定保存し、
+                // 続けて別の新しい話題を書き始められるようにする。
+                e.preventDefault();
+                commitNewBlockBox(box);
+                box.focus();
+                return;
+              }
+              applyMarkdownEditorKeydown(box, e);
+            }),
             box.addEventListener("focus", () => {
               box.value ||
                 ((box.value = "# "),
@@ -3417,6 +3493,7 @@
           flashHighlight(liEl);
         },
         commitSearchResult = (r, liEl) => {
+          addSearchHistory(searchPaneInputEl.value.trim() || r.headingText || "");
           activeBlockEl && s.blur();
           saveCurrentMemo(),
             (f = new Date(r.date)),
@@ -3431,10 +3508,69 @@
           }
           pullAndMergeAll(), flashHighlight(liEl);
         },
+        SEARCH_HISTORY_KEY = "searchHistory",
+        SEARCH_HISTORY_MAX = 15,
+        getSearchHistory = () => {
+          try {
+            const list = JSON.parse(
+              localStorage.getItem(SEARCH_HISTORY_KEY) || "[]"
+            );
+            return Array.isArray(list) ? list.filter((e) => "string" == typeof e) : [];
+          } catch (e) {
+            return [];
+          }
+        },
+        // 検索履歴の先頭に追加する(既存の同じ語は取り除いてから追加し直す
+        // ことで最近使った順に並び替える)。fキーやクリックで振り返れるよう、
+        // 絵文字を含む語もそのまま文字列として保存する。
+        addSearchHistory = (query) => {
+          const q = (query || "").trim();
+          if (!q) return;
+          const next = [q, ...getSearchHistory().filter((e) => e !== q)].slice(
+            0,
+            SEARCH_HISTORY_MAX
+          );
+          localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+          renderSearchHistoryChips();
+        },
+        removeSearchHistory = (query) => {
+          const next = getSearchHistory().filter((e) => e !== query);
+          localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+          renderSearchHistoryChips();
+        },
+        renderSearchHistoryChips = () => {
+          searchPaneHistoryEl.innerHTML = "";
+          getSearchHistory().forEach((q) => {
+            const chip = document.createElement("button"),
+              label = document.createElement("span"),
+              remove = document.createElement("span");
+            (chip.type = "button"),
+              (chip.className = "search-history-chip"),
+              (chip.title = q),
+              (label.className = "search-history-chip-label"),
+              (label.textContent = q),
+              (remove.className = "search-history-chip-remove"),
+              (remove.textContent = "×"),
+              (remove.title = "履歴から削除"),
+              remove.addEventListener("click", (e) => {
+                e.stopPropagation(), removeSearchHistory(q);
+              }),
+              chip.addEventListener("click", () => {
+                (searchPaneInputEl.value = q),
+                  renderSearchPaneResults(q),
+                  addSearchHistory(q),
+                  searchPaneInputEl.focus();
+              }),
+              chip.appendChild(label),
+              chip.appendChild(remove),
+              searchPaneHistoryEl.appendChild(chip);
+          });
+        },
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
             localStorage.setItem("searchPaneCollapsed", "0"),
             renderSearchPaneResults(searchPaneInputEl.value),
+            renderSearchHistoryChips(),
             searchPaneInputEl.focus();
         },
         STORAGE_QUOTA_KB = 5120,
@@ -5666,7 +5802,8 @@
           "Escape" === e.key &&
             (searchPaneInputEl.blur(),
               document.body.classList.add("search-pane-collapsed"),
-              localStorage.setItem("searchPaneCollapsed", "1"));
+              localStorage.setItem("searchPaneCollapsed", "1")),
+            "Enter" === e.key && addSearchHistory(searchPaneInputEl.value);
         }),
         s.addEventListener("input", () => {
           if (!activeBlockKey) return;
@@ -5709,7 +5846,22 @@
         s.addEventListener("focus", () => {
           isTouchDevice && document.body.classList.add("touch-editing");
         }),
-        s.addEventListener("keydown", (e) => applyMarkdownEditorKeydown(s, e)),
+        s.addEventListener("keydown", (e) => {
+          if (
+            !e.isComposing &&
+            229 !== e.keyCode &&
+            "Enter" === e.key &&
+            (e.metaKey || e.ctrlKey)
+          ) {
+            // Cmd/Ctrl+Enter: 編集中のブロックを確定保存し、
+            // 新規メモ欄にフォーカスを移して別の話題を書き始められるようにする。
+            e.preventDefault();
+            s.blur();
+            newBlockBoxEl && newBlockBoxEl.focus();
+            return;
+          }
+          applyMarkdownEditorKeydown(s, e);
+        }),
         syncToggleBtnEl.addEventListener("click", () => {
           getSyncSeed()
             ? disableSync()
@@ -5960,7 +6112,9 @@
             "search-pane-collapsed"
           );
           localStorage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
-          collapsed || renderSearchPaneResults(searchPaneInputEl.value);
+          collapsed ||
+            (renderSearchPaneResults(searchPaneInputEl.value),
+              renderSearchHistoryChips());
         }),
         historyBtnEl.addEventListener("click", (e) => {
           e.stopPropagation(), openHistoryModal();
@@ -6242,6 +6396,7 @@
             "0" !== localStorage.getItem("searchPaneCollapsed")
           );
           renderSearchPaneResults(searchPaneInputEl.value);
+          renderSearchHistoryChips();
           // ページを開いたとき、その日にブロックが0個なら新規作成用の
           // textareaへフォーカスする(ページを開いた直後だけ。日付を
           // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
