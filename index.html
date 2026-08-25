@@ -468,6 +468,82 @@
       display: none;
     }
 
+    .busy-day-panel {
+      display: none;
+      width: 700px;
+      max-width: 100%;
+      margin-bottom: 16px;
+      border: 1px solid rgba(128, 128, 128, 0.3);
+      border-radius: 8px;
+      padding: 10px 12px;
+      box-sizing: border-box;
+      font-size: 13px;
+      background-color: rgba(128, 128, 128, 0.06);
+    }
+
+    .busy-day-panel.is-open {
+      display: block;
+    }
+
+    .busy-day-panel-header {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .busy-day-panel-empty {
+      opacity: 0.7;
+    }
+
+    .busy-day-panel-list {
+      list-style: decimal;
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .busy-day-panel-item {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 0;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.12);
+    }
+
+    .busy-day-panel-item:last-child {
+      border-bottom: none;
+    }
+
+    .busy-day-panel-item:hover {
+      opacity: 0.75;
+    }
+
+    .busy-day-panel-item.has-priority .busy-day-panel-label {
+      font-weight: 700;
+    }
+
+    .busy-day-panel-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .busy-day-panel-budget {
+      flex-shrink: 0;
+      opacity: 0.6;
+      font-size: 12px;
+    }
+
+    .busy-day-panel-footer {
+      margin-top: 8px;
+      font-size: 11px;
+      opacity: 0.6;
+    }
+
+    body.touch-editing .busy-day-panel {
+      display: none;
+    }
+
     .date-display .weekday {
       font-size: 18px;
       line-height: 1.2;
@@ -2077,6 +2153,7 @@
       <span class="weekday" id="weekdayDisplay">EEEE</span>
     </div>
     <div id="infoWidget" class="info-widget" title="クリックで更新"></div>
+    <div id="busyDayPanel" class="busy-day-panel"></div>
     <div class="content-area">
       <p id="privacyBanner" class="privacy-banner">
         同期を使う場合、内容は端末上で暗号化されます。詳しくは
@@ -2105,6 +2182,7 @@
           <li>右のWeek pane・左の検索パネルは端のタブで開閉、ノブへのホバーで一時的にプレビューできます。</li>
           <li>見出しのショートカット・バージョン履歴は、本文エリア右下/左上のアイコンから利用できます。</li>
           <li>右上の陽アイコンから、懸案事項・最初に着手すること・考えるテーマ・身体のケアをまとめたモーニングページを作成できます(直近14日分の未完了項目を自動で拾って懸案事項に並べます)。</li>
+          <li>見出しの先頭に "!"(いくつでも)を付けると優先度が上がります。ICSの予定が多い日は本文の上に優先度順の一覧と時間配分の目安が表示されます。</li>
         </ul>
       </details>
       <details>
@@ -2574,6 +2652,7 @@
         copyDayBtnEl = document.getElementById("copyDayBtn"),
         morningPageBtnEl = document.getElementById("morningPageBtn"),
         infoWidgetEl = document.getElementById("infoWidget"),
+        busyDayPanelEl = document.getElementById("busyDayPanel"),
         historyModalEl = document.getElementById("historyModal"),
         historySliderEl = document.getElementById("historySlider"),
         historyMetaEl = document.getElementById("historyMeta"),
@@ -3155,6 +3234,117 @@
             setInterval(refreshInfoWidget, INFO_WIDGET_REFRESH_MS),
             infoWidgetEl.addEventListener("click", refreshInfoWidget);
         },
+        // --- 多忙な日の優先度ソート・時間配分の目安 ---
+        // 見出しの先頭に付けた "!" の数を優先度として扱う(例: "# !! 資料作成")。
+        // 特別な入力UIを増やさず、既存の見出しテキストの慣習だけで表現する。
+        BUSY_EVENT_THRESHOLD = 4,
+        ASSUMED_EVENT_MINUTES = 45,
+        BUSY_WINDOW_START_HOUR = 8,
+        BUSY_WINDOW_END_HOUR = 22,
+        getBlockPriority = (headingText) => {
+          const m = (headingText || "").match(/^!+/);
+          return m ? m[0].length : 0;
+        },
+        // ICSの予定はDTSTART(開始時刻)しか保持していないため、1件あたり
+        // ASSUMED_EVENT_MINUTES分を占有するとみなす簡易的な見積もり。
+        computeBusyDayInfo = (date) => {
+          const dateKey = toDateKey(date),
+            events = icsEventsCache[dateKey] || [];
+          if (events.length < BUSY_EVENT_THRESHOLD) return null;
+          const todayKey = toDateKey(new Date());
+          if (dateKey < todayKey) return null;
+          const isToday = dateKey === todayKey,
+            now = new Date(),
+            windowStart = new Date(date);
+          windowStart.setHours(BUSY_WINDOW_START_HOUR, 0, 0, 0);
+          const windowEnd = new Date(date);
+          windowEnd.setHours(BUSY_WINDOW_END_HOUR, 0, 0, 0);
+          const effectiveStart =
+            isToday && now > windowStart ? now : windowStart;
+          let freeMinutes = 0;
+          if (effectiveStart < windowEnd) {
+            const totalWindowMinutes = (windowEnd - effectiveStart) / 60000,
+              upcomingCount = events.filter((ev) => {
+                if (ev.allDay) return !1;
+                if (!isToday) return !0;
+                const [h, mi] = (ev.time || "0:0").split(":").map(Number),
+                  evDate = new Date(date);
+                return (
+                  evDate.setHours(h, mi, 0, 0), evDate >= effectiveStart
+                );
+              }).length,
+              consumed = upcomingCount * ASSUMED_EVENT_MINUTES;
+            freeMinutes = Math.max(
+              0,
+              Math.round(totalWindowMinutes - consumed)
+            );
+          }
+          const blocks = buildDayBlocks(date)
+            .filter((b) => null !== b.headingText)
+            .map((b, idx) => ({
+              headingText: b.headingText,
+              priority: getBlockPriority(b.headingText),
+              idx,
+            }))
+            .sort((a, b) => b.priority - a.priority || a.idx - b.idx);
+          return { eventCount: events.length, freeMinutes, blocks };
+        },
+        jumpToDayBlockByHeading = (headingText) => {
+          const blockEl = Array.from(
+            o.querySelectorAll(".content-block")
+          ).find((el) => el._block.headingText === headingText);
+          blockEl &&
+            (blockEl.scrollIntoView({ behavior: "smooth", block: "center" }),
+              flashHighlight(blockEl));
+        },
+        renderBusyDayPanel = () => {
+          const info = computeBusyDayInfo(f);
+          busyDayPanelEl.innerHTML = "";
+          if (!info) return void busyDayPanelEl.classList.remove("is-open");
+          busyDayPanelEl.classList.add("is-open");
+          const header = document.createElement("div");
+          (header.className = "busy-day-panel-header"),
+            (header.textContent = `予定が多めの日です(ICS予定${info.eventCount}件)・優先度順`),
+            busyDayPanelEl.appendChild(header);
+          if (!info.blocks.length) {
+            const empty = document.createElement("div");
+            (empty.className = "busy-day-panel-empty"),
+              (empty.textContent = "この日のメモはまだありません"),
+              busyDayPanelEl.appendChild(empty);
+            return;
+          }
+          const perItem = Math.max(
+            10,
+            Math.round(info.freeMinutes / info.blocks.length / 5) * 5
+          );
+          const list = document.createElement("ol");
+          (list.className = "busy-day-panel-list"),
+            info.blocks.forEach((b) => {
+              const li = document.createElement("li"),
+                label = document.createElement("span"),
+                budget = document.createElement("span");
+              (li.className = "busy-day-panel-item"),
+                b.priority > 0 && li.classList.add("has-priority"),
+                (label.className = "busy-day-panel-label"),
+                (label.textContent = b.headingText),
+                (budget.className = "busy-day-panel-budget"),
+                (budget.textContent = `目安 ${perItem}分`),
+                li.appendChild(label),
+                li.appendChild(budget),
+                li.addEventListener("click", () =>
+                  jumpToDayBlockByHeading(b.headingText)
+                ),
+                list.appendChild(li);
+            }),
+            busyDayPanelEl.appendChild(list);
+          const footer = document.createElement("div");
+          (footer.className = "busy-day-panel-footer"),
+            (footer.textContent =
+              info.freeMinutes > 0
+                ? `残り時間の目安: 約${info.freeMinutes}分(見出しの先頭に "!" を付けるほど優先度が上がります)`
+                : `空き時間はわずかです。優先度の高いものから片付けましょう(見出しの先頭に "!" を付けるほど優先度が上がります)`),
+            busyDayPanelEl.appendChild(footer);
+        },
         // --- モーニングページ(懸案事項より大事なことを見渡すための朝テンプレート) ---
         MORNING_PAGE_HEADING = "🌅 モーニングページ",
         MORNING_PAGE_LOOKBACK_DAYS = 14,
@@ -3388,6 +3578,7 @@
           o.appendChild(newBlockBoxEl),
             (newBlockBoxEl.style.height = "");
           blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
+          renderBusyDayPanel();
         },
         // キャレット位置を .content-area の縦方向中央に来るようスクロールする
         centerCaretInView = () => {
@@ -5832,7 +6023,8 @@
             fillScheduleBarFullscreen(),
             renderWeekPane(),
             (lastSyncedWeekKey = null),
-            updateFullscreenYearWatermark();
+            updateFullscreenYearWatermark(),
+            renderBusyDayPanel();
         },
         // 下段カレンダーを開く/ホバーで覗く瞬間、たまたまカーソルの下に
         // あったセルに hover が発火して意図しない日付のプレビューに
@@ -6720,6 +6912,8 @@
           renderSearchPaneResults(searchPaneInputEl.value);
           renderSearchHistoryChips();
           initInfoWidget();
+          renderBusyDayPanel();
+          setInterval(renderBusyDayPanel, 10 * 60 * 1000);
           // ページを開いたとき、その日にブロックが0個なら新規作成用の
           // textareaへフォーカスする(ページを開いた直後だけ。日付を
           // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
