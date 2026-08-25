@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="36" />
+  <meta name="app-version" content="38" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -911,6 +911,67 @@
       background-color: var(--bg-color);
       color: inherit;
       box-sizing: border-box;
+    }
+
+    .share-link-display {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .share-link-display.active {
+      display: block;
+    }
+
+    .share-link-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #shareLinkText {
+      flex: 1;
+      min-width: 120px;
+      font: inherit;
+      font-size: 13px;
+      padding: 5px 8px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 4px;
+      background-color: var(--bg-color);
+      color: inherit;
+      box-sizing: border-box;
+    }
+
+    .share-link-timer {
+      display: block;
+      font-size: 12px;
+      opacity: 0.65;
+      margin-top: 6px;
+    }
+
+    .shared-session-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 4000;
+      padding: 8px 14px;
+      font-size: 13px;
+      text-align: center;
+      background-color: #fff3cd;
+      color: #6b5200;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .shared-session-banner {
+        background-color: #4a3b00;
+        color: #ffe27a;
+        border-bottom-color: rgba(255, 255, 255, 0.15);
+      }
+    }
+
+    body.shared-session-active {
+      padding-top: 36px;
     }
 
     .sync-sub-detail {
@@ -2228,7 +2289,7 @@
           <li><strong>Cmd/Ctrl + Enter :</strong> 編集中のメモ(新規・既存とも)を保存して、続けて別の話題を書き始める</li>
         </ul>
       </details>
-      <details>
+      <details id="backupDetailsSection">
         <summary>データのバックアップと復元</summary>
         <ul>
           <li>
@@ -2258,7 +2319,7 @@
           この端末とサーバー上のデータを削除して初期状態に戻します。先に自動でエクスポートします。
         </p>
       </details>
-      <details>
+      <details id="syncDetailsSection">
         <summary>同期とプライバシー</summary>
         <div class="sync-panel">
           <div class="sync-toggle-row">
@@ -2299,6 +2360,24 @@
               <div id="syncHandoffCodeDisplay" class="sync-handoff-code-display">
                 <span id="syncHandoffCodeText" class="sync-handoff-code-text"></span>
                 <span id="syncHandoffCodeTimer" class="sync-handoff-code-timer"></span>
+              </div>
+            </details>
+            <details class="sync-sub-detail">
+              <summary>私の日誌を一時的に見せる(タブを閉じると終了)</summary>
+              <p class="sync-note">
+                シードそのものは相手に伝わりません。発行したリンクは1回しか開けず、開いた相手の端末にも保存されません。相手がタブを閉じると、そのアクセスはすぐに失われます。
+              </p>
+              <button id="shareIssueBtn" type="button" class="menu-inline-btn">
+                共有リンクを発行
+              </button>
+              <div id="shareLinkDisplay" class="share-link-display">
+                <div class="share-link-row">
+                  <input type="text" id="shareLinkText" readonly />
+                  <button id="shareLinkCopyBtn" type="button" class="menu-inline-btn">
+                    コピー
+                  </button>
+                </div>
+                <span id="shareLinkTimer" class="share-link-timer"></span>
               </div>
             </details>
           </div>
@@ -2362,7 +2441,7 @@
         </div>
         <p id="icsStatusText" class="sync-note"></p>
       </details>
-      <details>
+      <details id="icsPublishDetailsSection">
         <summary>ICS公開URL</summary>
         <p class="sync-note">
           日カレンダー・週カレンダーの予定メモを、外部のカレンダーアプリから購読できるICSとして公開します。発行したURLを知っている人は誰でも内容を読めます(サーバーに平文で保存されます)。URLは最後の更新から3時間で自動的に失効する一時的な共有リンクです(編集を続けている間は延長されます)。「再発行」を押すと古いURLはすぐに無効になり、新しいURLに切り替わります。
@@ -2466,6 +2545,13 @@
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
+      // 通常はlocalStorageを使うが、一時共有リンク(#share=...)で開いた
+      // セッションではsessionStorageに差し替える(同一APIなのでこの
+      // 変数の参照先を切り替えるだけで済む)。これにより、共有された
+      // 日誌はこのタブの中にしか存在せず、閉じれば消える。開いた側の
+      // 端末が元々持っていたローカルの日誌にも一切触れない。
+      let storage = window.localStorage,
+        isSharedSession = !1;
       // h1見出し("# ")・箇条書き("- ")の自動補完/継続、Tabでのインデント、
       // Alt+↑/↓での行入れ替えを行う。通常の編集(textBox)と新規メモ欄
       // (new-block-box)の両方から呼び出せるよう、対象の textarea/input
@@ -2645,6 +2731,11 @@
           "syncHandoffCodeInput"
         ),
         syncRedeemCodeBtnEl = document.getElementById("syncRedeemCodeBtn"),
+        shareIssueBtnEl = document.getElementById("shareIssueBtn"),
+        shareLinkDisplayEl = document.getElementById("shareLinkDisplay"),
+        shareLinkTextEl = document.getElementById("shareLinkText"),
+        shareLinkTimerEl = document.getElementById("shareLinkTimer"),
+        shareLinkCopyBtnEl = document.getElementById("shareLinkCopyBtn"),
         fullscreenYearWatermarkEl = document.getElementById(
           "fullscreenYearWatermark"
         ),
@@ -2696,7 +2787,6 @@
         newBlockBoxEl = null,
         syncPushTimers = { entries: null, calendar: null },
         syncScanStream = null,
-        handoffCountdownTimer = null,
         syncHealthy = !0,
         audioCtx = null,
         scheduleEarliest = null,
@@ -2709,7 +2799,7 @@
         icsAddColor = "pink",
         icsEventsCache = (() => {
           try {
-            return JSON.parse(localStorage.getItem("icsEventsCache") || "{}");
+            return JSON.parse(storage.getItem("icsEventsCache") || "{}");
           } catch (err) {
             return {};
           }
@@ -2718,7 +2808,7 @@
         dailyForecastCache = (() => {
           try {
             return JSON.parse(
-              localStorage.getItem("dailyForecastCache") || "{}"
+              storage.getItem("dailyForecastCache") || "{}"
             );
           } catch (err) {
             return {};
@@ -2995,10 +3085,10 @@
         },
         // 完全一致する見出し(本文あり)を、指定日以外の全日程から探す。
         findExternalHeadingBlock = (headingText, excludeKey) => {
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key === excludeKey) continue;
-            const text = localStorage.getItem(key),
+            const text = storage.getItem(key),
               match = getLocalHeadingBlocks(text).find(
                 (b) =>
                   b.headingText === headingText &&
@@ -3011,7 +3101,7 @@
         // 指定日のテキストを、日またぎ参照も解決した表示用ブロック配列にする。
         buildDayBlocks = (date) => {
           const dateKey = toDateKey(date),
-            rawText = localStorage.getItem(dateKey) || "# ";
+            rawText = storage.getItem(dateKey) || "# ";
           return getLocalHeadingBlocks(rawText).map((b) => {
             const localBody = rawText.slice(b.bodyStart, b.bodyEnd),
               headingLine = rawText.slice(b.headStart, b.headEnd);
@@ -3074,7 +3164,7 @@
         activateBlock = (blockEl, caretPos) => {
           if (activeBlockEl === blockEl) return void s.focus();
           const block = blockEl._block,
-            dayText = localStorage.getItem(block.boundDateKey) || "# ";
+            dayText = storage.getItem(block.boundDateKey) || "# ";
           activeBlockKey = block.boundDateKey;
           activeBlockPrefix = dayText.slice(0, block.editStart);
           activeBlockSuffix = dayText.slice(block.editEnd);
@@ -3097,10 +3187,10 @@
           const block = blockEl._block;
           if (activeBlockEl === blockEl) flushActiveBlock();
           const dateKey = toDateKey(f),
-            text = localStorage.getItem(dateKey) || "# ",
+            text = storage.getItem(dateKey) || "# ",
             next = (text.slice(0, block.localStart) + text.slice(block.localEnd)) || "# ";
           snapshotHistory(dateKey, text),
-            localStorage.setItem(dateKey, next),
+            storage.setItem(dateKey, next),
             H(),
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
@@ -3116,14 +3206,14 @@
         loadInfoWidgetCache = () => {
           try {
             return JSON.parse(
-              localStorage.getItem(INFO_WIDGET_CACHE_KEY) || "{}"
+              storage.getItem(INFO_WIDGET_CACHE_KEY) || "{}"
             );
           } catch (e) {
             return {};
           }
         },
         saveInfoWidgetCache = (cache) =>
-          localStorage.setItem(INFO_WIDGET_CACHE_KEY, JSON.stringify(cache)),
+          storage.setItem(INFO_WIDGET_CACHE_KEY, JSON.stringify(cache)),
         weatherCodeToEmoji = (code) =>
           0 === code
             ? "☀️"
@@ -3214,7 +3304,7 @@
           Object.keys(dailyForecastCache).forEach((k) => {
             k < cutoffKey && delete dailyForecastCache[k];
           });
-          localStorage.setItem(
+          storage.setItem(
             "dailyForecastCache",
             JSON.stringify(dailyForecastCache)
           );
@@ -3443,7 +3533,7 @@
             const d = new Date(f);
             d.setDate(d.getDate() - i);
             const key = toDateKey(d),
-              text = localStorage.getItem(key);
+              text = storage.getItem(key);
             if (!text) continue;
             getLocalHeadingBlocks(text).forEach((b) => {
               if (b.headingText === MORNING_PAGE_HEADING) return;
@@ -3498,12 +3588,12 @@
             showToast("今日のモーニングページは作成済みです", "info");
             return;
           }
-          const dayText = localStorage.getItem(dateKey) || "# ",
+          const dayText = storage.getItem(dateKey) || "# ",
             base = Z(dayText) ? dayText : "",
             newBlock = `# ${MORNING_PAGE_HEADING}\n${buildMorningPageBody()}`,
             next = base ? newBlock + "\n" + base : newBlock;
           snapshotHistory(dateKey, dayText),
-            localStorage.setItem(dateKey, next),
+            storage.setItem(dateKey, next),
             H(),
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f),
@@ -3516,10 +3606,10 @@
         // 重複は基本的に発生しない想定。
         dedupeDuplicateHeadings = () => {
           const owners = {};
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = localStorage.getItem(key);
+            const text = storage.getItem(key);
             getLocalHeadingBlocks(text).forEach((b) => {
               null === b.headingText ||
                 !Z(text.slice(b.bodyStart, b.bodyEnd)) ||
@@ -3532,7 +3622,7 @@
             const keys = Array.from(new Set(owners[headingText])).sort();
             if (keys.length < 2) return;
             keys.slice(1).forEach((key) => {
-              const original = localStorage.getItem(key);
+              const original = storage.getItem(key);
               let text = original,
                 shift = 0;
               getLocalHeadingBlocks(original)
@@ -3549,7 +3639,7 @@
                     (shift += suffix.length);
                 });
               text !== original &&
-                (localStorage.setItem(key, text), renamed++);
+                (storage.setItem(key, text), renamed++);
             });
           });
           return renamed;
@@ -3578,7 +3668,7 @@
             );
             fresh && (block = fresh);
           }
-          const dayText = localStorage.getItem(block.boundDateKey) || "# ",
+          const dayText = storage.getItem(block.boundDateKey) || "# ",
             before = dayText.slice(0, block.editStart),
             editable = dayText.slice(block.editStart, block.editEnd),
             after = dayText.slice(block.editEnd),
@@ -3586,7 +3676,7 @@
           if (updatedEditable === editable) return;
           const next = before + updatedEditable + after;
           snapshotHistory(block.boundDateKey, dayText),
-            localStorage.setItem(block.boundDateKey, next),
+            storage.setItem(block.boundDateKey, next),
             H(),
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
@@ -3690,12 +3780,12 @@
             headingText = lines[0].trim().replace(/^#\s+/, ""),
             rest = lines.slice(1).join("\n"),
             dateKey = toDateKey(f),
-            dayText = localStorage.getItem(dateKey) || "# ",
+            dayText = storage.getItem(dateKey) || "# ",
             base = Z(dayText) ? dayText : "",
             newBlock = `# ${headingText}${rest ? "\n" + rest : ""}`,
             next = base ? newBlock + "\n" + base : newBlock;
           snapshotHistory(dateKey, dayText),
-            localStorage.setItem(dateKey, next),
+            storage.setItem(dateKey, next),
             (box.value = ""),
             (box.style.height = ""),
             H(),
@@ -3796,12 +3886,12 @@
           const rects = range.getClientRects();
           return rects[0] || range.getBoundingClientRect();
         },
-        // --- バージョン履歴(localStorageのみ、日付ごと) ---
+        // --- バージョン履歴(storageのみ、日付ごと) ---
         MAX_HISTORY_VERSIONS = 30,
         getHistoryKey = (dateKey) => `history:${dateKey}`,
         loadHistory = (dateKey) => {
           try {
-            return JSON.parse(localStorage.getItem(getHistoryKey(dateKey)) || "[]");
+            return JSON.parse(storage.getItem(getHistoryKey(dateKey)) || "[]");
           } catch (err) {
             return [];
           }
@@ -3816,7 +3906,7 @@
 
           )
             hist.shift();
-          localStorage.setItem(getHistoryKey(dateKey), JSON.stringify(hist));
+          storage.setItem(getHistoryKey(dateKey), JSON.stringify(hist));
         },
         openHistoryModal = () => {
           const hist = loadHistory(toDateKey(f));
@@ -3840,11 +3930,11 @@
         // (全体上書きのrestoreHistoryVersionと違い、他のブロックには触れない)
         insertHistoryBlockIntoCurrent = (blockText) => {
           const dateKey = toDateKey(f),
-            current = localStorage.getItem(dateKey) || "# ";
+            current = storage.getItem(dateKey) || "# ";
           snapshotHistory(dateKey, current);
           const base = Z(current) ? current : "",
             next = base ? `${blockText}\n${base}` : blockText;
-          localStorage.setItem(dateKey, next),
+          storage.setItem(dateKey, next),
             A(f),
             renderScheduleBar(),
             H(),
@@ -3902,9 +3992,9 @@
             idx = Number(historySliderEl.value),
             entry = hist[idx];
           if (!entry) return;
-          const current = localStorage.getItem(dateKey) || "";
+          const current = storage.getItem(dateKey) || "";
           current !== entry.content && snapshotHistory(dateKey, current),
-            localStorage.setItem(dateKey, entry.content),
+            storage.setItem(dateKey, entry.content),
             A(f),
             renderScheduleBar(),
             H(),
@@ -3915,13 +4005,13 @@
         // --- h1ショートカット(閲覧モードで見出しを右クリックして追加) ---
         loadH1Shortcuts = () => {
           try {
-            return JSON.parse(localStorage.getItem("h1Shortcuts") || "[]");
+            return JSON.parse(storage.getItem("h1Shortcuts") || "[]");
           } catch (err) {
             return [];
           }
         },
         saveH1Shortcuts = (list) =>
-          localStorage.setItem("h1Shortcuts", JSON.stringify(list)),
+          storage.setItem("h1Shortcuts", JSON.stringify(list)),
         addH1Shortcut = (date, headingIdx, text) => {
           const list = loadH1Shortcuts();
           if (
@@ -4007,10 +4097,10 @@
           const nq = normalizeForSearch(query);
           if (!nq) return [];
           const results = [];
-          for (let idx = 0; idx < localStorage.length; idx++) {
-            const key = localStorage.key(idx);
+          for (let idx = 0; idx < storage.length; idx++) {
+            const key = storage.key(idx);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = localStorage.getItem(key),
+            const text = storage.getItem(key),
               headings = getHeadings(text);
             if (headings.length) {
               headings.forEach((h, hIdx) => {
@@ -4042,10 +4132,10 @@
         // 検索ワード未入力時に表示する、全期間のh1見出し一覧(辞書順)を作る
         buildDictionaryH1List = () => {
           const entries = [];
-          for (let idx = 0; idx < localStorage.length; idx++) {
-            const key = localStorage.key(idx);
+          for (let idx = 0; idx < storage.length; idx++) {
+            const key = storage.key(idx);
             if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = localStorage.getItem(key);
+            const text = storage.getItem(key);
             getHeadings(text).forEach((h, hIdx) => {
               entries.push({
                 date: key,
@@ -4158,7 +4248,7 @@
         getSearchHistory = () => {
           try {
             const list = JSON.parse(
-              localStorage.getItem(SEARCH_HISTORY_KEY) || "[]"
+              storage.getItem(SEARCH_HISTORY_KEY) || "[]"
             );
             return Array.isArray(list) ? list.filter((e) => "string" == typeof e) : [];
           } catch (e) {
@@ -4175,12 +4265,12 @@
             0,
             SEARCH_HISTORY_MAX
           );
-          localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+          storage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
           renderSearchHistoryChips();
         },
         removeSearchHistory = (query) => {
           const next = getSearchHistory().filter((e) => e !== query);
-          localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+          storage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
           renderSearchHistoryChips();
         },
         renderSearchHistoryChips = () => {
@@ -4213,18 +4303,18 @@
         },
         openSearchPane = () => {
           document.body.classList.remove("search-pane-collapsed"),
-            localStorage.setItem("searchPaneCollapsed", "0"),
+            storage.setItem("searchPaneCollapsed", "0"),
             renderSearchPaneResults(searchPaneInputEl.value),
             renderSearchHistoryChips(),
             searchPaneInputEl.focus();
         },
         STORAGE_QUOTA_KB = 5120,
         getStorageUsageKb = () =>
-          Array.from({ length: localStorage.length }).reduce(
+          Array.from({ length: storage.length }).reduce(
             (sum, _, idx) =>
               sum +
-              localStorage.key(idx).length +
-              localStorage.getItem(localStorage.key(idx)).length,
+              storage.key(idx).length +
+              storage.getItem(storage.key(idx)).length,
             0
           ) / 1024,
         H = () => {
@@ -4235,7 +4325,7 @@
           const today = toDateKey(new Date());
           let log;
           try {
-            log = JSON.parse(localStorage.getItem("storageUsageLog") || "[]");
+            log = JSON.parse(storage.getItem("storageUsageLog") || "[]");
           } catch (err) {
             log = [];
           }
@@ -4245,7 +4335,7 @@
             cutoff.setDate(cutoff.getDate() - 30);
             const cutoffKey = toDateKey(cutoff);
             (log = log.filter((entry) => entry.date >= cutoffKey)),
-              localStorage.setItem("storageUsageLog", JSON.stringify(log));
+              storage.setItem("storageUsageLog", JSON.stringify(log));
           }
           return log;
         },
@@ -4332,7 +4422,7 @@
           showSaveStatus("saving", "保存中...");
 
           try {
-            localStorage.setItem(t, e);
+            storage.setItem(t, e);
             sDirty = !1;
             showSaveStatus("saved", "保存しました");
             H();
@@ -4375,7 +4465,7 @@
         // したから最新」とみなされ、他の端末が積み上げた新しい内容をまるごと
         // 上書きしてしまう不具合があった。
         // 内容を比較するときはオブジェクトのキー順に依存しないよう、キーを
-        // ソートしてから文字列化する(端末ごとにlocalStorageの列挙順が
+        // ソートしてから文字列化する(端末ごとにstorageの列挙順が
         // 異なっていても、同じ内容なら同じ文字列になるようにするため)。
         stableStringify = (v) => {
           if (null === v || "object" !== typeof v) return JSON.stringify(v);
@@ -4419,8 +4509,8 @@
               return !0;
             }
             const localUpdatedAt =
-              localStorage.getItem(cfg.contentKey) ||
-              localStorage.getItem(cfg.lastKey);
+              storage.getItem(cfg.contentKey) ||
+              storage.getItem(cfg.lastKey);
             if (
               localUpdatedAt &&
               new Date(body.updated_at) <= new Date(localUpdatedAt)
@@ -4431,8 +4521,8 @@
             const aesKey = await deriveAesKey(seed),
               data = await decryptBlob(body.ciphertext, body.iv, aesKey);
             cfg.apply(data);
-            localStorage.setItem(cfg.lastKey, body.updated_at);
-            localStorage.setItem(cfg.contentKey, body.updated_at);
+            storage.setItem(cfg.lastKey, body.updated_at);
+            storage.setItem(cfg.contentKey, body.updated_at);
             refreshUIAfterSync();
             "calendar" === channel && scheduleIcsPublishRefresh();
             markSyncHealthy(!0);
@@ -4455,7 +4545,7 @@
               aesKey = await deriveAesKey(seed),
               localData = cfg.collect(),
               updatedAt =
-                localStorage.getItem(cfg.contentKey) ||
+                storage.getItem(cfg.contentKey) ||
                 new Date().toISOString(),
               { ciphertext, iv } = await encryptBlob(
                 { version: 1, updatedAt, ...localData },
@@ -4478,8 +4568,8 @@
             if (!res.ok) throw new Error("push failed: " + res.status);
             const body = await res.json();
             if (body.applied) {
-              localStorage.setItem(cfg.lastKey, body.updated_at);
-              localStorage.setItem(cfg.contentKey, body.updated_at);
+              storage.setItem(cfg.lastKey, body.updated_at);
+              storage.setItem(cfg.contentKey, body.updated_at);
               markSyncHealthy(!0);
               return !0;
             }
@@ -4513,8 +4603,8 @@
               { version, updatedAt, ...serverContent } = serverData;
             if (stableStringify(serverContent) === stableStringify(localData)) {
               // 内容は同じなので、タイムスタンプだけサーバーに合わせて終える。
-              localStorage.setItem(cfg.lastKey, body.updated_at);
-              localStorage.setItem(cfg.contentKey, body.updated_at);
+              storage.setItem(cfg.lastKey, body.updated_at);
+              storage.setItem(cfg.contentKey, body.updated_at);
               return;
             }
             showSyncConflictDialog(
@@ -4569,7 +4659,7 @@
             const bumpedAt = new Date(
               Math.max(Date.now(), new Date(serverUpdatedAt).getTime() + 1000)
             ).toISOString();
-            localStorage.setItem(cfg.contentKey, bumpedAt);
+            storage.setItem(cfg.contentKey, bumpedAt);
             const ok = await doSyncPushChannel(channel, seed);
             ok
               ? (overlay.remove(),
@@ -4585,8 +4675,8 @@
           });
           serverBtn.addEventListener("click", () => {
             cfg.apply(serverContent);
-            localStorage.setItem(cfg.lastKey, serverUpdatedAt);
-            localStorage.setItem(cfg.contentKey, serverUpdatedAt);
+            storage.setItem(cfg.lastKey, serverUpdatedAt);
+            storage.setItem(cfg.contentKey, serverUpdatedAt);
             refreshUIAfterSync();
             overlay.remove();
             showToast(`${cfg.label}をサーバーの内容で上書きしました`, "success");
@@ -4595,7 +4685,7 @@
         maybeSyncPushChannel = (channel) => {
           // 実際に編集が起きた時刻を記録する(pushが何秒後に行われるかとは
           // 無関係に、常にこの時刻がそのままupdated_atとして送られる)。
-          localStorage.setItem(
+          storage.setItem(
             SYNC_CHANNELS[channel].contentKey,
             new Date().toISOString()
           );
@@ -4620,13 +4710,15 @@
           }, duration);
         },
         downloadBackup = () => {
-          const data = Array.from({ length: localStorage.length }).reduce(
-            (acc, _, idx) => (
-              (acc[localStorage.key(idx)] = localStorage.getItem(
-                localStorage.key(idx)
-              )),
-              acc
-            ),
+          // syncSeedはここには含めない(バックアップJSONを人に渡したときに
+          // 意図せずシードまで一緒に渡ってしまうのを避けるため)。
+          const data = Array.from({ length: storage.length }).reduce(
+            (acc, _, idx) => {
+              const key = storage.key(idx);
+              return "syncSeed" === key
+                ? acc
+                : ((acc[key] = storage.getItem(key)), acc);
+            },
             {}
           ),
             blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -4651,13 +4743,25 @@
         // まだどの端末も自動エクスポートしていなければサーバー側が「claimed」を
         // 返す(Postgresの行ロックにより、複数端末が同時に開いても最初の1台だけが
         // claimedになる)。同期が無効/オフライン/通信失敗時は、この端末単独の
-        // localStorageフラグにフォールバックする。
+        // storageフラグにフォールバックする。
         getJstDateString = () =>
           new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
         maybeRunDailyAutoExport = async () => {
+          // 共有セッション中は行わない(共有先の端末に自動ダウンロードさせない、
+          // また共有元の「その日の自動エクスポート枠」を横取りしないため)。
+          if (isSharedSession) return;
           const localFlagKey = "lastAutoExportDateJst",
             todayJst = getJstDateString();
-          if (localStorage.getItem(localFlagKey) === todayJst) return;
+          if (storage.getItem(localFlagKey) === todayJst) return;
+          // まだ何も書いていない(=一度も使ったことがない)状態では、
+          // 開いた瞬間に空のバックアップがダウンロードされて驚かせて
+          // しまうため、本文・カレンダーのどちらにも中身がなければ
+          // フラグだけ記録してエクスポートは行わない。
+          if (
+            !SYNC_CHANNELS.entries.hasData(collectEntriesData()) &&
+            !SYNC_CHANNELS.calendar.hasData(collectCalendarData())
+          )
+            return void storage.setItem(localFlagKey, todayJst);
           const seed = getSyncSeed();
           if (seed && navigator.onLine) {
             try {
@@ -4673,7 +4777,7 @@
                 );
               if (res.ok) {
                 const body = await res.json();
-                localStorage.setItem(localFlagKey, body.date || todayJst);
+                storage.setItem(localFlagKey, body.date || todayJst);
                 body.claimed && downloadBackup();
                 return;
               }
@@ -4681,7 +4785,7 @@
               console.warn("[auto-export] flag check failed:", err);
             }
           }
-          localStorage.setItem(localFlagKey, todayJst);
+          storage.setItem(localFlagKey, todayJst);
           downloadBackup();
         },
         resetEverything = async () => {
@@ -4732,7 +4836,7 @@
               ]);
             } catch (err) { }
           setTimeout(() => {
-            localStorage.clear(), location.reload();
+            storage.clear(), location.reload();
           }, 500);
         },
         // --- 同期: シード / 暗号化 / QRコード ---
@@ -4857,23 +4961,31 @@
             ["encrypt", "decrypt"]
           );
         },
-        startHandoffCountdown = (totalSeconds) => {
+        // timerEl/displayElを渡さなければ従来通り6桁コード用の要素を使う。
+        // 共有リンクの発行カウントダウンでも同じロジックを再利用するための
+        // 小さな一般化(タイマーIDはdisplayElごとに独立させ、互いに
+        // 干渉しないようにする)。
+        startHandoffCountdown = (
+          totalSeconds,
+          timerEl = syncHandoffCodeTimerEl,
+          displayEl = syncHandoffCodeDisplayEl
+        ) => {
           let remaining = totalSeconds;
-          clearInterval(handoffCountdownTimer);
+          clearInterval(displayEl._countdownTimerId);
           const tick = () => {
             if (remaining <= 0)
               return (
-                clearInterval(handoffCountdownTimer),
-                void syncHandoffCodeDisplayEl.classList.remove("active")
+                clearInterval(displayEl._countdownTimerId),
+                void displayEl.classList.remove("active")
               );
             const m = Math.floor(remaining / 60),
               sec = remaining % 60;
-            (syncHandoffCodeTimerEl.textContent = `残り ${m}:${String(
+            (timerEl.textContent = `残り ${m}:${String(
               sec
             ).padStart(2, "0")}`),
               remaining--;
           };
-          tick(), (handoffCountdownTimer = setInterval(tick, 1000));
+          tick(), (displayEl._countdownTimerId = setInterval(tick, 1000));
         },
         issueHandoffCode = async () => {
           const seed = getSyncSeed();
@@ -4932,25 +5044,134 @@
             showToast("コードの読み込みに失敗しました", "error");
           }
         },
+        // --- 「私の日誌」を一時的な使い捨てURLで共有する ---
+        // 仕組みは6桁コードの引き継ぎと同じ(サーバーはトークン自体を知らず、
+        // そのハッシュだけをキーに、トークン由来の鍵で暗号化したシードを
+        // 一度読まれたら即削除する形で預かる)。手入力するPINと違い、
+        // リンクはクリックされるだけなので数字6桁である必要がなく、
+        // 256bitのランダムトークンをURLのフラグメント(#以降。サーバーには
+        // 送られない)に載せて渡す。
+        SHARE_SESSION_FLAG_KEY = "sharedSessionActive",
+        generateShareToken = () =>
+          bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+        issueShareLink = async () => {
+          const seed = getSyncSeed();
+          if (!seed) return;
+          const token = generateShareToken(),
+            saltBytes = crypto.getRandomValues(new Uint8Array(16));
+          try {
+            const codeHash = await deriveHandoffCodeHash(token),
+              aesKey = await deriveHandoffKey(token, saltBytes),
+              { ciphertext, iv } = await encryptBlob({ seed }, aesKey),
+              res = await fetchWithTimeout(
+                "/api/handoff",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    code_hash: codeHash,
+                    ciphertext,
+                    iv,
+                    salt: bytesToBase64(saltBytes),
+                  }),
+                },
+                8000
+              );
+            if (!res.ok) throw new Error("share issue failed: " + res.status);
+            const body = await res.json(),
+              url = `${location.origin}${location.pathname}#share=${token}`;
+            (shareLinkTextEl.value = url),
+              shareLinkDisplayEl.classList.add("active"),
+              startHandoffCountdown(
+                body.expires_in || 600,
+                shareLinkTimerEl,
+                shareLinkDisplayEl
+              );
+          } catch (err) {
+            showToast("共有リンクの発行に失敗しました", "error");
+          }
+        },
+        // 共有セッション用のバナー表示、および共有先の端末では触らせたく
+        // ない項目(シードの表示、バックアップ、全リセット、ICS公開)を隠す。
+        applySharedSessionRestrictions = () => {
+          isSharedSession = !0;
+          document.body.classList.add("shared-session-active");
+          const banner = document.createElement("div");
+          (banner.className = "shared-session-banner"),
+            (banner.textContent =
+              "共有された日誌を表示しています。この端末には保存されません。タブを閉じると見られなくなります。"),
+            document.body.prepend(banner);
+          ["backupDetailsSection", "syncDetailsSection", "icsPublishDetailsSection"].forEach(
+            (id) => {
+              const el = document.getElementById(id);
+              el && (el.style.display = "none");
+            }
+          );
+        },
+        showShareLinkInvalidScreen = () => {
+          document.body.innerHTML =
+            '<div style="max-width:420px;margin:15vh auto;padding:0 20px;text-align:center;line-height:1.8;">' +
+            "<p>この共有リンクは無効か、期限切れです。</p>" +
+            '<p style="font-size:13px;opacity:0.7;">共有した相手に、もう一度リンクを発行してもらってください。</p>' +
+            "</div>";
+        },
+        // #share=<token> で開かれた場合はトークンを一度だけサーバーへ
+        // 引き換えに行き、得られたシードをsessionStorageだけに書き込む
+        // (storageの参照先をここでsessionStorageへ切り替えるので、以降の
+        // すべての読み書きが自動的にタブ限定になる)。同じタブでのリロードは
+        // sessionStorageのフラグで判定し、再度サーバーへ問い合わせない
+        // (トークンは初回の引き換えでサーバー側から削除済みのため)。
+        initSharedSession = async () => {
+          const hash = location.hash,
+            isFreshShareLink = hash.startsWith("#share="),
+            alreadyActive =
+              window.sessionStorage.getItem(SHARE_SESSION_FLAG_KEY) === "1";
+          if (!isFreshShareLink && !alreadyActive) return !0;
+          storage = window.sessionStorage;
+          if (alreadyActive && !isFreshShareLink)
+            return applySharedSessionRestrictions(), !0;
+          const token = hash.slice("#share=".length);
+          history.replaceState(null, "", location.pathname + location.search);
+          try {
+            const codeHash = await deriveHandoffCodeHash(token),
+              res = await fetchWithTimeout(
+                `/api/handoff?code_hash=${codeHash}`,
+                {},
+                8000
+              );
+            if (!res.ok) throw new Error("redeem failed: " + res.status);
+            const body = await res.json();
+            if (!body.found) return showShareLinkInvalidScreen(), !1;
+            const saltBytes = base64ToBytes(body.salt),
+              aesKey = await deriveHandoffKey(token, saltBytes),
+              data = await decryptBlob(body.ciphertext, body.iv, aesKey);
+            storage.setItem("syncSeed", data.seed),
+              storage.setItem(SHARE_SESSION_FLAG_KEY, "1"),
+              applySharedSessionRestrictions();
+            return !0;
+          } catch (err) {
+            return showShareLinkInvalidScreen(), !1;
+          }
+        },
         // 本文チャンネル: 各日の日誌テキストと、見出しショートカット。
         collectEntriesData = () => {
           const entries = {};
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
             /^\d{4}-\d{2}-\d{2}$/.test(key) &&
-              (entries[key] = localStorage.getItem(key));
+              (entries[key] = storage.getItem(key));
           }
           return {
             entries,
-            h1Shortcuts: localStorage.getItem("h1Shortcuts") || "[]",
+            h1Shortcuts: storage.getItem("h1Shortcuts") || "[]",
           };
         },
         applyEntriesData = (data) => {
           Object.entries(data.entries || {}).forEach(([k, v]) =>
-            localStorage.setItem(k, v)
+            storage.setItem(k, v)
           ),
             "string" == typeof data.h1Shortcuts &&
-            localStorage.setItem("h1Shortcuts", data.h1Shortcuts);
+            storage.setItem("h1Shortcuts", data.h1Shortcuts);
         },
         // カレンダーチャンネル: 予定メモ・色分け・ICS購読(セルの中身)。
         collectCalendarData = () => {
@@ -4958,53 +5179,53 @@
             weekNotes = {},
             cellColors = {},
             weekColors = {};
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
+          for (let i = 0; i < storage.length; i++) {
+            const key = storage.key(i);
             key.startsWith("note:")
-              ? (notes[key.slice(5)] = localStorage.getItem(key))
+              ? (notes[key.slice(5)] = storage.getItem(key))
               : key.startsWith("weeknote:")
-                ? (weekNotes[key.slice(9)] = localStorage.getItem(key))
+                ? (weekNotes[key.slice(9)] = storage.getItem(key))
                 : key.startsWith("cellColor:")
-                  ? (cellColors[key.slice(10)] = localStorage.getItem(key))
+                  ? (cellColors[key.slice(10)] = storage.getItem(key))
                   : key.startsWith("weekColor:") &&
-                  (weekColors[key.slice(10)] = localStorage.getItem(key));
+                  (weekColors[key.slice(10)] = storage.getItem(key));
           }
           return {
             notes,
             weekNotes,
             cellColors,
             weekColors,
-            icsCalendars: localStorage.getItem("icsCalendars") || "[]",
-            icsPublishIdDay: localStorage.getItem("icsPublishId:day") || "",
-            icsPublishIdWeek: localStorage.getItem("icsPublishId:week") || "",
+            icsCalendars: storage.getItem("icsCalendars") || "[]",
+            icsPublishIdDay: storage.getItem("icsPublishId:day") || "",
+            icsPublishIdWeek: storage.getItem("icsPublishId:week") || "",
           };
         },
         applyCalendarData = (data) => {
           Object.entries(data.notes || {}).forEach(([k, v]) =>
-            localStorage.setItem(`note:${k}`, v)
+            storage.setItem(`note:${k}`, v)
           ),
             Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
-              localStorage.setItem(`weeknote:${k}`, v)
+              storage.setItem(`weeknote:${k}`, v)
             ),
             Object.entries(data.cellColors || {}).forEach(([k, v]) =>
-              localStorage.setItem(`cellColor:${k}`, v)
+              storage.setItem(`cellColor:${k}`, v)
             ),
             Object.entries(data.weekColors || {}).forEach(([k, v]) =>
-              localStorage.setItem(`weekColor:${k}`, v)
+              storage.setItem(`weekColor:${k}`, v)
             ),
             "string" == typeof data.icsCalendars &&
-            localStorage.setItem("icsCalendars", data.icsCalendars),
+            storage.setItem("icsCalendars", data.icsCalendars),
             "string" == typeof data.icsPublishIdDay &&
             (data.icsPublishIdDay
-              ? localStorage.setItem("icsPublishId:day", data.icsPublishIdDay)
-              : localStorage.removeItem("icsPublishId:day")),
+              ? storage.setItem("icsPublishId:day", data.icsPublishIdDay)
+              : storage.removeItem("icsPublishId:day")),
             "string" == typeof data.icsPublishIdWeek &&
             (data.icsPublishIdWeek
-              ? localStorage.setItem(
+              ? storage.setItem(
                 "icsPublishId:week",
                 data.icsPublishIdWeek
               )
-              : localStorage.removeItem("icsPublishId:week"));
+              : storage.removeItem("icsPublishId:week"));
         },
         SYNC_CHANNELS = {
           entries: {
@@ -5030,9 +5251,9 @@
               Object.keys(d.weekColors).length > 0,
           },
         },
-        getSyncSeed = () => localStorage.getItem("syncSeed"),
-        setSyncSeed = (seed) => localStorage.setItem("syncSeed", seed),
-        clearSyncSeed = () => localStorage.removeItem("syncSeed"),
+        getSyncSeed = () => storage.getItem("syncSeed"),
+        setSyncSeed = (seed) => storage.setItem("syncSeed", seed),
+        clearSyncSeed = () => storage.removeItem("syncSeed"),
         renderSyncQr = (seed) => {
           window.QRCode &&
             QRCode.toCanvas(syncQrCanvasEl, seed, { width: 200 }, (err) => {
@@ -5127,7 +5348,7 @@
           for (let i = 0; i < 7; i++) {
             const d = new Date(monday.getTime() + i * I),
               key = toDateKey(d),
-              entry = localStorage.getItem(key);
+              entry = storage.getItem(key);
             entry && (total += entry.length);
           }
           return total;
@@ -5136,10 +5357,10 @@
         playPitchForDate = (date) => {
           try {
             const key = toDateKey(date),
-              len = (localStorage.getItem(key) || "").length,
-              allLens = Object.keys(localStorage)
+              len = (storage.getItem(key) || "").length,
+              allLens = Object.keys(storage)
                 .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
-                .map((k) => localStorage.getItem(k).length),
+                .map((k) => storage.getItem(k).length),
               maxLen = Math.max(1, ...allLens),
               ratio = Math.min(1, len / maxLen),
               freq = 220 + ratio * 660;
@@ -5221,21 +5442,21 @@
           document.activeElement !== s && (T(d), playPitchForDate(d));
         },
         getGlobalMaxDayLen = () => {
-          const lens = Object.keys(localStorage)
+          const lens = Object.keys(storage)
             .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
-            .map((k) => localStorage.getItem(k).length);
+            .map((k) => storage.getItem(k).length);
           return Math.max(1, ...lens);
         },
         getGlobalMaxWeekLen = () => {
           const totals = {};
-          Object.keys(localStorage)
+          Object.keys(storage)
             .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
             .forEach((k) => {
               const [y, m, dd] = k.split("-").map(Number),
                 d = new Date(y, m - 1, dd),
                 { isoYear, weekNum } = getISOWeekInfo(d),
                 wk = `${isoYear}-W${weekNum}`;
-              totals[wk] = (totals[wk] || 0) + localStorage.getItem(k).length;
+              totals[wk] = (totals[wk] || 0) + storage.getItem(k).length;
             });
           return Math.max(1, ...Object.values(totals));
         },
@@ -5254,11 +5475,11 @@
         },
         getCellColorKey = (dateKey) => `cellColor:${dateKey}`,
         getCellColor = (dateKey) =>
-          localStorage.getItem(getCellColorKey(dateKey)) || "",
+          storage.getItem(getCellColorKey(dateKey)) || "",
         setCellColor = (dateKey, color) => {
           color
-            ? localStorage.setItem(getCellColorKey(dateKey), color)
-            : localStorage.removeItem(getCellColorKey(dateKey));
+            ? storage.setItem(getCellColorKey(dateKey), color)
+            : storage.removeItem(getCellColorKey(dateKey));
         },
         hasCustomCellColor = (dateKey) => {
           const custom = getCellColor(dateKey);
@@ -5267,7 +5488,7 @@
         getDayColorValue = (dateKey, maxDayLen) => {
           const custom = getCellColor(dateKey);
           if (custom && CELL_COLORS[custom]) return CELL_COLORS[custom];
-          const dayLen = (localStorage.getItem(dateKey) || "").length,
+          const dayLen = (storage.getItem(dateKey) || "").length,
             heat = (dayLen / (maxDayLen || 1)) * 0.5;
           return `rgba(59, 130, 196, ${heat})`;
         },
@@ -5289,11 +5510,11 @@
         },
         getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
         getWeekColor = (weekKey) =>
-          localStorage.getItem(getWeekColorKey(weekKey)) || "",
+          storage.getItem(getWeekColorKey(weekKey)) || "",
         setWeekColor = (weekKey, color) => {
           color
-            ? localStorage.setItem(getWeekColorKey(weekKey), color)
-            : localStorage.removeItem(getWeekColorKey(weekKey));
+            ? storage.setItem(getWeekColorKey(weekKey), color)
+            : storage.removeItem(getWeekColorKey(weekKey));
         },
         applyWeekColor = (cell, weekKey, weekTotal, maxWeekLen) => {
           const custom = getWeekColor(weekKey);
@@ -5481,13 +5702,13 @@
         },
         getIcsCalendars = () => {
           try {
-            return JSON.parse(localStorage.getItem("icsCalendars") || "[]");
+            return JSON.parse(storage.getItem("icsCalendars") || "[]");
           } catch (err) {
             return [];
           }
         },
         setIcsCalendars = (calendars) =>
-          localStorage.setItem("icsCalendars", JSON.stringify(calendars)),
+          storage.setItem("icsCalendars", JSON.stringify(calendars)),
         fetchAndExpandOneCalendar = async (calendar) => {
           const res = await fetchWithTimeout(
             `/api/ics-proxy?url=${encodeURIComponent(calendar.url)}`,
@@ -5554,8 +5775,8 @@
           const calendars = getIcsCalendars();
           if (!calendars.length) {
             (icsEventsCache = {}),
-              localStorage.removeItem("icsEventsCache"),
-              localStorage.removeItem("icsLastFetchedAt"),
+              storage.removeItem("icsEventsCache"),
+              storage.removeItem("icsLastFetchedAt"),
               renderScheduleBar(),
               renderIcsStatus("");
             return;
@@ -5574,8 +5795,8 @@
               : errorCount++;
           });
           (icsEventsCache = merged),
-            localStorage.setItem("icsEventsCache", JSON.stringify(merged)),
-            localStorage.setItem("icsLastFetchedAt", new Date().toISOString()),
+            storage.setItem("icsEventsCache", JSON.stringify(merged)),
+            storage.setItem("icsLastFetchedAt", new Date().toISOString()),
             renderScheduleBar(),
             renderIcsStatus(
               errorCount > 0
@@ -5585,7 +5806,7 @@
         },
         maybeAutoRefreshICS = () => {
           if (!getIcsCalendars().length) return;
-          const lastFetched = localStorage.getItem("icsLastFetchedAt"),
+          const lastFetched = storage.getItem("icsLastFetchedAt"),
             stale =
               !lastFetched ||
               Date.now() - new Date(lastFetched).getTime() >
@@ -5598,11 +5819,11 @@
         // そのまま読むため、復号なしに配信できる形でなければ購読できない。
         ICS_PUBLISH_LABELS = { day: "日カレンダー", week: "週カレンダー" },
         getIcsPublishId = (kind) =>
-          localStorage.getItem(`icsPublishId:${kind}`) || "",
+          storage.getItem(`icsPublishId:${kind}`) || "",
         setIcsPublishId = (kind, id) =>
-          localStorage.setItem(`icsPublishId:${kind}`, id),
+          storage.setItem(`icsPublishId:${kind}`, id),
         clearIcsPublishId = (kind) =>
-          localStorage.removeItem(`icsPublishId:${kind}`),
+          storage.removeItem(`icsPublishId:${kind}`),
         generatePublishId = () =>
           bytesToHex(crypto.getRandomValues(new Uint8Array(32))),
         icsPublishUrl = (publishId) =>
@@ -5849,7 +6070,7 @@
             year = d.getFullYear(),
             day = d.getDay(),
             holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]),
-            dayLen = (localStorage.getItem(key) || "").length,
+            dayLen = (storage.getItem(key) || "").length,
             cell = document.createElement("div");
           (cell.className = "schedule-cell"),
             (cell.dataset.date = key),
@@ -5943,12 +6164,12 @@
           const noteInput = document.createElement("textarea");
           (noteInput.className = "schedule-note"),
             (noteInput.placeholder = "予定を入力"),
-            (noteInput.value = localStorage.getItem(`note:${key}`) || "");
+            (noteInput.value = storage.getItem(`note:${key}`) || "");
           noteInput.addEventListener("input", () => {
             const v = noteInput.value;
             v
-              ? localStorage.setItem(`note:${key}`, v)
-              : localStorage.removeItem(`note:${key}`);
+              ? storage.setItem(`note:${key}`, v)
+              : storage.removeItem(`note:${key}`);
             maybeSyncPushChannel("calendar");
           }),
             cell.appendChild(dateLabel);
@@ -6040,12 +6261,12 @@
           const noteInput = document.createElement("textarea");
           (noteInput.className = "week-note"),
             (noteInput.placeholder = "週のメモ"),
-            (noteInput.value = localStorage.getItem(`weeknote:${weekKey}`) || "");
+            (noteInput.value = storage.getItem(`weeknote:${weekKey}`) || "");
           noteInput.addEventListener("input", () => {
             const v = noteInput.value;
             v
-              ? localStorage.setItem(`weeknote:${weekKey}`, v)
-              : localStorage.removeItem(`weeknote:${weekKey}`);
+              ? storage.setItem(`weeknote:${weekKey}`, v)
+              : storage.removeItem(`weeknote:${weekKey}`);
             maybeSyncPushChannel("calendar");
           }),
             cell.appendChild(weekLabel),
@@ -6458,7 +6679,7 @@
           "Escape" === e.key &&
             (searchPaneInputEl.blur(),
               document.body.classList.add("search-pane-collapsed"),
-              localStorage.setItem("searchPaneCollapsed", "1")),
+              storage.setItem("searchPaneCollapsed", "1")),
             "Enter" === e.key && addSearchHistory(searchPaneInputEl.value);
         }),
         s.addEventListener("input", () => {
@@ -6467,7 +6688,7 @@
             (snapshotHistory(activeBlockKey, editBaseline),
               (sessionSnapshotDone = !0)),
             (sDirty = !0),
-            localStorage.setItem(
+            storage.setItem(
               activeBlockKey,
               activeBlockPrefix + s.value + activeBlockSuffix
             ),
@@ -6549,10 +6770,18 @@
           redeemHandoffCode(syncHandoffCodeInputEl.value),
             (syncHandoffCodeInputEl.value = "");
         }),
+        shareIssueBtnEl.addEventListener("click", issueShareLink),
+        shareLinkCopyBtnEl.addEventListener("click", () => {
+          shareLinkTextEl.value &&
+            navigator.clipboard
+              .writeText(shareLinkTextEl.value)
+              .then(() => showToast("共有リンクをコピーしました", "success"))
+              .catch(() => showToast("コピーに失敗しました", "error"));
+        }),
         document
           .getElementById("privacyBannerDismiss")
           .addEventListener("click", () => {
-            localStorage.setItem("privacyNoticeDismissed", "1"),
+            storage.setItem("privacyNoticeDismissed", "1"),
               (document.getElementById("privacyBanner").style.display = "none");
           }),
         document
@@ -6687,7 +6916,7 @@
             const collapsed = document.body.classList.toggle(
               "week-pane-collapsed"
             );
-            localStorage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
+            storage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
           }),
         (() => {
           const el = document.getElementById("scheduleBarToggle"),
@@ -6757,7 +6986,7 @@
                 "schedule-bar-collapsed"
               );
               collapsed || alignTodayCellToCursorX(e.clientX),
-                localStorage.setItem(
+                storage.setItem(
                   "scheduleBarCollapsed",
                   collapsed ? "1" : "0"
                 );
@@ -6767,7 +6996,7 @@
           const collapsed = document.body.classList.toggle(
             "search-pane-collapsed"
           );
-          localStorage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
+          storage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
           collapsed ||
             (renderSearchPaneResults(searchPaneInputEl.value),
               renderSearchHistoryChips());
@@ -6945,12 +7174,12 @@
             const keys = Object.keys(data),
               failedKeys = [];
             let okCount = 0;
-            // 1件ごとにtry/catchする。localStorageの容量上限(QuotaExceededError等)に
+            // 1件ごとにtry/catchする。storageの容量上限(QuotaExceededError等)に
             // 達すると、無防備なforEachでは例外がループ全体を止め、以降のキーが
             // 静かに失われた上に「成功しました」と表示されてしまう不具合があった。
             keys.forEach((k) => {
               try {
-                localStorage.setItem(k, data[k]);
+                storage.setItem(k, data[k]);
                 okCount++;
               } catch (err) {
                 failedKeys.push(k);
@@ -6961,11 +7190,11 @@
             // 古いcontentKeyを基準に「サーバーの方が新しい」と誤判定し、今読み込んだ
             // ばかりの内容を即座に上書きしてしまう(本文が消える不具合)。
             const nowIso = new Date().toISOString();
-            localStorage.setItem(
+            storage.setItem(
               SYNC_CHANNELS.entries.contentKey,
               nowIso
             );
-            localStorage.setItem(
+            storage.setItem(
               SYNC_CHANNELS.calendar.contentKey,
               nowIso
             );
@@ -7014,6 +7243,10 @@
               })());
         }),
         document.addEventListener("DOMContentLoaded", async () => {
+          // 共有URL(#share=...)で開かれた場合はまずここでシードを引き換え、
+          // storageの参照先をsessionStorageへ切り替える。無効/期限切れの
+          // リンクだった場合はエラー画面に差し替えて以降の初期化を行わない。
+          if (!(await initSharedSession())) return;
           // リモートのデータを取得し終えるまで描画・操作を待つ
           // (取得中は#initialLoadOverlayが画面全体を覆い操作を封じる)。
           // 同期未設定/オフラインの場合はpullAndMergeChannel内で即falseが
@@ -7032,11 +7265,11 @@
           T(f);
           renderScheduleBar();
           renderH1ShortcutBar();
-          localStorage.getItem("privacyNoticeDismissed") &&
+          storage.getItem("privacyNoticeDismissed") &&
             (document.getElementById("privacyBanner").style.display = "none");
           // Week paneの初期折りたたみ状態(保存済みの設定 > 画面幅による自動判定)
           {
-            const stored = localStorage.getItem("weekPaneCollapsed"),
+            const stored = storage.getItem("weekPaneCollapsed"),
               shouldCollapse =
                 null !== stored ? "1" === stored : window.innerWidth <= 900;
             document.body.classList.toggle(
@@ -7047,12 +7280,12 @@
           // 下段カレンダーはユーザーが折りたたむまで常に表示する
           document.body.classList.toggle(
             "schedule-bar-collapsed",
-            "1" === localStorage.getItem("scheduleBarCollapsed")
+            "1" === storage.getItem("scheduleBarCollapsed")
           );
           // 検索パネルの初期折りたたみ状態(保存済みの設定がなければ常に折りたたみ)
           document.body.classList.toggle(
             "search-pane-collapsed",
-            "0" !== localStorage.getItem("searchPaneCollapsed")
+            "0" !== storage.getItem("searchPaneCollapsed")
           );
           renderSearchPaneResults(searchPaneInputEl.value);
           renderSearchHistoryChips();
