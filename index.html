@@ -1127,6 +1127,10 @@
       display: none;
     }
 
+    .block-checkbox {
+      cursor: pointer;
+    }
+
     /* フォーカスモード: どれか1ブロックを編集中は、他ブロックを控えめにする */
     #markdownViewer.has-active-block .content-block:not(.block-active) {
       opacity: 0.35;
@@ -3472,6 +3476,43 @@
           });
           return renamed;
         },
+        // "- [ ]"/"- [x]" チェックボックス行を、出現順で数えたcheckboxIndex番目
+        // だけトグルする(markedのタスクリスト判定と同じ構文のみ対象)。
+        toggleCheckboxInText = (text, checkboxIndex) => {
+          let count = -1;
+          return text.replace(
+            /^([ \t]*[-*+][ \t]+\[)([ xX])(\])/gm,
+            (match, pre, mark, post) => {
+              count++;
+              if (count !== checkboxIndex) return match;
+              return pre + (/[xX]/.test(mark) ? " " : "x") + post;
+            }
+          );
+        },
+        // 閲覧モードのチェックボックスをクリックした時の確定保存。他のブロックが
+        // 編集中なら先にflushし、文字位置がずれる可能性に備えて見出し一致で
+        // 対象ブロックを取り直してからトグルする。
+        toggleBlockCheckbox = (block, checkboxIndex) => {
+          if (activeBlockEl) {
+            s.blur();
+            const fresh = buildDayBlocks(f).find(
+              (b) => b.headingText === block.headingText
+            );
+            fresh && (block = fresh);
+          }
+          const dayText = localStorage.getItem(block.boundDateKey) || "# ",
+            before = dayText.slice(0, block.editStart),
+            editable = dayText.slice(block.editStart, block.editEnd),
+            after = dayText.slice(block.editEnd),
+            updatedEditable = toggleCheckboxInText(editable, checkboxIndex);
+          if (updatedEditable === editable) return;
+          const next = before + updatedEditable + after;
+          snapshotHistory(block.boundDateKey, dayText),
+            localStorage.setItem(block.boundDateKey, next),
+            H(),
+            maybeSyncPushChannel("entries"),
+            renderDayBlocks(f);
+        },
         buildBlockElement = (block) => {
           const blockEl = document.createElement("div");
           blockEl.className = "content-block";
@@ -3483,6 +3524,22 @@
             a.target = "_blank";
             a.rel = "noopener noreferrer";
           });
+          viewEl
+            .querySelectorAll('input[type="checkbox"]')
+            .forEach((cb, checkboxIndex) => {
+              (cb.disabled = !1), cb.classList.add("block-checkbox");
+              // チェックボックスがフォーカスを奪うと、編集中の別ブロックの
+              // s(textarea)がその場でblurし、blurハンドラが即座に全ブロックを
+              // 再描画してこのinput自身を作り直してしまう(delBtnと同じ問題)。
+              // pointerdown時点でフォーカス移動そのものを止め、flush/再描画は
+              // toggleBlockCheckbox側で明示的に行う。
+              cb.addEventListener("pointerdown", (e) => e.preventDefault()),
+                cb.addEventListener("mousedown", (e) => e.preventDefault()),
+                cb.addEventListener("click", (e) => {
+                  e.stopPropagation(),
+                    toggleBlockCheckbox(block, checkboxIndex);
+                });
+            });
           const delBtn = document.createElement("button");
           (delBtn.type = "button"),
             (delBtn.className = "block-delete"),
