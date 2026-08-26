@@ -16,7 +16,9 @@ app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB request body cap
 SYNC_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 CODE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 PUBLISH_ID_RE = re.compile(r"^[0-9a-f]{64}$")
-HANDOFF_TTL_SECONDS = 600  # 6桁コードの有効期限(10分)
+HANDOFF_TTL_SECONDS = 600  # 6桁コード引き継ぎの既定有効期限(10分、クライアント未指定時)
+HANDOFF_MIN_TTL_SECONDS = 60  # 一時共有リンクなど、クライアントが指定できる有効期限の下限
+HANDOFF_MAX_TTL_SECONDS = 24 * 60 * 60  # 同上、上限(24時間)
 ICS_FETCH_TIMEOUT_SECONDS = 10
 ICS_MAX_BYTES = 5 * 1024 * 1024  # 5 MB cap on the fetched ICS body
 ICS_PUBLISH_MAX_BYTES = 1 * 1024 * 1024  # 1 MB cap on a published ICS body
@@ -34,12 +36,16 @@ CREATE TABLE IF NOT EXISTS sync_blobs (
 CREATE INDEX IF NOT EXISTS idx_sync_blobs_last_synced_at ON sync_blobs (last_synced_at);
 
 CREATE TABLE IF NOT EXISTS seed_handoff (
-    code_hash  TEXT PRIMARY KEY,
-    ciphertext TEXT NOT NULL,
-    iv         TEXT NOT NULL,
-    salt       TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    code_hash   TEXT PRIMARY KEY,
+    ciphertext  TEXT NOT NULL,
+    iv          TEXT NOT NULL,
+    salt        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ttl_seconds INTEGER NOT NULL DEFAULT 600
 );
+-- 既存DBに対する後付けのカラム追加(6桁コードは常に既定TTLだったが、
+-- 「私の日誌」の一時共有リンクはより長いTTLを個別に指定できるようにした)。
+ALTER TABLE seed_handoff ADD COLUMN IF NOT EXISTS ttl_seconds INTEGER NOT NULL DEFAULT 600;
 
 -- 日/週カレンダーの「ICS公開URL」機能用。ここだけは仕様上、意図的に
 -- 平文で保存する(標準的なカレンダークライアントはJSを実行せず、
@@ -298,8 +304,10 @@ def export_flag():
 @app.route("/api/handoff", methods=["POST"])
 def handoff_push():
     # カメラのない端末同士でシードを引き継ぐための、時間限定コードの発行。
-    # サーバーはPIN自体を知らず、PINのハッシュ(code_hash)をキーとして
-    # PINから導出した鍵で暗号化されたシードだけを一時保管する。
+    # 「私の日誌」の一時共有リンクもこのエンドポイントを流用しており、その
+    # 場合だけ呼び出し側がttl_secondsで既定より長い有効期限を指定できる。
+    # サーバーはPIN/トークン自体を知らず、そのハッシュ(code_hash)をキーとして
+    # 導出した鍵で暗号化されたシードだけを一時保管する。
     body = request.get_json(silent=True)
     if not isinstance(body, dict):
         return jsonify(error="invalid JSON body"), 400
@@ -308,6 +316,7 @@ def handoff_push():
     ciphertext = body.get("ciphertext")
     iv = body.get("iv")
     salt = body.get("salt")
+    ttl_seconds = body.get("ttl_seconds", HANDOFF_TTL_SECONDS)
 
     if not (isinstance(code_hash, str) and CODE_HASH_RE.match(code_hash)):
         return jsonify(error="code_hash must be a 64-character hex string"), 400
@@ -317,6 +326,17 @@ def handoff_push():
         return jsonify(error="iv is required"), 400
     if not (isinstance(salt, str) and salt):
         return jsonify(error="salt is required"), 400
+    if not (
+        isinstance(ttl_seconds, int)
+        and not isinstance(ttl_seconds, bool)
+        and HANDOFF_MIN_TTL_SECONDS <= ttl_seconds <= HANDOFF_MAX_TTL_SECONDS
+    ):
+        return (
+            jsonify(
+                error=f"ttl_seconds must be an integer between {HANDOFF_MIN_TTL_SECONDS} and {HANDOFF_MAX_TTL_SECONDS}"
+            ),
+            400,
+        )
 
     try:
         conn = get_connection()
@@ -327,22 +347,23 @@ def handoff_push():
         ensure_schema(conn)
         with conn.cursor() as cur:
             cur.execute(
-                f"DELETE FROM seed_handoff WHERE created_at < now() - interval '{HANDOFF_TTL_SECONDS} seconds'"
+                "DELETE FROM seed_handoff WHERE created_at + ttl_seconds * interval '1 second' < now()"
             )
             cur.execute(
                 """
-                INSERT INTO seed_handoff (code_hash, ciphertext, iv, salt, created_at)
-                VALUES (%s, %s, %s, %s, now())
+                INSERT INTO seed_handoff (code_hash, ciphertext, iv, salt, created_at, ttl_seconds)
+                VALUES (%s, %s, %s, %s, now(), %s)
                 ON CONFLICT (code_hash) DO UPDATE SET
                     ciphertext = EXCLUDED.ciphertext,
                     iv = EXCLUDED.iv,
                     salt = EXCLUDED.salt,
-                    created_at = now()
+                    created_at = now(),
+                    ttl_seconds = EXCLUDED.ttl_seconds
                 """,
-                (code_hash, ciphertext, iv, salt),
+                (code_hash, ciphertext, iv, salt, ttl_seconds),
             )
         conn.commit()
-        return jsonify(ok=True, expires_in=HANDOFF_TTL_SECONDS)
+        return jsonify(ok=True, expires_in=ttl_seconds)
     finally:
         conn.close()
 
@@ -362,10 +383,10 @@ def handoff_pull():
         ensure_schema(conn)
         with conn.cursor() as cur:
             cur.execute(
-                f"""
+                """
                 SELECT ciphertext, iv, salt FROM seed_handoff
                 WHERE code_hash = %s
-                  AND created_at >= now() - interval '{HANDOFF_TTL_SECONDS} seconds'
+                  AND created_at + ttl_seconds * interval '1 second' >= now()
                 """,
                 (code_hash,),
             )
@@ -378,6 +399,32 @@ def handoff_pull():
         conn.commit()
         ciphertext, iv, salt = row
         return jsonify(found=True, ciphertext=ciphertext, iv=iv, salt=salt)
+    finally:
+        conn.close()
+
+
+@app.route("/api/handoff", methods=["DELETE"])
+def handoff_delete():
+    # 新しい共有リンク/コードを発行したときに、まだ引き換えられていない
+    # 古いものを明示的に無効化するための取り消し。
+    code_hash = request.args.get("code_hash", "")
+    if not CODE_HASH_RE.match(code_hash):
+        return jsonify(error="code_hash must be a 64-character hex string"), 400
+
+    try:
+        conn = get_connection()
+    except RuntimeError as err:
+        return jsonify(error=str(err)), 500
+
+    try:
+        ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM seed_handoff WHERE code_hash = %s", (code_hash,)
+            )
+            deleted = cur.rowcount
+        conn.commit()
+        return jsonify(deleted=deleted)
     finally:
         conn.close()
 
@@ -546,7 +593,7 @@ def cleanup():
             )
             deleted = cur.rowcount
             cur.execute(
-                f"DELETE FROM seed_handoff WHERE created_at < now() - interval '{HANDOFF_TTL_SECONDS} seconds'"
+                "DELETE FROM seed_handoff WHERE created_at + ttl_seconds * interval '1 second' < now()"
             )
             deleted_handoffs = cur.rowcount
             cur.execute(

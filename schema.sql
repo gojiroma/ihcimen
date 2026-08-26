@@ -13,17 +13,22 @@ CREATE TABLE IF NOT EXISTS sync_blobs (
 
 CREATE INDEX IF NOT EXISTS idx_sync_blobs_last_synced_at ON sync_blobs (last_synced_at);
 
--- Short-lived table for the camera-less "6-digit code" seed handoff.
--- The server never sees the PIN itself, only a hash of it (code_hash) and
--- the seed encrypted with a PIN-derived key. Rows expire after
--- HANDOFF_TTL_SECONDS (10 minutes) and are deleted immediately after a
--- successful single read.
+-- Short-lived table backing both the camera-less "6-digit code" seed handoff
+-- and the "share my diary via a disposable link" feature (same mechanism,
+-- different caller-supplied ttl_seconds). The server never sees the PIN or
+-- link token itself, only a hash of it (code_hash) and the seed encrypted
+-- with a key derived from that PIN/token. Rows expire after ttl_seconds
+-- (default 600s / 10 minutes for the PIN flow; the share-link flow requests
+-- a longer TTL, capped server-side at HANDOFF_MAX_TTL_SECONDS) and are
+-- deleted immediately after a successful single read, or explicitly via
+-- DELETE /api/handoff when a new share link supersedes an old one.
 CREATE TABLE IF NOT EXISTS seed_handoff (
-    code_hash  TEXT PRIMARY KEY,
-    ciphertext TEXT NOT NULL,
-    iv         TEXT NOT NULL,
-    salt       TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    code_hash   TEXT PRIMARY KEY,
+    ciphertext  TEXT NOT NULL,
+    iv          TEXT NOT NULL,
+    salt        TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ttl_seconds INTEGER NOT NULL DEFAULT 600
 );
 
 -- Backs the "publish an ICS URL" feature for the day/week calendars. Unlike
