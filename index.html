@@ -3230,10 +3230,13 @@
                       : "🌡️",
         // 位置情報の解決はヘッダーの天気とカレンダーセルの予報で共有する
         // (許可ダイアログを2回出さないため、また同じ地点で揃えるため)。
+        // 一時共有リンクで開かれたセッションでは、閲覧者に位置情報の許可
+        // ダイアログを出さない(東京の予報にフォールバックする)。
         resolveWeatherCoords = () =>
           new Promise((resolve) => {
-            navigator.geolocation
-              ? navigator.geolocation.getCurrentPosition(
+            isSharedSession || !navigator.geolocation
+              ? resolve(TOKYO_LATLON)
+              : navigator.geolocation.getCurrentPosition(
                   (pos) =>
                     resolve({
                       lat: pos.coords.latitude.toFixed(2),
@@ -3241,8 +3244,7 @@
                     }),
                   () => resolve(TOKYO_LATLON),
                   { timeout: 4000, maximumAge: 30 * 60 * 1000 }
-                )
-              : resolve(TOKYO_LATLON);
+                );
           }),
         fetchWeather = () =>
           resolveWeatherCoords().then(
