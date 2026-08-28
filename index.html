@@ -84,6 +84,10 @@
       z-index: 502;
     }
 
+    body.schedule-bar-fullscreen .week-pane-close-btn {
+      z-index: 502;
+    }
+
     body.week-pane-collapsed #weekPaneOpenZone {
       pointer-events: auto;
     }
@@ -361,7 +365,10 @@
     body.touch-editing .edge-swipe-zone,
     body.touch-editing .history-btn,
     body.touch-editing .copy-day-btn,
-    body.touch-editing .h1-shortcut-bar {
+    body.touch-editing .h1-shortcut-bar,
+    body.touch-editing .week-pane-close-btn,
+    body.touch-editing .schedule-bar-collapse-btn,
+    body.touch-editing .schedule-bar-expand-btn {
       display: none;
     }
 
@@ -1495,6 +1502,53 @@
       user-select: none;
     }
 
+    /* 下段カレンダーの開閉/全画面化は上へ/下へのフリックでもできるが、
+       画面下端からの上フリックはAndroidの「ホーム画面」ジェスチャーと
+       衝突してOSに奪われてしまうことがあるため、タップ用のボタンも
+       用意しておく(全画面中は専用の閉じるボタンが別にあるので、
+       ここは開いている通常表示のときだけ出す)。 */
+    .schedule-bar-collapse-btn,
+    .schedule-bar-expand-btn {
+      display: none;
+      position: fixed;
+      bottom: 76px;
+      /* searchPaneOpenZone/weekPaneOpenZone(z-index:460)より手前にして、
+         端が閉じているときでもこれらのボタンがフリック領域の下に
+         埋もれてクリックできなくなるのを防ぐ。 */
+      z-index: 470;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.55;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .schedule-bar-collapse-btn:hover,
+    .schedule-bar-expand-btn:hover {
+      opacity: 1;
+    }
+
+    .schedule-bar-collapse-btn {
+      right: 8px;
+      font-size: 20px;
+    }
+
+    .schedule-bar-expand-btn {
+      right: 40px;
+      font-size: 16px;
+    }
+
+    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen) .schedule-bar-collapse-btn,
+    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen) .schedule-bar-expand-btn {
+      display: flex;
+    }
+
     .schedule-cell {
       position: relative;
       flex: 0 0 120px;
@@ -1609,6 +1663,37 @@
       background-color: var(--bg-color);
       z-index: 400;
       transition: transform 0.25s ease;
+    }
+
+    /* 週サマリーの中身(.week-pane)は日付移動のたびに丸ごと
+       再描画されるため、閉じるボタンは中に入れず兄弟要素として
+       固定配置しておく。 */
+    .week-pane-close-btn {
+      position: fixed;
+      top: 6px;
+      right: 6px;
+      z-index: 450;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.55;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .week-pane-close-btn:hover {
+      opacity: 1;
+    }
+
+    body.week-pane-collapsed .week-pane-close-btn {
+      display: none;
     }
 
     .week-cell {
@@ -1770,7 +1855,10 @@
     body.ui-idle .menu-trigger,
     body.ui-idle .history-btn,
     body.ui-idle .copy-day-btn,
-    body.ui-idle .morning-page-btn {
+    body.ui-idle .morning-page-btn,
+    body.ui-idle .week-pane-close-btn,
+    body.ui-idle .schedule-bar-collapse-btn,
+    body.ui-idle .schedule-bar-expand-btn {
       opacity: 0.12;
     }
 
@@ -2008,6 +2096,29 @@
       border-color: rgba(80, 80, 80, 0.8);
     }
 
+    /* パネル自体のフリックで閉じる操作はAndroidでは分かりにくいため、
+       タップで確実に閉じられるボタンも用意しておく。 */
+    .search-pane-close-btn {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.55;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .search-pane-close-btn:hover {
+      opacity: 1;
+    }
+
     #searchPaneResults {
       list-style: none;
       margin: 0;
@@ -2163,6 +2274,7 @@
         <line x1="21" y1="21" x2="15.5" y2="15.5" />
       </svg>
       <input type="text" id="searchPaneInput" placeholder="検索 (fキー)" />
+      <button id="searchPaneCloseBtn" class="search-pane-close-btn" type="button" aria-label="検索パネルを閉じる" title="閉じる">×</button>
     </div>
     <div id="searchPaneHistory" class="search-pane-history"></div>
     <ul id="searchPaneResults"></ul>
@@ -2466,6 +2578,8 @@
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
   <div id="scheduleBarOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
+  <button id="scheduleBarCollapseBtn" class="schedule-bar-collapse-btn" type="button" aria-label="日カレンダーを閉じる" title="閉じる">×</button>
+  <button id="scheduleBarExpandBtn" class="schedule-bar-expand-btn" type="button" aria-label="全画面カレンダーを開く" title="全画面表示">⤢</button>
   <div id="scheduleBarFullscreenExitZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
@@ -2504,6 +2618,7 @@
   </div>
   <div id="weekPane" class="week-pane"></div>
   <div id="weekPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
+  <button id="weekPaneCloseBtn" class="week-pane-close-btn" type="button" aria-label="週サマリーを閉じる" title="閉じる">×</button>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -7112,8 +7227,12 @@
               zoneEl.addEventListener("pointercancel", cancel);
           };
 
-          // 検索パネル(左): 端を右へフリックで開く、パネル自体を左へ
-          // フリックで閉じる。
+          // 検索パネル(左): 端を右へフリックまたはタップで開く、パネル
+          // 自体を左へフリックするか閉じるボタンで閉じる。
+          const closeSearchPane = () => {
+            document.body.classList.add("search-pane-collapsed"),
+              storage.setItem("searchPaneCollapsed", "1");
+          };
           setupZoneOpenSwipe(
             document.getElementById("searchPaneOpenZone"),
             "x",
@@ -7129,19 +7248,26 @@
               document.getElementById("searchPane"),
               "x",
               -1,
-              () => {
-                document.body.classList.add("search-pane-collapsed"),
-                  storage.setItem("searchPaneCollapsed", "1");
-              }
-            );
+              closeSearchPane
+            ),
+            document
+              .getElementById("searchPaneCloseBtn")
+              .addEventListener("click", (e) => {
+                e.stopPropagation(), closeSearchPane();
+              });
 
-          // Week pane(右): 端を左へフリックで開く、パネル自体を右へ
-          // フリックで閉じる。全画面カレンダー表示中はWeek paneの幅の
-          // 分だけカレンダーグリッドの幅も変わるので、開閉アニメーション
-          // (0.25s)が終わったタイミングで列数を再計算する。
+          // Week pane(右): 端を左へフリックまたはタップで開く、パネル
+          // 自体を右へフリックするか閉じるボタンで閉じる。全画面カレンダー
+          // 表示中はWeek paneの幅の分だけカレンダーグリッドの幅も変わるので、
+          // 開閉アニメーション(0.25s)が終わったタイミングで列数を再計算する。
           const resyncFullscreenAfterWeekPaneToggle = () => {
             document.body.classList.contains("schedule-bar-fullscreen") &&
               setTimeout(fillScheduleBarFullscreen, 260);
+          };
+          const closeWeekPane = () => {
+            document.body.classList.add("week-pane-collapsed"),
+              storage.setItem("weekPaneCollapsed", "1"),
+              resyncFullscreenAfterWeekPaneToggle();
           };
           setupZoneOpenSwipe(
             document.getElementById("weekPaneOpenZone"),
@@ -7153,11 +7279,12 @@
                 resyncFullscreenAfterWeekPaneToggle();
             }
           ),
-            setupPaneCloseSwipe(wp, "x", 1, () => {
-              document.body.classList.add("week-pane-collapsed"),
-                storage.setItem("weekPaneCollapsed", "1"),
-                resyncFullscreenAfterWeekPaneToggle();
-            });
+            setupPaneCloseSwipe(wp, "x", 1, closeWeekPane),
+            document
+              .getElementById("weekPaneCloseBtn")
+              .addEventListener("click", (e) => {
+                e.stopPropagation(), closeWeekPane();
+              });
 
           // 下段カレンダー(下): 閉じている間は下端をフリックで開く
           // (タップに近い小さな動きは通常表示、しっかり上へ引けば
@@ -7230,6 +7357,24 @@
               };
               sb.addEventListener("pointerup", reset),
                 sb.addEventListener("pointercancel", reset);
+            })(),
+            // 下段カレンダー(開いている・全画面ではない状態)の折りたたみ/
+            // 全画面化ボタン。上下スワイプは画面下端からだとAndroidの
+            // 「ホーム画面」ジェスチャーと衝突しやすいため、確実に押せる
+            // ボタンでも同じ操作をできるようにしておく。
+            (() => {
+              document
+                .getElementById("scheduleBarCollapseBtn")
+                .addEventListener("click", (e) => {
+                  e.stopPropagation(),
+                    document.body.classList.add("schedule-bar-collapsed"),
+                    storage.setItem("scheduleBarCollapsed", "1");
+                }),
+                document
+                  .getElementById("scheduleBarExpandBtn")
+                  .addEventListener("click", (e) => {
+                    e.stopPropagation(), enterScheduleBarFullscreen();
+                  });
             })(),
             // 全画面カレンダー: 上端の見えない領域を下へフリックして閉じる
             // (グリッド自体の縦スクロールと競合しないよう、専用の領域に
