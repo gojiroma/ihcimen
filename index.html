@@ -7249,22 +7249,23 @@
           // storageの参照先をsessionStorageへ切り替える。無効/期限切れの
           // リンクだった場合はエラー画面に差し替えて以降の初期化を行わない。
           if (!(await initSharedSession())) return;
-          // リモートのデータを取得し終えるまで描画・操作を待つ
-          // (取得中は#initialLoadOverlayが画面全体を覆い操作を封じる)。
-          // 同期未設定/オフラインの場合はpullAndMergeChannel内で即falseが
-          // 返るため、ここでの待ち時間は発生しない。
-          try {
-            await pullAndMergeAll();
-          } catch (err) {
-            console.warn("[sync] initial pull failed:", err);
-          }
-          const renamedCount = dedupeDuplicateHeadings();
-          renamedCount &&
-            showToast(
-              `重複していた見出し名を${renamedCount}件リネームしました`,
-              "info"
-            );
+          // まずローカルに保存済みのデータ(前回同期時点の内容)でただちに
+          // 描画する。リモートの取得を待ってから描画すると、オンラインでも
+          // ネットワーク往復の間ずっとロードスピナーが表示されてしまうため、
+          // 同期は裏で行い、取得できた分だけrefreshUIAfterSync/dedupeで
+          // 差分反映する(pullAndMergeChannel内で新データ取得時は自動的に
+          // refreshUIAfterSyncが呼ばれる)。
           T(f);
+          // ローカルの内容を描画できたので、ここでロードスピナーを消して
+          // 操作を解放する(以降の同期はバックグラウンドで行う)。
+          {
+            const initialLoadOverlayEl = document.getElementById(
+              "initialLoadOverlay"
+            );
+            initialLoadOverlayEl &&
+              (initialLoadOverlayEl.classList.add("hidden"),
+                setTimeout(() => initialLoadOverlayEl.remove(), 300));
+          }
           renderScheduleBar();
           renderH1ShortcutBar();
           storage.getItem("privacyNoticeDismissed") &&
@@ -7316,17 +7317,28 @@
           sessionStorage.getItem("justUpdatedToast") &&
             (sessionStorage.removeItem("justUpdatedToast"),
               showToast("最新バージョンに更新しました", "success"));
-          // リモート取得(またはその判定)が完了したので操作を解放する
-          const initialLoadOverlayEl = document.getElementById(
-            "initialLoadOverlay"
-          );
-          initialLoadOverlayEl &&
-            (initialLoadOverlayEl.classList.add("hidden"),
-              setTimeout(() => initialLoadOverlayEl.remove(), 300));
-          // その日(JST)最初にページを開いたときの自動エクスポート
-          maybeRunDailyAutoExport().catch((err) =>
-            console.warn("[auto-export] failed:", err)
-          );
+          // リモートのデータをバックグラウンドで取得・反映する。同期未設定/
+          // オフラインの場合はpullAndMergeChannel内で即falseが返る。新データを
+          // 取り込めた場合はpullAndMergeChannel内でrefreshUIAfterSyncが呼ばれ
+          // 画面に反映される。取り込み後に重複見出しが生じていないかもここで
+          // 確認する。自動エクスポートも(同期後の最新内容を書き出すため)
+          // ここで行う。
+          pullAndMergeAll()
+            .catch((err) => {
+              console.warn("[sync] initial pull failed:", err);
+            })
+            .then(() => {
+              const renamedCount = dedupeDuplicateHeadings();
+              renamedCount &&
+                showToast(
+                  `重複していた見出し名を${renamedCount}件リネームしました`,
+                  "info"
+                );
+              // その日(JST)最初にページを開いたときの自動エクスポート
+              maybeRunDailyAutoExport().catch((err) =>
+                console.warn("[auto-export] failed:", err)
+              );
+            });
         });
       window.addEventListener("online", () => {
         pullAndMergeAll(),
