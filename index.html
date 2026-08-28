@@ -171,6 +171,10 @@
       align-content: flex-start;
       overflow-y: auto;
       overflow-x: hidden;
+      /* スクロールバーの出現/消失でclientWidthが変わると、折り返し列数の
+         計算(getFullscreenColumns)が実際のレイアウトとずれて列がガクッと
+         ずれて見えるため、常に同じガター幅を確保しておく。 */
+      scrollbar-gutter: stable;
       z-index: 500;
       /* 背景を透過させ、下にある年の透かし表示を見せる */
       background-color: transparent;
@@ -5338,6 +5342,11 @@
           requestAnimationFrame(scanFrame);
         },
         scheduleWindowDays = 30,
+        // 全画面カレンダーは、開いた瞬間に前後5年ぶん(約1825日)を
+        // 先読みで描画してしまう。スクロール中の無限読み込み(extend系)に
+        // 頼らないことで、読み込み境界をまたぐたびに列がずれて見える
+        // 「継ぎ目」問題の発生機会そのものを減らす。
+        scheduleFullscreenWindowDays = 1825,
         weekPaneWindowWeeks = 52,
         getDateFromISOWeek = (year, week) => {
           const d = new Date(year, 0, 1);
@@ -6214,7 +6223,13 @@
               "title",
               weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
             );
-          cell.addEventListener("mouseenter", () => previewScheduleDate(monday));
+          cell.addEventListener("mouseenter", () => {
+            previewScheduleDate(monday);
+            // 全画面カレンダー表示中は、Week paneのセルにホバーしただけで
+            // 下段カレンダー側もその週にスクロール追従させる(スクロール
+            // 操作をしなくても、ホバーだけで場所を合わせられるように)。
+            scrollFullscreenCalendarToDate(monday);
+          });
           cell.addEventListener("contextmenu", (e) => {
             e.target.closest(".week-note") ||
               (e.preventDefault(),
@@ -6427,8 +6442,13 @@
           // 既存セルの列位置がずれて折り返し直してしまい、見た目上セルが
           // シフトしたように見える。列数の倍数に切り上げて丸ごと行単位で
           // 追加することで、既存セルの列位置を保つ。
+          // 列数(getFullscreenColumns)は実際のセル幅(--fs-cell-width)と
+          // 必ず同じ計算結果を使う必要があるため、丸め計算の直前に
+          // 幅を再計算して同期させておく(ずれるとここでの丸め基準と
+          // 実際の折り返し列数が食い違い、追加のたびに列がずれる)。
           fullscreen &&
-            (days = Math.ceil(days / getFullscreenColumns()) * getFullscreenColumns());
+            (adjustFullscreenCellWidth(),
+              (days = Math.ceil(days / getFullscreenColumns()) * getFullscreenColumns()));
           const maxDayLen = getGlobalMaxDayLen(),
             frag = document.createDocumentFragment();
           for (let i = days; i >= 1; i--)
@@ -6480,21 +6500,60 @@
             cellWidth = available / columns;
           sb.style.setProperty("--fs-cell-width", `${cellWidth}px`);
         },
-        // 画面がとても大きいと、初期表示だけでは全画面カレンダーが
-        // スクロール可能にならず(=無限スクロールの入口である scroll
-        // イベントが一度も発火しない)ため、あふれるまで先読みで
-        // 補充しておく。展開直後は height の CSS トランジション
-        // (0.25s)が始まったばかりで sb.clientHeight がまだ縮んだ
-        // ままのことがあるため、判定には最終的な高さになる
-        // window.innerHeight を使う。
+        // 全画面カレンダーを開いたら、現在表示中心の前後5年ぶん
+        // (scheduleFullscreenWindowDays)を一度にまとめて読み込んでおく。
+        // スクロール中の境界越え(extendScheduleBarStart/End)に頼る範囲を
+        // 減らすことで、読み込みのたびに列がずれる「継ぎ目」を体感しにくく
+        // する。中心はf(選択中の日付)ではなく現在描画済みの範囲の中央を
+        // 使う。jumpScheduleBarToDateでのプレビュージャンプ時にfとは
+        // 無関係な日付が中心になっているケースがあるため。
         fillScheduleBarFullscreen = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
           adjustFullscreenCellWidth();
+          const center = new Date(
+            (scheduleEarliest.getTime() + scheduleLatest.getTime()) / 2
+          ),
+            targetEarliest = new Date(
+              center.getTime() - scheduleFullscreenWindowDays * I
+            ),
+            targetLatest = new Date(
+              center.getTime() + scheduleFullscreenWindowDays * I
+            );
+          scheduleEarliest > targetEarliest &&
+            extendScheduleBarStart(
+              Math.round((scheduleEarliest - targetEarliest) / I)
+            );
+          scheduleLatest < targetLatest &&
+            extendScheduleBarEnd(
+              Math.round((targetLatest - scheduleLatest) / I)
+            );
+          // 画面がとても大きい場合の保険。展開直後は height の CSS
+          // トランジション(0.25s)が始まったばかりで sb.clientHeight が
+          // まだ縮んだままのことがあるため、判定には最終的な高さになる
+          // window.innerHeight を使う。
           const targetHeight = window.innerHeight;
           let guard = 0;
           for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
+        },
+        // 全画面カレンダーを指定日にスクロールで移動する。前後5年分は
+        // 既に描画済みのことがほとんどなので、既存セルを探して
+        // scrollIntoViewするだけで済ませ、jumpScheduleBarToDateによる
+        // 全再構築(重い)は範囲外のときだけ行う。
+        scrollFullscreenCalendarToDate = (date) => {
+          if (!document.body.classList.contains("schedule-bar-fullscreen"))
+            return;
+          const cell = sb.querySelector(
+            `.schedule-cell[data-date="${toDateKey(date)}"]`
+          );
+          if (cell) {
+            (scheduleScrollSuppressed = !0),
+              cell.scrollIntoView({ inline: "nearest", block: "center" }),
+              setTimeout(() => (scheduleScrollSuppressed = !1), 50);
+          } else {
+            jumpScheduleBarToDate(date);
+          }
         },
         // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
         // 属する週のセルを、Week pane側でも中央に合わせておく。
@@ -6651,7 +6710,7 @@
               const [year, week] = weekKey.split("-W");
               const monday = getDateFromISOWeek(parseInt(year), parseInt(week.replace(/^0+/, "")));
               if (monday) {
-                jumpScheduleBarToDate(monday);
+                scrollFullscreenCalendarToDate(monday);
               }
             }
           }
