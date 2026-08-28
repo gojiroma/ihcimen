@@ -2758,6 +2758,9 @@
         scheduleScrollSuppressed = !1,
         weekScrollSuppressed = !1,
         lastSyncedWeekKey = null,
+        // メニュードロワーを開いたときに検索パネルを一時的に閉じたかどうか
+        // (閉じた場合のみ、メニューを閉じるときに元の開閉状態へ戻す)。
+        menuAutoCollapsedSearchPane = !1,
         icsAddColor = "pink",
         icsEventsCache = (() => {
           try {
@@ -3694,16 +3697,21 @@
         },
         // 新規ブロック用の常設textarea(末尾固定)を初期化する。
         setupNewBlockBox = () => {
-          const box = document.createElement("textarea");
+          const box = document.createElement("textarea"),
+            // 本文の記入欄(resizeTextBox)と同じ最低高さに揃える。以前は
+            // フォーカス中(=実際にタイプしている間)だけ自動伸縮を止めて
+            // しまっていたため、新規メモ欄が常に1行分の高さのままにしか
+            // ならず、書いた内容が内部スクロールに隠れて「小さすぎる」
+            // 状態になっていた。
+            resizeNewBlockBox = () => {
+              box.style.height = "0px";
+              box.style.height = Math.max(box.scrollHeight, 80) + "px";
+            };
           return (
             (box.className = "new-block-box"),
             (box.placeholder = "新しいメモ..."),
             (box.rows = 1),
-            box.addEventListener("input", () => {
-              if (document.body.classList.contains("new-entry-focus")) return;
-              box.style.height = "0px";
-              box.style.height = Math.max(box.scrollHeight, 30) + "px";
-            }),
+            box.addEventListener("input", resizeNewBlockBox),
             box.addEventListener("keydown", (e) => {
               if (
                 !e.isComposing &&
@@ -3724,7 +3732,7 @@
               box.value ||
                 ((box.value = "# "),
                   (box.selectionStart = box.selectionEnd = 2));
-              box.style.height = "";
+              resizeNewBlockBox();
               document.body.classList.add("new-entry-focus");
             }),
             box.addEventListener("blur", () => {
@@ -4365,16 +4373,30 @@
                 location.reload());
           } catch (err) { }
         },
+        // メニュードロワーと左の検索パネルはどちらも画面左端から出る
+        // パネルのため、両方開いていると二重に重なって見えてしまう。
+        // メニューを開くときは検索パネルを一時的に閉じ(ユーザーが選んだ
+        // 表示/非表示の設定自体は変えない)、メニューを閉じたら元の状態に戻す。
         U = (show) => {
           const drawer = p.querySelector(".menu-drawer");
-          show
-            ? (renderStorageUsagePanel(),
+          if (show) {
+            !document.body.classList.contains("search-pane-collapsed") &&
+              ((menuAutoCollapsedSearchPane = !0),
+                document.body.classList.add("search-pane-collapsed")),
+              renderStorageUsagePanel(),
               O(p, !0),
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => drawer.classList.add("open"))
-              ))
-            : (drawer.classList.remove("open"),
-              setTimeout(() => O(p, !1), 250));
+              );
+          } else {
+            drawer.classList.remove("open"),
+              setTimeout(() => O(p, !1), 250);
+            menuAutoCollapsedSearchPane &&
+              (document.body.classList.remove("search-pane-collapsed"),
+                renderSearchPaneResults(searchPaneInputEl.value),
+                renderSearchHistoryChips());
+            menuAutoCollapsedSearchPane = !1;
+          }
         },
         saveCurrentMemo = () => {
           // 実際の編集がなければ、保存もサーバーへの同期アクセスも不要。
