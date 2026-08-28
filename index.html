@@ -218,6 +218,41 @@
       right: 180px;
     }
 
+    /* 全画面カレンダー: 曜日・毎月同日での絞り込み */
+    .schedule-fullscreen-filter {
+      display: none;
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: 16px;
+      z-index: 502;
+      gap: 6px;
+    }
+
+    body.schedule-bar-fullscreen .schedule-fullscreen-filter {
+      display: flex;
+    }
+
+    .schedule-fullscreen-filter select {
+      font: inherit;
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      background-color: var(--bg-color);
+      color: inherit;
+      opacity: 0.75;
+      cursor: pointer;
+    }
+
+    .schedule-fullscreen-filter select:hover,
+    .schedule-fullscreen-filter select:focus {
+      opacity: 1;
+    }
+
+    body.schedule-bar-fullscreen .schedule-bar .schedule-cell.filtered-out {
+      display: none;
+    }
+
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
        画面全体を覆う表示にしたいので、Week paneより手前(高いz-index)に
        置き、幅が狭い画面でもWeek paneの裏に隠れないようにする。 */
@@ -2490,6 +2525,21 @@
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
   </button>
+  <div id="scheduleFullscreenFilter" class="schedule-fullscreen-filter">
+    <select id="filterDowSelect" title="曜日で絞り込み" aria-label="曜日で絞り込み">
+      <option value="">曜日: すべて</option>
+      <option value="0">日曜のみ</option>
+      <option value="1">月曜のみ</option>
+      <option value="2">火曜のみ</option>
+      <option value="3">水曜のみ</option>
+      <option value="4">木曜のみ</option>
+      <option value="5">金曜のみ</option>
+      <option value="6">土曜のみ</option>
+    </select>
+    <select id="filterDomSelect" title="日付で絞り込み(毎月同じ日)" aria-label="日付で絞り込み">
+      <option value="">日: すべて</option>
+    </select>
+  </div>
   <div id="fullscreenYearWatermark" class="fullscreen-year-watermark"></div>
   <div id="idleClockWatermark" class="idle-clock-watermark"></div>
   <div id="cellColorPicker" class="cell-color-picker">
@@ -2765,6 +2815,9 @@
         // メニュードロワーを開いたときに検索パネルを一時的に閉じたかどうか
         // (閉じた場合のみ、メニューを閉じるときに元の開閉状態へ戻す)。
         menuAutoCollapsedSearchPane = !1,
+        // 全画面カレンダーの絞り込み条件(曜日/毎月同日)。空文字はすべて表示。
+        scheduleFullscreenFilterDow = storage.getItem("scheduleFullscreenFilterDow") || "",
+        scheduleFullscreenFilterDom = storage.getItem("scheduleFullscreenFilterDom") || "",
         icsAddColor = "pink",
         icsEventsCache = (() => {
           try {
@@ -6095,7 +6148,14 @@
             cell = document.createElement("div");
           (cell.className = "schedule-cell"),
             (cell.dataset.date = key),
+            (cell.dataset.dow = String(day)),
+            (cell.dataset.dom = String(d.getDate())),
             1 === d.getDate() && cell.classList.add("month-start"),
+            ((scheduleFullscreenFilterDow &&
+              cell.dataset.dow !== scheduleFullscreenFilterDow) ||
+              (scheduleFullscreenFilterDom &&
+                cell.dataset.dom !== scheduleFullscreenFilterDom)) &&
+            cell.classList.add("filtered-out"),
             applyCellColor(cell, key, maxDayLen);
           holidayName
             ? cell.setAttribute(
@@ -6554,6 +6614,18 @@
           } else {
             jumpScheduleBarToDate(date);
           }
+        },
+        // 全画面カレンダーの曜日/毎月同日フィルタを、既に描画済みの
+        // セルへ反映する(絞り込み条件を変えたときに呼ぶ)。
+        applyScheduleFullscreenFilter = () => {
+          sb.querySelectorAll(".schedule-cell").forEach((cell) => {
+            const hide =
+              (scheduleFullscreenFilterDow &&
+                cell.dataset.dow !== scheduleFullscreenFilterDow) ||
+              (scheduleFullscreenFilterDom &&
+                cell.dataset.dom !== scheduleFullscreenFilterDom);
+            cell.classList.toggle("filtered-out", !!hide);
+          });
         },
         // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
         // 属する週のセルを、Week pane側でも中央に合わせておく。
@@ -7133,6 +7205,34 @@
           .addEventListener("click", () => {
             document.body.classList.remove("schedule-bar-fullscreen");
           }),
+        (() => {
+          const dowSelect = document.getElementById("filterDowSelect"),
+            domSelect = document.getElementById("filterDomSelect");
+          for (let day = 1; day <= 31; day++) {
+            const opt = document.createElement("option");
+            (opt.value = String(day)),
+              (opt.textContent = `毎月${day}日`),
+              domSelect.appendChild(opt);
+          }
+          (dowSelect.value = scheduleFullscreenFilterDow),
+            (domSelect.value = scheduleFullscreenFilterDom),
+            dowSelect.addEventListener("change", () => {
+              (scheduleFullscreenFilterDow = dowSelect.value),
+                storage.setItem(
+                  "scheduleFullscreenFilterDow",
+                  scheduleFullscreenFilterDow
+                ),
+                applyScheduleFullscreenFilter();
+            }),
+            domSelect.addEventListener("change", () => {
+              (scheduleFullscreenFilterDom = domSelect.value),
+                storage.setItem(
+                  "scheduleFullscreenFilterDom",
+                  scheduleFullscreenFilterDom
+                ),
+                applyScheduleFullscreenFilter();
+            });
+        })(),
         cellColorPickerEl.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-color]");
           if (!btn) return;
