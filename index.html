@@ -72,7 +72,7 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 20px;
+      width: 80px;
     }
 
     /* 全画面カレンダー(z-index:500)の上に来るよう、全画面表示中は
@@ -94,14 +94,14 @@
     }
 
     body.schedule-bar-collapsed .content-area {
-      padding-bottom: 24px;
+      padding-bottom: 80px;
     }
 
     #scheduleBarOpenZone {
       left: 0;
       right: 0;
       bottom: 0;
-      height: 24px;
+      height: 80px;
     }
 
     body.schedule-bar-collapsed:not(.schedule-bar-fullscreen) #scheduleBarOpenZone {
@@ -1968,7 +1968,7 @@
       top: 0;
       left: 0;
       bottom: 0;
-      width: 20px;
+      width: 80px;
     }
 
     body.search-pane-collapsed #searchPaneOpenZone {
@@ -7073,7 +7073,11 @@
               paneEl.addEventListener("pointerleave", reset);
           };
           // 閉じている間、画面端の見えない領域(edge-swipe-zone)への
-          // フリックで開く。
+          // フリックで開く。Androidでは画面端からのスワイプが「戻る」
+          // 「ホーム画面」ジェスチャーとぶつかりOSに奪われてしまうため、
+          // 動きの小さいタップでも開けるようにしておく(タップはOSの
+          // ジェスチャー認識と衝突しない)。
+          const TAP_MAX_MOVE = 10;
           const setupZoneOpenSwipe = (zoneEl, axis, sign, onOpen) => {
             let startX = null, startY = null;
             zoneEl.addEventListener("pointerdown", (e) => {
@@ -7088,14 +7092,24 @@
                 (sign < 0 ? main < -SWIPE_THRESHOLD : main > SWIPE_THRESHOLD) &&
                   (onOpen(e), (startX = null), (startY = null));
               });
-            const reset = (e) => {
+            const finish = (e) => {
+              null === startX ||
+                (Math.abs(e.clientX - startX) <= TAP_MAX_MOVE &&
+                  Math.abs(e.clientY - startY) <= TAP_MAX_MOVE &&
+                  onOpen(e)),
+                (startX = null),
+                (startY = null),
+                zoneEl.hasPointerCapture(e.pointerId) &&
+                zoneEl.releasePointerCapture(e.pointerId);
+            };
+            const cancel = (e) => {
               (startX = null),
                 (startY = null),
                 zoneEl.hasPointerCapture(e.pointerId) &&
                 zoneEl.releasePointerCapture(e.pointerId);
             };
-            zoneEl.addEventListener("pointerup", reset),
-              zoneEl.addEventListener("pointercancel", reset);
+            zoneEl.addEventListener("pointerup", finish),
+              zoneEl.addEventListener("pointercancel", cancel);
           };
 
           // 検索パネル(左): 端を右へフリックで開く、パネル自体を左へ
