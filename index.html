@@ -71,6 +71,15 @@
       width: 20px;
     }
 
+    /* 全画面カレンダー(z-index:500)の上に来るよう、全画面表示中は
+       常に手前に出しておく(pointer-eventsはweek-pane-collapsedの
+       ときだけautoになるので、開いている間は素通りする)。閉じるタイミングで
+       z-indexだけを動かすと、ドラッグ中にヒットテストが変わってしまうため
+       常時適用にしている。 */
+    body.schedule-bar-fullscreen #weekPaneOpenZone {
+      z-index: 502;
+    }
+
     body.week-pane-collapsed #weekPaneOpenZone {
       pointer-events: auto;
     }
@@ -116,7 +125,6 @@
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
     body.schedule-bar-fullscreen #searchPaneOpenZone,
-    body.schedule-bar-fullscreen #weekPaneOpenZone,
     body.schedule-bar-fullscreen .container {
       display: none;
     }
@@ -296,20 +304,20 @@
       cursor: pointer;
     }
 
-    /* 全画面カレンダー: 右端にWeek pane(年の見出しも兼ねる) */
+    /* 全画面カレンダー: 右端にWeek pane(年の見出しも兼ねる)。
+       Week pane自体は開いている間もフリックで閉じられ、閉じると
+       カレンダー側がその分右へ広がる。 */
     body.schedule-bar-fullscreen .schedule-bar {
       left: 0;
       right: 160px;
     }
 
-    /* 全画面カレンダー中はWeek paneも常時表示し、日別スクロールと連動させる */
-    body.schedule-bar-fullscreen .week-pane {
-      z-index: 501;
+    body.schedule-bar-fullscreen.week-pane-collapsed .schedule-bar {
+      right: 0;
     }
 
-    body.schedule-bar-fullscreen.week-pane-collapsed .week-pane {
-      transform: translateX(0);
-      pointer-events: auto;
+    body.schedule-bar-fullscreen .week-pane {
+      z-index: 501;
     }
 
     body.schedule-bar-fullscreen .week-cell.fullscreen-centered {
@@ -7058,19 +7066,27 @@
             );
 
           // Week pane(右): 端を左へフリックで開く、パネル自体を右へ
-          // フリックで閉じる。
+          // フリックで閉じる。全画面カレンダー表示中はWeek paneの幅の
+          // 分だけカレンダーグリッドの幅も変わるので、開閉アニメーション
+          // (0.25s)が終わったタイミングで列数を再計算する。
+          const resyncFullscreenAfterWeekPaneToggle = () => {
+            document.body.classList.contains("schedule-bar-fullscreen") &&
+              setTimeout(fillScheduleBarFullscreen, 260);
+          };
           setupZoneOpenSwipe(
             document.getElementById("weekPaneOpenZone"),
             "x",
             -1,
             () => {
               document.body.classList.remove("week-pane-collapsed"),
-                storage.setItem("weekPaneCollapsed", "0");
+                storage.setItem("weekPaneCollapsed", "0"),
+                resyncFullscreenAfterWeekPaneToggle();
             }
           ),
             setupPaneCloseSwipe(wp, "x", 1, () => {
               document.body.classList.add("week-pane-collapsed"),
-                storage.setItem("weekPaneCollapsed", "1");
+                storage.setItem("weekPaneCollapsed", "1"),
+                resyncFullscreenAfterWeekPaneToggle();
             });
 
           // 下段カレンダー(下): 閉じている間は下端をフリックで開く
