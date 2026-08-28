@@ -5317,6 +5317,12 @@
         },
         scheduleWindowDays = 30,
         weekPaneWindowWeeks = 52,
+        getDateFromISOWeek = (year, week) => {
+          const d = new Date(year, 0, 1);
+          const dayNum = d.getDay();
+          const monday = new Date(year, 0, 1 + (week - 1) * 7 - (dayNum + 6) % 7);
+          return monday;
+        },
         getISOWeekInfo = (date) => {
           const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()),
             dayNum = (d.getDay() + 6) % 7;
@@ -6615,6 +6621,18 @@
             ? extendWeekPaneStart()
             : wp.scrollHeight - wp.scrollTop - wp.clientHeight < 200 &&
             extendWeekPaneEnd();
+          // Week pane scroll synchronization with schedule bar
+          if (document.body.classList.contains("schedule-bar-fullscreen")) {
+            const centerCell = wp.querySelector(".week-cell.fullscreen-centered");
+            if (centerCell) {
+              const weekKey = centerCell.dataset.weekKey;
+              const [year, week] = weekKey.split("-W");
+              const monday = getDateFromISOWeek(parseInt(year), parseInt(week.replace(/^0+/, "")));
+              if (monday) {
+                jumpScheduleBarToDate(monday);
+              }
+            }
+          }
         }),
         document.addEventListener("click", (e) => {
         document
