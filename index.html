@@ -53,40 +53,26 @@
       pointer-events: none;
     }
 
-    body.week-pane-collapsed.week-pane-peek .week-pane {
-      transform: translateX(0);
-      pointer-events: auto;
-    }
-
-    .week-pane-toggle {
+    /* ノブ(縁から出っ張るタブ)は廃止し、パネル自体または画面端の
+       見えない領域をフリックして開閉する。閉じているときだけ、対応する
+       端でポインタ操作を受け付ける(開いている間は中のセルのクリック等を
+       邪魔しないようpointer-events:noneにしておく)。 */
+    .edge-swipe-zone {
       position: fixed;
-      top: 50%;
-      right: 160px;
-      transform: translateY(-50%);
       z-index: 460;
-      font: inherit;
-      font-size: 12px;
-      opacity: 0.55;
-      background-color: var(--bg-color);
-      color: inherit;
-      border: 1px solid #ccc;
-      border-right: none;
-      border-radius: 4px 0 0 4px;
-      cursor: pointer;
-      padding: 10px 4px;
-      transition: right 0.25s ease, opacity 0.2s ease;
+      pointer-events: none;
+      touch-action: none;
     }
 
-    .week-pane-toggle:hover {
-      opacity: 1;
-    }
-
-    body.week-pane-collapsed .week-pane-toggle {
+    #weekPaneOpenZone {
+      top: 0;
       right: 0;
+      bottom: 0;
+      width: 20px;
     }
 
-    body.week-pane-collapsed.week-pane-peek .week-pane-toggle {
-      right: 160px;
+    body.week-pane-collapsed #weekPaneOpenZone {
+      pointer-events: auto;
     }
 
     body.schedule-bar-collapsed .schedule-bar {
@@ -94,71 +80,43 @@
       pointer-events: none;
     }
 
-    body.schedule-bar-collapsed.schedule-bar-peek .schedule-bar {
-      transform: translateY(0);
-      pointer-events: auto;
-    }
-
     body.schedule-bar-collapsed .content-area {
       padding-bottom: 24px;
     }
 
-    .schedule-bar-toggle {
-      position: fixed;
-      bottom: 100px;
-      left: 50%;
-      transform: translate(-50%, 50%);
-      z-index: 460;
-      width: 44px;
-      height: 18px;
-      box-sizing: border-box;
-      background-color: var(--bg-color);
-      border: 1px solid #ccc;
-      border-bottom: none;
-      border-radius: 8px 8px 0 0;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-      opacity: 0.55;
-      touch-action: none;
-      transition: bottom 0.25s ease, transform 0.25s ease, opacity 0.2s ease;
+    #scheduleBarOpenZone {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 24px;
     }
 
-    .schedule-bar-toggle:hover {
-      opacity: 1;
+    body.schedule-bar-collapsed:not(.schedule-bar-fullscreen) #scheduleBarOpenZone {
+      pointer-events: auto;
     }
 
-    .schedule-bar-toggle .knob {
-      width: 26px;
-      height: 4px;
-      border-radius: 2px;
-      background-color: currentColor;
-      opacity: 0.6;
+    #scheduleBarFullscreenExitZone {
+      top: 0;
+      left: 0;
+      /* 右のWeek pane(160px)には重ねない。カレンダーグリッドの真上だけ */
+      right: 160px;
+      height: 24px;
+      z-index: 504;
     }
 
-    body.schedule-bar-collapsed .schedule-bar-toggle {
-      /* iPhoneのホームインジケーターのスワイプジェスチャー領域と重ならないよう、
-         画面最下端からの余白をセーフエリア分(+最低8px)確保する */
-      bottom: max(8px, env(safe-area-inset-bottom));
-      transform: translate(-50%, 0);
+    body.schedule-bar-fullscreen #scheduleBarFullscreenExitZone {
+      pointer-events: auto;
     }
 
-    body.schedule-bar-collapsed.schedule-bar-peek .schedule-bar-toggle {
-      bottom: 100px;
-      transform: translate(-50%, 50%);
-    }
-
-    /* 下段カレンダーの全画面モード(ノブを上にドラッグ) */
+    /* 下段カレンダーの全画面モード(下段カレンダー自体を上へフリック) */
     body.schedule-bar-fullscreen .menu-trigger,
     body.schedule-bar-fullscreen .history-btn,
     body.schedule-bar-fullscreen .copy-day-btn,
     body.schedule-bar-fullscreen .morning-page-btn,
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
-    body.schedule-bar-fullscreen .search-pane-toggle,
-    body.schedule-bar-fullscreen .week-pane-toggle,
+    body.schedule-bar-fullscreen #searchPaneOpenZone,
+    body.schedule-bar-fullscreen #weekPaneOpenZone,
     body.schedule-bar-fullscreen .container {
       display: none;
     }
@@ -184,12 +142,6 @@
       height: 160px;
       width: var(--fs-cell-width, 120px);
       flex-basis: var(--fs-cell-width, 120px);
-    }
-
-    body.schedule-bar-fullscreen .schedule-bar-toggle {
-      bottom: max(8px, env(safe-area-inset-bottom));
-      transform: translate(-50%, 0);
-      z-index: 501;
     }
 
     .schedule-fullscreen-close {
@@ -224,7 +176,10 @@
       position: fixed;
       top: max(12px, env(safe-area-inset-top));
       left: 16px;
-      z-index: 502;
+      /* 全画面終了用のフリック領域(#scheduleBarFullscreenExitZone、
+         z-index:504)と上端で重なるため、それより手前に置いてクリックを
+         奪われないようにする。 */
+      z-index: 505;
       gap: 6px;
     }
 
@@ -389,11 +344,9 @@
 
     /* タッチデバイスで編集中は、周辺UIを隠して本文に集中できるようにする */
     body.touch-editing .schedule-bar,
-    body.touch-editing .schedule-bar-toggle,
     body.touch-editing .week-pane,
-    body.touch-editing .week-pane-toggle,
     body.touch-editing .search-pane,
-    body.touch-editing .search-pane-toggle,
+    body.touch-editing .edge-swipe-zone,
     body.touch-editing .history-btn,
     body.touch-editing .copy-day-btn,
     body.touch-editing .h1-shortcut-bar {
@@ -1790,14 +1743,11 @@
       opacity: 1;
     }
 
-    /* 操作がしばらくないと、ノブ/アイコン類を控えめにフェードする */
+    /* 操作がしばらくないと、アイコン類を控えめにフェードする */
     body.ui-idle .menu-trigger,
     body.ui-idle .history-btn,
     body.ui-idle .copy-day-btn,
-    body.ui-idle .morning-page-btn,
-    body.ui-idle .schedule-bar-toggle,
-    body.ui-idle .week-pane-toggle,
-    body.ui-idle .search-pane-toggle {
+    body.ui-idle .morning-page-btn {
       opacity: 0.12;
     }
 
@@ -1991,41 +1941,15 @@
       pointer-events: none;
     }
 
-    body.search-pane-collapsed.search-pane-peek .search-pane {
-      transform: translateX(0);
-      pointer-events: auto;
-    }
-
-    .search-pane-toggle {
-      position: fixed;
-      top: 50%;
-      left: 240px;
-      transform: translateY(-50%);
-      z-index: 460;
-      font: inherit;
-      font-size: 12px;
-      opacity: 0.55;
-      background-color: var(--bg-color);
-      color: inherit;
-      border: 1px solid #ccc;
-      border-left: none;
-      border-radius: 0 4px 4px 0;
-      cursor: pointer;
-      padding: 10px 4px;
-      writing-mode: vertical-rl;
-      transition: left 0.25s ease, opacity 0.2s ease;
-    }
-
-    .search-pane-toggle:hover {
-      opacity: 1;
-    }
-
-    body.search-pane-collapsed .search-pane-toggle {
+    #searchPaneOpenZone {
+      top: 0;
       left: 0;
+      bottom: 0;
+      width: 20px;
     }
 
-    body.search-pane-collapsed.search-pane-peek .search-pane-toggle {
-      left: 240px;
+    body.search-pane-collapsed #searchPaneOpenZone {
+      pointer-events: auto;
     }
 
     .search-input-wrap {
@@ -2218,7 +2142,7 @@
     <div id="searchPaneHistory" class="search-pane-history"></div>
     <ul id="searchPaneResults"></ul>
   </div>
-  <button id="searchPaneToggle" class="search-pane-toggle" type="button">検索</button>
+  <div id="searchPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <div class="container">
     <div class="date-display" id="dateDisplay" title="クリックで今日に移動">
       <span class="year" id="yearDisplay">YYYY</span>
@@ -2251,8 +2175,8 @@
         <summary>マウス操作</summary>
         <ul>
           <li>本文はクリックで編集モードに切り替わります。</li>
-          <li>下段カレンダーはノブのクリックで開閉、上へドラッグで全画面表示になります(下へドラッグ/クリックで戻ります)。</li>
-          <li>右のWeek pane・左の検索パネルは端のタブで開閉、ノブへのホバーで一時的にプレビューできます。</li>
+          <li>下段カレンダーは画面下端をフリック(上へ)して開きます。しっかり大きく引くとそのまま全画面表示になります。開いている間はカレンダー自体を下へフリックで閉じる、上へフリックで全画面表示に切り替えられます。全画面表示中は画面上端を下へフリックすると戻ります。</li>
+          <li>右のWeek pane・左の検索パネルも同様に、閉じている間は画面端をフリックして開き、開いている間はパネル自体をフリックして閉じます。</li>
           <li>見出しのショートカット・バージョン履歴は、本文エリア右下/左上のアイコンから利用できます。</li>
           <li>右上の陽アイコンから、懸案事項・最初に着手すること・考えるテーマ・身体のケアをまとめたモーニングページを作成できます(直近14日分の未完了項目を自動で拾って懸案事項に並べます)。</li>
           <li>見出しの先頭に "!"(いくつでも)を付けると優先度が上がります。ICSの予定が多い日は本文の上に優先度順の一覧と時間配分の目安が表示されます。</li>
@@ -2516,9 +2440,8 @@
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
-  <button id="scheduleBarToggle" class="schedule-bar-toggle" type="button" aria-label="下段カレンダーの折りたたみ">
-    <span class="knob"></span>
-  </button>
+  <div id="scheduleBarOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
+  <div id="scheduleBarFullscreenExitZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
   </button>
@@ -2553,7 +2476,7 @@
     <button type="button" class="cell-color-clear" data-color="">指定なし</button>
   </div>
   <div id="weekPane" class="week-pane"></div>
-  <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
+  <div id="weekPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -2776,7 +2699,6 @@
         historyPreviewEl = document.getElementById("historyPreview"),
         historyRestoreBtnEl = document.getElementById("historyRestoreBtn"),
         h1ShortcutBarEl = document.getElementById("h1ShortcutBar"),
-        searchPaneToggleEl = document.getElementById("searchPaneToggle"),
         searchPaneInputEl = document.getElementById("searchPaneInput"),
         searchPaneResultsEl = document.getElementById("searchPaneResults"),
         searchPaneHistoryEl = document.getElementById("searchPaneHistory"),
@@ -6628,6 +6550,23 @@
           for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
             extendScheduleBarEnd();
         },
+        // 下段カレンダーを全画面表示にする(フリックのトリガーから共通で呼ぶ)。
+        enterScheduleBarFullscreen = () => {
+          document.body.classList.add("schedule-bar-fullscreen"),
+            document.body.classList.remove("schedule-bar-collapsed"),
+            requestAnimationFrame(() => {
+              fillScheduleBarFullscreen();
+              const selectedCell = sb.querySelector(".schedule-cell.selected");
+              selectedCell &&
+                ((scheduleScrollSuppressed = !0),
+                  selectedCell.scrollIntoView({
+                    inline: "nearest",
+                    block: "center",
+                  }),
+                  setTimeout(() => (scheduleScrollSuppressed = !1), 50));
+              (lastSyncedWeekKey = null), updateFullscreenYearWatermark();
+            });
+        },
         // 全画面カレンダーを指定日にスクロールで移動する。前後5年分は
         // 既に描画済みのことがほとんどなので、既存セルを探して
         // scrollIntoViewするだけで済ませ、jumpScheduleBarToDateによる
@@ -7030,134 +6969,208 @@
             });
         })(),
         (() => {
-          // ノブ/タブにホバーすると、折りたたみ中のPaneを一時的にプレビュー表示する。
-          // ノブからPane自体へマウスを移動する間も消えないよう、少し遅延して隠す。
-          const setupPeek = (toggleEl, paneEl, peekClass) => {
-            let hideTimer = null;
-            const show = (e) => {
-              if (e.pointerType && "mouse" !== e.pointerType) return;
-              clearTimeout(hideTimer), document.body.classList.add(peekClass);
-            },
-              scheduleHide = (e) => {
-                if (e.pointerType && "mouse" !== e.pointerType) return;
-                hideTimer = setTimeout(
-                  () => document.body.classList.remove(peekClass),
-                  200
-                );
-              };
-            toggleEl.addEventListener("pointerenter", show),
-              toggleEl.addEventListener("pointerleave", scheduleHide),
-              paneEl.addEventListener("pointerenter", show),
-              paneEl.addEventListener("pointerleave", scheduleHide);
+          // ノブ(縁から出っ張るタブ)は廃止。開いているパネルは
+          // パネル自体をフリックして閉じ、閉じているパネルは画面端の
+          // 見えない領域(edge-swipe-zone)をフリックして開く。
+          const SWIPE_THRESHOLD = 15;
+          // パネル本体のほとんどはメモ欄(textarea)が占めているため、
+          // 通常のテキスト選択ドラッグと閉じるフリックを区別できるよう、
+          // こちらは一回り大きいしきい値を使う。
+          const CLOSE_SWIPE_THRESHOLD = 60;
+          // 開いているパネルを自身へのフリックで閉じる。axis:"x"|"y"、
+          // sign:閉じる向き(負=左/上、正=右/下)。逆軸方向の動きが
+          // 優位なとき(パネル内の縦/横スクロールなど)は無視する。
+          const setupPaneCloseSwipe = (paneEl, axis, sign, onClose) => {
+            let startX = null, startY = null;
+            paneEl.addEventListener("pointerdown", (e) => {
+              (startX = e.clientX), (startY = e.clientY);
+            }),
+              paneEl.addEventListener("pointermove", (e) => {
+                if (null === startX) return;
+                const dx = e.clientX - startX,
+                  dy = e.clientY - startY,
+                  main = "x" === axis ? dx : dy,
+                  cross = "x" === axis ? dy : dx;
+                if (
+                  Math.abs(main) < CLOSE_SWIPE_THRESHOLD ||
+                  Math.abs(cross) > Math.abs(main)
+                )
+                  return;
+                (sign < 0
+                  ? main < -CLOSE_SWIPE_THRESHOLD
+                  : main > CLOSE_SWIPE_THRESHOLD) &&
+                  (onClose(), (startX = null), (startY = null));
+              });
+            const reset = () => {
+              (startX = null), (startY = null);
+            };
+            paneEl.addEventListener("pointerup", reset),
+              paneEl.addEventListener("pointercancel", reset),
+              paneEl.addEventListener("pointerleave", reset);
           };
-          document
-            .getElementById("scheduleBarToggle")
-            .addEventListener("pointerenter", (e) => {
-              (e.pointerType && "mouse" !== e.pointerType) ||
-                alignTodayCellToCursorX(e.clientX);
+          // 閉じている間、画面端の見えない領域(edge-swipe-zone)への
+          // フリックで開く。
+          const setupZoneOpenSwipe = (zoneEl, axis, sign, onOpen) => {
+            let startX = null, startY = null;
+            zoneEl.addEventListener("pointerdown", (e) => {
+              (startX = e.clientX),
+                (startY = e.clientY),
+                zoneEl.setPointerCapture(e.pointerId);
             }),
-            setupPeek(
-              document.getElementById("weekPaneToggle"),
-              wp,
-              "week-pane-peek"
-            ),
-            setupPeek(
-              document.getElementById("scheduleBarToggle"),
-              sb,
-              "schedule-bar-peek"
-            ),
-            setupPeek(searchPaneToggleEl, document.getElementById("searchPane"), "search-pane-peek");
-        })(),
-        document
-          .getElementById("weekPaneToggle")
-          .addEventListener("click", () => {
-            const collapsed = document.body.classList.toggle(
-              "week-pane-collapsed"
+              zoneEl.addEventListener("pointermove", (e) => {
+                if (null === startX) return;
+                const main =
+                  "x" === axis ? e.clientX - startX : e.clientY - startY;
+                (sign < 0 ? main < -SWIPE_THRESHOLD : main > SWIPE_THRESHOLD) &&
+                  (onOpen(e), (startX = null), (startY = null));
+              });
+            const reset = (e) => {
+              (startX = null),
+                (startY = null),
+                zoneEl.hasPointerCapture(e.pointerId) &&
+                zoneEl.releasePointerCapture(e.pointerId);
+            };
+            zoneEl.addEventListener("pointerup", reset),
+              zoneEl.addEventListener("pointercancel", reset);
+          };
+
+          // 検索パネル(左): 端を右へフリックで開く、パネル自体を左へ
+          // フリックで閉じる。
+          setupZoneOpenSwipe(
+            document.getElementById("searchPaneOpenZone"),
+            "x",
+            1,
+            () => {
+              document.body.classList.remove("search-pane-collapsed"),
+                storage.setItem("searchPaneCollapsed", "0"),
+                renderSearchPaneResults(searchPaneInputEl.value),
+                renderSearchHistoryChips();
+            }
+          ),
+            setupPaneCloseSwipe(
+              document.getElementById("searchPane"),
+              "x",
+              -1,
+              () => {
+                document.body.classList.add("search-pane-collapsed"),
+                  storage.setItem("searchPaneCollapsed", "1");
+              }
             );
-            storage.setItem("weekPaneCollapsed", collapsed ? "1" : "0");
-          }),
-        (() => {
-          const el = document.getElementById("scheduleBarToggle"),
-            DRAG_THRESHOLD = 15;
-          let dragStartY = null,
-            dragMoved = !1,
-            dragTriggered = !1;
-          el.addEventListener("pointerdown", (e) => {
-            (dragStartY = e.clientY),
-              (dragMoved = !1),
-              (dragTriggered = !1),
-              el.setPointerCapture(e.pointerId);
-          }),
-            el.addEventListener("pointermove", (e) => {
-              if (null === dragStartY) return;
-              e.preventDefault();
-              if (dragTriggered) return;
-              const dy = e.clientY - dragStartY;
-              if (Math.abs(dy) < DRAG_THRESHOLD) return;
-              dragMoved = !0;
-              const fullscreen = document.body.classList.contains(
-                "schedule-bar-fullscreen"
-              );
-              !fullscreen && dy < -DRAG_THRESHOLD
-                ? (document.body.classList.add("schedule-bar-fullscreen"),
-                  document.body.classList.remove("schedule-bar-collapsed"),
-                  (dragTriggered = !0),
-                  requestAnimationFrame(() => {
-                    fillScheduleBarFullscreen();
-                    const selectedCell = sb.querySelector(
-                      ".schedule-cell.selected"
-                    );
-                    selectedCell &&
-                      ((scheduleScrollSuppressed = !0),
-                        selectedCell.scrollIntoView({
-                          inline: "nearest",
-                          block: "center",
-                        }),
-                        setTimeout(() => (scheduleScrollSuppressed = !1), 50));
-                    lastSyncedWeekKey = null;
-                    updateFullscreenYearWatermark();
-                  }))
-                : fullscreen &&
-                dy > DRAG_THRESHOLD &&
-                (document.body.classList.remove("schedule-bar-fullscreen"),
-                  (dragTriggered = !0));
-            }),
-            el.addEventListener("pointerup", (e) => {
-              (dragStartY = null),
-                el.hasPointerCapture(e.pointerId) &&
-                el.releasePointerCapture(e.pointerId);
-            }),
-            el.addEventListener("pointercancel", (e) => {
-              (dragStartY = null),
-                (dragMoved = !1),
-                el.hasPointerCapture(e.pointerId) &&
-                el.releasePointerCapture(e.pointerId);
-            }),
-            el.addEventListener("click", (e) => {
-              if (dragMoved) return void (dragMoved = !1);
-              if (document.body.classList.contains("schedule-bar-fullscreen"))
-                return void document.body.classList.remove(
-                  "schedule-bar-fullscreen"
-                );
-              const collapsed = document.body.classList.toggle(
-                "schedule-bar-collapsed"
-              );
-              collapsed || alignTodayCellToCursorX(e.clientX),
-                storage.setItem(
-                  "scheduleBarCollapsed",
-                  collapsed ? "1" : "0"
-                );
+
+          // Week pane(右): 端を左へフリックで開く、パネル自体を右へ
+          // フリックで閉じる。
+          setupZoneOpenSwipe(
+            document.getElementById("weekPaneOpenZone"),
+            "x",
+            -1,
+            () => {
+              document.body.classList.remove("week-pane-collapsed"),
+                storage.setItem("weekPaneCollapsed", "0");
+            }
+          ),
+            setupPaneCloseSwipe(wp, "x", 1, () => {
+              document.body.classList.add("week-pane-collapsed"),
+                storage.setItem("weekPaneCollapsed", "1");
             });
+
+          // 下段カレンダー(下): 閉じている間は下端をフリックで開く
+          // (タップに近い小さな動きは通常表示、しっかり上へ引けば
+          // 全画面表示に直行する)。
+          (() => {
+            const zone = document.getElementById("scheduleBarOpenZone");
+            let startX = null, startY = null, triggered = !1;
+            zone.addEventListener("pointerdown", (e) => {
+              (startX = e.clientX),
+                (startY = e.clientY),
+                (triggered = !1),
+                zone.setPointerCapture(e.pointerId);
+            }),
+              zone.addEventListener("pointermove", (e) => {
+                null === startY ||
+                  triggered ||
+                  e.clientY - startY < -SWIPE_THRESHOLD &&
+                  ((triggered = !0), enterScheduleBarFullscreen());
+              });
+            const finish = (e) => {
+              null === startX ||
+                triggered ||
+                (document.body.classList.remove("schedule-bar-collapsed"),
+                  storage.setItem("scheduleBarCollapsed", "0"),
+                  alignTodayCellToCursorX(e.clientX));
+              (startX = null),
+                (startY = null),
+                (triggered = !1),
+                zone.hasPointerCapture(e.pointerId) &&
+                zone.releasePointerCapture(e.pointerId);
+            };
+            zone.addEventListener("pointerup", finish),
+              zone.addEventListener("pointercancel", finish);
+          })(),
+            // 開いている(全画面ではない)下段カレンダー自体へのフリック:
+            // 上へ引けば全画面表示、下へ引けば折りたたむ。横方向優位の
+            // 動き(通常の日送りスクロール)やメモ欄内の操作は無視する。
+            (() => {
+              let startX = null, startY = null, triggered = !1;
+              sb.addEventListener("pointerdown", (e) => {
+                if (
+                  document.body.classList.contains("schedule-bar-fullscreen") ||
+                  e.target.closest(".schedule-note")
+                )
+                  return;
+                (startX = e.clientX), (startY = e.clientY), (triggered = !1);
+              }),
+                sb.addEventListener("pointermove", (e) => {
+                  if (
+                    null === startY ||
+                    triggered ||
+                    document.body.classList.contains("schedule-bar-fullscreen")
+                  )
+                    return;
+                  const dx = e.clientX - startX,
+                    dy = e.clientY - startY;
+                  if (
+                    Math.abs(dy) < SWIPE_THRESHOLD ||
+                    Math.abs(dx) > Math.abs(dy)
+                  )
+                    return;
+                  (triggered = !0),
+                    dy < 0
+                      ? enterScheduleBarFullscreen()
+                      : (document.body.classList.add("schedule-bar-collapsed"),
+                        storage.setItem("scheduleBarCollapsed", "1"));
+                });
+              const reset = () => {
+                (startX = null), (startY = null), (triggered = !1);
+              };
+              sb.addEventListener("pointerup", reset),
+                sb.addEventListener("pointercancel", reset);
+            })(),
+            // 全画面カレンダー: 上端の見えない領域を下へフリックして閉じる
+            // (グリッド自体の縦スクロールと競合しないよう、専用の領域に
+            // している)。
+            (() => {
+              const zone = document.getElementById(
+                "scheduleBarFullscreenExitZone"
+              );
+              let startY = null;
+              zone.addEventListener("pointerdown", (e) => {
+                (startY = e.clientY), zone.setPointerCapture(e.pointerId);
+              }),
+                zone.addEventListener("pointermove", (e) => {
+                  null !== startY &&
+                    e.clientY - startY > SWIPE_THRESHOLD &&
+                    (document.body.classList.remove("schedule-bar-fullscreen"),
+                      (startY = null));
+                });
+              const reset = (e) => {
+                (startY = null),
+                  zone.hasPointerCapture(e.pointerId) &&
+                  zone.releasePointerCapture(e.pointerId);
+              };
+              zone.addEventListener("pointerup", reset),
+                zone.addEventListener("pointercancel", reset);
+            })();
         })(),
-        searchPaneToggleEl.addEventListener("click", () => {
-          const collapsed = document.body.classList.toggle(
-            "search-pane-collapsed"
-          );
-          storage.setItem("searchPaneCollapsed", collapsed ? "1" : "0");
-          collapsed ||
-            (renderSearchPaneResults(searchPaneInputEl.value),
-              renderSearchHistoryChips());
-        }),
         historyBtnEl.addEventListener("click", (e) => {
           e.stopPropagation(), openHistoryModal();
         }),
