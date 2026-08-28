@@ -1232,7 +1232,7 @@
       resize: none;
       outline: 0;
       color: inherit;
-      background-color: inherit;
+      background-color: var(--bg-color);
       opacity: 0.7;
     }
 
@@ -1240,48 +1240,10 @@
       opacity: 1;
     }
 
-    /* 新規記入欄の編集中は、日付表示と下段カレンダー以外のUIを隠し、
-       記入欄自体を上部へ移動して画面いっぱいの高さで書けるようにする。
-       (画面下端近くで狭いまま書くことになったり、下段カレンダーの
-       裏に隠れてしまう問題への対処)。 */
-    body.new-entry-focus .menu-trigger,
-    body.new-entry-focus .history-btn,
-    body.new-entry-focus .copy-day-btn,
-    body.new-entry-focus .h1-shortcut-bar,
-    body.new-entry-focus .search-pane,
-    body.new-entry-focus .search-pane-toggle,
-    body.new-entry-focus .week-pane,
-    body.new-entry-focus .week-pane-toggle,
-    body.new-entry-focus .year-ruler,
-    body.new-entry-focus .content-block,
-    body.new-entry-focus #privacyBanner {
-      display: none !important;
-    }
-
+    /* 新規記入欄の編集中は、文字色を明暗モードに合わせ、
+       背景色をvar(--bg-color)に設定することで、新規ブロックは既存アイテムと同じの表示になります。 */
     body.new-entry-focus .new-block-box {
-      position: fixed;
-      top: 90px;
-      bottom: 120px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 700px;
-      max-width: calc(100% - 40px);
-      margin: 0;
-      border-top: none;
-      padding: 20px;
       opacity: 1;
-      z-index: 300;
-      background-color: var(--bg-color);
-      /* 日にカスタム背景色(has-custom-bg)が設定されていると文字色が
-         黒固定で継承されるが、この全画面編集欄は背景を強制的に
-         var(--bg-color)にするため、文字色も明暗モードに合わせて
-         強制しないとダークモードで黒地に黒文字になってしまう。 */
-      color: var(--text-color);
-      overflow-y: auto;
-    }
-
-    body.new-entry-focus.schedule-bar-collapsed .new-block-box {
-      bottom: 24px;
     }
 
     /* Save Status Indicator */
