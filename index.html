@@ -341,29 +341,10 @@
       cursor: pointer;
     }
 
-    /* 全画面カレンダー: 左端に年目盛りルーラー、右端にWeek pane */
+    /* 全画面カレンダー: 右端にWeek pane(年の見出しも兼ねる) */
     body.schedule-bar-fullscreen .schedule-bar {
-      left: 64px;
-      right: 160px;
-    }
-
-    .year-ruler {
-      display: none;
-      position: fixed;
-      top: 0;
       left: 0;
-      bottom: 0;
-      width: 64px;
-      box-sizing: border-box;
-      z-index: 495;
-      overflow-y: auto;
-      overflow-x: hidden;
-      background-color: rgba(128, 128, 128, 0.05);
-      border-right: 1px solid rgba(128, 128, 128, 0.2);
-    }
-
-    body.schedule-bar-fullscreen .year-ruler {
-      display: block;
+      right: 160px;
     }
 
     /* 全画面カレンダー中はWeek paneも常時表示し、日別スクロールと連動させる */
@@ -378,24 +359,6 @@
 
     body.schedule-bar-fullscreen .week-cell.fullscreen-centered {
       box-shadow: inset 0 0 0 2px rgba(59, 130, 196, 0.6);
-    }
-
-    .year-ruler-tick {
-      height: 32px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      opacity: 0.5;
-      cursor: pointer;
-      color: inherit;
-    }
-
-    .year-ruler-tick:hover,
-    .year-ruler-tick.active {
-      opacity: 1;
-      background-color: rgba(59, 130, 196, 0.18);
-      font-weight: 700;
     }
 
     .content-area {
@@ -1695,11 +1658,45 @@
       flex: 0 0 auto;
       box-sizing: border-box;
       padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background-color: var(--bg-color);
+      border-bottom: 2px solid #ddd;
+    }
+
+    /* 全画面カレンダーの中央に来ている年の見出し(旧・年ルーラーの目盛りに相当) */
+    .week-year-header.active {
+      box-shadow: inset 2px 0 0 rgba(59, 130, 196, 0.6);
+      background-color: rgba(59, 130, 196, 0.08);
+    }
+
+    .year-label {
       font-size: 13px;
       font-weight: 700;
       line-height: 1.3;
-      background-color: var(--bg-color);
-      border-bottom: 1px solid #ddd;
+      cursor: pointer;
+    }
+
+    .year-label:hover {
+      opacity: 0.7;
+    }
+
+    .year-note {
+      width: 100%;
+      min-width: 0;
+      min-height: 32px;
+      border: none;
+      outline: 0;
+      background-color: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-family: inherit;
+      font-weight: 400;
+      line-height: 1.3;
+      padding: 0;
+      resize: none;
+      overflow-y: auto;
     }
 
     .week-label {
@@ -2555,7 +2552,6 @@
     <button type="button" class="cell-color-swatch" data-color="brown" style="background-color: #ecdfc8" title="ベージュ"></button>
     <button type="button" class="cell-color-clear" data-color="">指定なし</button>
   </div>
-  <div id="yearRuler" class="year-ruler"></div>
   <div id="weekPane" class="week-pane"></div>
   <button id="weekPaneToggle" class="week-pane-toggle" type="button">週</button>
   <input type="file" id="fileInput" style="display: none" />
@@ -2757,7 +2753,6 @@
         ),
         idleClockWatermarkEl = document.getElementById("idleClockWatermark"),
         cellColorPickerEl = document.getElementById("cellColorPicker"),
-        yearRulerEl = document.getElementById("yearRuler"),
         storageUsageTextEl = document.getElementById("storageUsageText"),
         storageUsageBarFillEl = document.getElementById(
           "storageUsageBarFill"
@@ -5240,6 +5235,7 @@
         collectCalendarData = () => {
           const notes = {},
             weekNotes = {},
+            yearNotes = {},
             cellColors = {},
             weekColors = {};
           for (let i = 0; i < storage.length; i++) {
@@ -5248,14 +5244,17 @@
               ? (notes[key.slice(5)] = storage.getItem(key))
               : key.startsWith("weeknote:")
                 ? (weekNotes[key.slice(9)] = storage.getItem(key))
-                : key.startsWith("cellColor:")
-                  ? (cellColors[key.slice(10)] = storage.getItem(key))
-                  : key.startsWith("weekColor:") &&
-                  (weekColors[key.slice(10)] = storage.getItem(key));
+                : key.startsWith("yearnote:")
+                  ? (yearNotes[key.slice(9)] = storage.getItem(key))
+                  : key.startsWith("cellColor:")
+                    ? (cellColors[key.slice(10)] = storage.getItem(key))
+                    : key.startsWith("weekColor:") &&
+                    (weekColors[key.slice(10)] = storage.getItem(key));
           }
           return {
             notes,
             weekNotes,
+            yearNotes,
             cellColors,
             weekColors,
             icsCalendars: storage.getItem("icsCalendars") || "[]",
@@ -5269,6 +5268,9 @@
           ),
             Object.entries(data.weekNotes || {}).forEach(([k, v]) =>
               storage.setItem(`weeknote:${k}`, v)
+            ),
+            Object.entries(data.yearNotes || {}).forEach(([k, v]) =>
+              storage.setItem(`yearnote:${k}`, v)
             ),
             Object.entries(data.cellColors || {}).forEach(([k, v]) =>
               storage.setItem(`cellColor:${k}`, v)
@@ -6360,17 +6362,46 @@
             cell.appendChild(noteInput);
           return cell;
         },
+        // 年の見出し(旧・左端の年ルーラーをここへ統合)。クリックでその年の
+        // 最初の週へ移動でき、メモも書き込める(週・日と同じ「メモ付きの
+        // セル」として扱う)。
+        createWeekYearHeader = (year, monday) => {
+          const header = document.createElement("div");
+          (header.className = "week-year-header"), (header.dataset.year = year);
+          const label = document.createElement("div");
+          (label.className = "year-label"),
+            (label.textContent = `${year}年`),
+            label.addEventListener("click", () => selectScheduleDate(monday));
+          const noteInput = document.createElement("textarea");
+          (noteInput.className = "year-note"),
+            (noteInput.placeholder = "年のメモ"),
+            (noteInput.value = storage.getItem(`yearnote:${year}`) || "");
+          noteInput.addEventListener("input", () => {
+            const v = noteInput.value;
+            v
+              ? storage.setItem(`yearnote:${year}`, v)
+              : storage.removeItem(`yearnote:${year}`);
+            maybeSyncPushChannel("calendar");
+          }),
+            header.appendChild(label),
+            header.appendChild(noteInput);
+          return header;
+        },
         syncWeekYearHeaders = () => {
           wp.querySelectorAll(".week-year-header").forEach((h) => h.remove());
           let lastYear = null;
           wp.querySelectorAll(".week-cell").forEach((cell) => {
-            const year = cell.dataset.weekKey.split("-W")[0];
-            if (year !== lastYear) {
-              const header = document.createElement("div");
-              (header.className = "week-year-header"),
-                (header.textContent = `${year}年`),
-                wp.insertBefore(header, cell);
-              lastYear = year;
+            const [isoYear, weekNum] = cell.dataset.weekKey.split("-W");
+            if (isoYear !== lastYear) {
+              const monday = getDateFromISOWeek(
+                Number(isoYear),
+                Number(weekNum)
+              );
+              wp.insertBefore(
+                createWeekYearHeader(isoYear, monday),
+                cell
+              );
+              lastYear = isoYear;
             }
           });
         },
@@ -6668,18 +6699,16 @@
           const [dy, dm, dd] = cell.dataset.date.split("-").map(Number),
             year = String(dy);
           fullscreenYearWatermarkEl.textContent = year;
-          const prevActive = yearRulerEl.querySelector(
-            ".year-ruler-tick.active"
-          );
+          const prevActive = wp.querySelector(".week-year-header.active");
           prevActive && prevActive.classList.remove("active");
-          const tick = yearRulerEl.querySelector(
-            `.year-ruler-tick[data-year="${year}"]`
+          const header = wp.querySelector(
+            `.week-year-header[data-year="${year}"]`
           );
-          tick && tick.classList.add("active"),
+          header && header.classList.add("active"),
             alignWeekPaneToDate(new Date(dy, dm - 1, dd));
         },
         // 選択中の日付(f)には触れず、カレンダー表示だけを任意の日付
-        // 中心に作り直す(年ルーラーのホバージャンプ用)。
+        // 中心に作り直す(全画面カレンダーの遠い日付へのジャンプ用)。
         jumpScheduleBarToDate = (targetDate) => {
           sb.innerHTML = "";
           const maxDayLen = getGlobalMaxDayLen(),
@@ -6708,32 +6737,6 @@
               setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
             fillScheduleBarFullscreen(),
             updateFullscreenYearWatermark();
-        },
-        // 全画面カレンダー右端に、現在の年を中心に前後50年分の目盛りを
-        // 並べる。目盛りにマウスホバーするとその年へジャンプする。
-        renderYearRuler = () => {
-          yearRulerEl.innerHTML = "";
-          const centerYear = f.getFullYear(),
-            frag = document.createDocumentFragment();
-          for (let y = centerYear - 50; y <= centerYear + 50; y++) {
-            const tick = document.createElement("div");
-            (tick.className = "year-ruler-tick"),
-              (tick.textContent = y),
-              (tick.dataset.year = String(y)),
-              tick.addEventListener("mouseenter", () => {
-                jumpScheduleBarToDate(
-                  new Date(y, f.getMonth(), Math.min(f.getDate(), 28))
-                );
-              }),
-              frag.appendChild(tick);
-          }
-          yearRulerEl.appendChild(frag);
-          const activeTick = yearRulerEl.querySelector(
-            `.year-ruler-tick[data-year="${centerYear}"]`
-          );
-          activeTick &&
-            (activeTick.classList.add("active"),
-              activeTick.scrollIntoView({ block: "center" }));
         },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
@@ -7111,7 +7114,6 @@
                           block: "center",
                         }),
                         setTimeout(() => (scheduleScrollSuppressed = !1), 50));
-                    renderYearRuler();
                     lastSyncedWeekKey = null;
                     updateFullscreenYearWatermark();
                   }))
