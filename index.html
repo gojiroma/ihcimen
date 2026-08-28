@@ -2017,8 +2017,10 @@
     }
 
     .search-pane-result {
+      box-sizing: border-box;
       padding: 10px;
       border-bottom: 1px solid rgba(128, 128, 128, 0.15);
+      border-left: 4px solid transparent;
       cursor: pointer;
       font-size: 13px;
     }
@@ -4185,7 +4187,12 @@
               (snippetLine.className = "search-result-snippet"),
               (snippetLine.innerHTML = r.snippet),
               li.appendChild(dateLine),
-              li.appendChild(snippetLine),
+              li.appendChild(snippetLine);
+            // 「予定」(下段カレンダーの日付セル)のヒットは、そのセルに
+            // 手動で設定した色を左端の帯として反映する。
+            "予定" === r.headingText &&
+              hasCustomCellColor(r.date) &&
+              (li.style.borderLeftColor = CELL_COLORS[getCellColor(r.date)]),
               li.addEventListener("mouseenter", () =>
                 previewSearchResult(r, li)
               ),
