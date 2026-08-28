@@ -62,6 +62,10 @@
       z-index: 460;
       pointer-events: none;
       touch-action: none;
+      /* PCでドラッグ操作すると、地の文字が選択状態になってしまう
+         (マウスドラッグ = テキスト選択、というブラウザの既定動作と衝突する)
+         ため、常に選択不可にしておく。 */
+      user-select: none;
     }
 
     #weekPaneOpenZone {
@@ -1203,6 +1207,14 @@
       opacity: 1;
     }
 
+    /* プレースホルダー("新しいメモ...")はブラウザ既定色だと暗色固定の
+       ことがあり、ダークモードで背景と同化して見えなくなるため、
+       テーマの文字色を基準に明示指定する。 */
+    .new-block-box::placeholder {
+      color: var(--text-color);
+      opacity: 0.35;
+    }
+
     /* 新規記入欄の編集中は、文字色を明暗モードに合わせ、
        背景色をvar(--bg-color)に設定することで、新規ブロックは既存アイテムと同じの表示になります。 */
     body.new-entry-focus .new-block-box {
@@ -1478,6 +1490,9 @@
       background-color: var(--bg-color);
       z-index: 401;
       transition: height 0.25s ease, transform 0.25s ease;
+      /* 開閉/全画面化のドラッグ操作中に地の文字が選択されてしまうのを防ぐ
+         (メモ欄のtextarea自体の選択には影響しない)。 */
+      user-select: none;
     }
 
     .schedule-cell {
@@ -2456,6 +2471,8 @@
   <div id="scheduleFullscreenFilter" class="schedule-fullscreen-filter">
     <select id="filterDowSelect" title="曜日で絞り込み" aria-label="曜日で絞り込み">
       <option value="">曜日: すべて</option>
+      <option value="weekday">平日のみ</option>
+      <option value="weekend_holiday">土日祝日のみ</option>
       <option value="0">日曜のみ</option>
       <option value="1">月曜のみ</option>
       <option value="2">火曜のみ</option>
@@ -4053,32 +4070,46 @@
           const results = [];
           for (let idx = 0; idx < storage.length; idx++) {
             const key = storage.key(idx);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = storage.getItem(key),
-              headings = getHeadings(text);
-            if (headings.length) {
-              headings.forEach((h, hIdx) => {
-                const sectionEnd =
-                  hIdx + 1 < headings.length ? headings[hIdx + 1].start : text.length,
-                  sectionBody = text.slice(h.end, sectionEnd),
-                  fullSection = h.text + sectionBody;
-                normalizeForSearch(fullSection).includes(nq) &&
-                  results.push({
-                    date: key,
-                    headingIdx: hIdx,
-                    headingText: h.text,
-                    jumpPos: h.end,
-                    snippet: buildSnippet(fullSection, query),
-                  });
-              });
-            } else if (normalizeForSearch(text).includes(nq)) {
-              results.push({
-                date: key,
-                headingIdx: null,
-                headingText: null,
-                jumpPos: 0,
-                snippet: buildSnippet(text, query),
-              });
+            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+              const text = storage.getItem(key),
+                headings = getHeadings(text);
+              if (headings.length) {
+                headings.forEach((h, hIdx) => {
+                  const sectionEnd =
+                    hIdx + 1 < headings.length ? headings[hIdx + 1].start : text.length,
+                    sectionBody = text.slice(h.end, sectionEnd),
+                    fullSection = h.text + sectionBody;
+                  normalizeForSearch(fullSection).includes(nq) &&
+                    results.push({
+                      date: key,
+                      headingIdx: hIdx,
+                      headingText: h.text,
+                      jumpPos: h.end,
+                      snippet: buildSnippet(fullSection, query),
+                    });
+                });
+              } else if (normalizeForSearch(text).includes(nq)) {
+                results.push({
+                  date: key,
+                  headingIdx: null,
+                  headingText: null,
+                  jumpPos: 0,
+                  snippet: buildSnippet(text, query),
+                });
+              }
+            } else if (key.startsWith("note:")) {
+              // 下段カレンダーの日付セルの予定メモも検索対象にする。
+              const dateKey = key.slice(5);
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+              const noteText = storage.getItem(key);
+              normalizeForSearch(noteText).includes(nq) &&
+                results.push({
+                  date: dateKey,
+                  headingIdx: null,
+                  headingText: "予定",
+                  jumpPos: 0,
+                  snippet: buildSnippet(noteText, query),
+                });
             }
           }
           return results;
@@ -6082,12 +6113,13 @@
             (cell.dataset.date = key),
             (cell.dataset.dow = String(day)),
             (cell.dataset.dom = String(d.getDate())),
+            (cell.dataset.holiday = holidayName ? "1" : "0"),
             1 === d.getDate() && cell.classList.add("month-start"),
-            ((scheduleFullscreenFilterDow &&
-              cell.dataset.dow !== scheduleFullscreenFilterDow) ||
-              (scheduleFullscreenFilterDom &&
-                cell.dataset.dom !== scheduleFullscreenFilterDom)) &&
-            cell.classList.add("filtered-out"),
+            matchesScheduleFullscreenFilter(
+              cell.dataset.dow,
+              cell.dataset.dom,
+              !!holidayName
+            ) || cell.classList.add("filtered-out"),
             applyCellColor(cell, key, maxDayLen);
           holidayName
             ? cell.setAttribute(
@@ -6593,16 +6625,33 @@
             jumpScheduleBarToDate(date);
           }
         },
+        // 全画面カレンダーの曜日/毎月同日フィルタの判定。dow/domは
+        // セルのdataset値(文字列)、isHolidayはそのセルが祝日かどうか。
+        matchesScheduleFullscreenFilter = (dow, dom, isHoliday) => {
+          const df = scheduleFullscreenFilterDow,
+            isWeekend = "0" === dow || "6" === dow,
+            dowOk =
+              !df ||
+              ("weekday" === df
+                ? !isWeekend && !isHoliday
+                : "weekend_holiday" === df
+                  ? isWeekend || isHoliday
+                  : df === dow);
+          return (
+            dowOk &&
+            (!scheduleFullscreenFilterDom || dom === scheduleFullscreenFilterDom)
+          );
+        },
         // 全画面カレンダーの曜日/毎月同日フィルタを、既に描画済みの
         // セルへ反映する(絞り込み条件を変えたときに呼ぶ)。
         applyScheduleFullscreenFilter = () => {
           sb.querySelectorAll(".schedule-cell").forEach((cell) => {
-            const hide =
-              (scheduleFullscreenFilterDow &&
-                cell.dataset.dow !== scheduleFullscreenFilterDow) ||
-              (scheduleFullscreenFilterDom &&
-                cell.dataset.dom !== scheduleFullscreenFilterDom);
-            cell.classList.toggle("filtered-out", !!hide);
+            const show = matchesScheduleFullscreenFilter(
+              cell.dataset.dow,
+              cell.dataset.dom,
+              "1" === cell.dataset.holiday
+            );
+            cell.classList.toggle("filtered-out", !show);
           });
         },
         // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
