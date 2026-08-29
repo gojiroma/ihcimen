@@ -141,23 +141,42 @@
       display: flex;
       height: 100vh;
       transform: translateY(0);
-      flex-wrap: wrap;
-      align-content: flex-start;
+      /* 以前はセルを直接flex-wrapで折り返していたが、折り返し列数の
+         JS側の想定(getFullscreenColumns)と実際のレイアウトがズレる
+         (スクロールバーの出現/消失、フォント読み込みなど)たびに
+         列がガクッとずれる「継ぎ目」バグの温床だった。今は1行=1つの
+         .fs-row(JS側で列数を確定させてから作る)という明示的な構造に
+         したので、折り返しをブラウザに委ねる必要がない。 */
+      flex-direction: column;
       overflow-y: auto;
       overflow-x: hidden;
-      /* スクロールバーの出現/消失でclientWidthが変わると、折り返し列数の
-         計算(getFullscreenColumns)が実際のレイアウトとずれて列がガクッと
-         ずれて見えるため、常に同じガター幅を確保しておく。 */
+      /* スクロールバーの出現/消失でclientWidthが変わると、新しく追加する
+         行の列数(getFullscreenColumns)が既存の行とズレてしまうため、
+         常に同じガター幅を確保しておく。 */
       scrollbar-gutter: stable;
+      /* スクロール中にDOMを増減させて追従すると、慣性スクロールと
+         競合してカクつく(「継ぎ目で引っかかる」)ことがあるため、
+         行境界にゆるく吸着させて止まりやすくしておく
+         (mandatoryだと逆に窮屈なのでproximityに留める)。 */
+      scroll-snap-type: y proximity;
       z-index: 500;
       /* 背景を透過させ、下にある年の透かし表示を見せる */
       background-color: transparent;
     }
 
+    /* 全画面カレンダーの1行。列数はJS側(getFullscreenColumns)で
+       確定させてから作るので、中のセルは常にちょうどその数だけ並ぶ。 */
+    .fs-row {
+      display: flex;
+      flex-direction: row;
+      flex-shrink: 0;
+      scroll-snap-align: start;
+    }
+
     body.schedule-bar-fullscreen .schedule-bar .schedule-cell {
       height: 160px;
-      width: var(--fs-cell-width, 120px);
-      flex-basis: var(--fs-cell-width, 120px);
+      width: auto;
+      flex: 1 1 0;
     }
 
     .schedule-fullscreen-close {
@@ -249,8 +268,11 @@
       opacity: 1;
     }
 
+    /* 行の列数はJSが確定させているため、絞り込みで隠れたセルが
+       display:noneで詰まってしまうと1行あたりの列数が変わって
+       見えてしまう。visibility:hiddenで空きマスとして残す。 */
     body.schedule-bar-fullscreen .schedule-bar .schedule-cell.filtered-out {
-      display: none;
+      visibility: hidden;
     }
 
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
@@ -2898,6 +2920,11 @@
         audioCtx = null,
         scheduleEarliest = null,
         scheduleLatest = null,
+        // 全画面カレンダー(行virtualized表示)側の描画済み範囲。
+        // 通常のリボン表示(scheduleEarliest/Latest)とは別に管理する。
+        fsRowEarliest = null,
+        fsRowLatest = null,
+        scheduleFullscreenSettleTimer = null,
         weekEarliestMonday = null,
         weekLatestMonday = null,
         scheduleScrollSuppressed = !1,
@@ -5512,12 +5539,13 @@
           requestAnimationFrame(scanFrame);
         },
         scheduleWindowDays = 30,
-        // 全画面カレンダーは、開いた瞬間に前後1年ぶん(約400日、去年〜
-        // 今年〜来年がだいたい収まる範囲)を先読みで描画してしまう。
-        // スクロール中の無限読み込み(extend系)に頼らないことで、読み込み
-        // 境界をまたぐたびに列がずれて見える「継ぎ目」問題の発生機会
-        // そのものを減らす(値が大きいほど開いた瞬間の描画が重くなる)。
-        scheduleFullscreenWindowDays = 400,
+        // 全画面カレンダーは、常に表示中心の前後この日数ぶんだけを
+        // 描画・保持する(virtualized表示)。開いた瞬間だけでなく、
+        // スクロールで表示中心が動くたびにこの範囲を維持し続け、
+        // 離れた行は間引く(scheduleFullscreenTrim)ので、どれだけ
+        // スクロールしてもDOM量は常に一定に収まる。値が大きいほど
+        // 手前に確保するバッファが増えて安全だが、その分セル数も増える。
+        scheduleFullscreenWindowDays = 90,
         weekPaneWindowWeeks = 52,
         getDateFromISOWeek = (year, week) => {
           const d = new Date(year, 0, 1);
@@ -6593,36 +6621,35 @@
             ));
         },
         renderScheduleBar = () => {
-          sb.innerHTML = "";
-          const selectedKey = toDateKey(f),
-            maxDayLen = getGlobalMaxDayLen();
-          (scheduleEarliest = new Date(f.getTime() - scheduleWindowDays * I)),
-            (scheduleLatest = new Date(f.getTime() + scheduleWindowDays * I));
-          let selectedCell = null;
-          const frag = document.createDocumentFragment();
-          for (
-            let d = new Date(scheduleEarliest);
-            d <= scheduleLatest;
-            d.setDate(d.getDate() + 1)
-          ) {
-            const cell = createScheduleCell(new Date(d), maxDayLen);
-            cell.dataset.date === selectedKey &&
-              (cell.classList.add("selected"), (selectedCell = cell)),
-              frag.appendChild(cell);
+          if (document.body.classList.contains("schedule-bar-fullscreen")) {
+            renderScheduleBarFullscreenAround(f);
+          } else {
+            sb.innerHTML = "";
+            const selectedKey = toDateKey(f),
+              maxDayLen = getGlobalMaxDayLen();
+            (scheduleEarliest = new Date(f.getTime() - scheduleWindowDays * I)),
+              (scheduleLatest = new Date(f.getTime() + scheduleWindowDays * I));
+            let selectedCell = null;
+            const frag = document.createDocumentFragment();
+            for (
+              let d = new Date(scheduleEarliest);
+              d <= scheduleLatest;
+              d.setDate(d.getDate() + 1)
+            ) {
+              const cell = createScheduleCell(new Date(d), maxDayLen);
+              cell.dataset.date === selectedKey &&
+                (cell.classList.add("selected"), (selectedCell = cell)),
+                frag.appendChild(cell);
+            }
+            sb.appendChild(frag),
+              selectedCell &&
+              ((scheduleScrollSuppressed = !0),
+                // 選択中の日を中央ではなく左端に置き、今日以降のこれからの
+                // 日々が右側に見えるようにする。
+                selectedCell.scrollIntoView({ inline: "start", block: "nearest" }),
+                setTimeout(() => (scheduleScrollSuppressed = !1), 50));
           }
-          sb.appendChild(frag),
-            selectedCell &&
-            ((scheduleScrollSuppressed = !0),
-              selectedCell.scrollIntoView(
-                document.body.classList.contains("schedule-bar-fullscreen")
-                  ? { inline: "nearest", block: "center" }
-                  // 選択中の日を中央ではなく左端に置き、今日以降の
-                  // これからの日々が右側に見えるようにする。
-                  : { inline: "start", block: "nearest" }
-              ),
-              setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
-            fillScheduleBarFullscreen(),
-            renderWeekPane(),
+          renderWeekPane(),
             (lastSyncedWeekKey = null),
             updateFullscreenYearWatermark(),
             renderBusyDayPanel();
@@ -6641,22 +6668,8 @@
             cellCenterX = rect.left + rect.width / 2;
           sb.scrollLeft -= clientX - cellCenterX;
         },
+        // 通常表示(リボン)専用。全画面は行(.fs-row)単位の別実装を使う。
         extendScheduleBarStart = (days = 14) => {
-          const fullscreen = document.body.classList.contains(
-            "schedule-bar-fullscreen"
-          );
-          // 全画面カレンダーは折り返しflexで、1行あたりの列数が画面幅で
-          // 変わる。先頭に追加する日数が列数の倍数でないと、追加分だけ
-          // 既存セルの列位置がずれて折り返し直してしまい、見た目上セルが
-          // シフトしたように見える。列数の倍数に切り上げて丸ごと行単位で
-          // 追加することで、既存セルの列位置を保つ。
-          // 列数(getFullscreenColumns)は実際のセル幅(--fs-cell-width)と
-          // 必ず同じ計算結果を使う必要があるため、丸め計算の直前に
-          // 幅を再計算して同期させておく(ずれるとここでの丸め基準と
-          // 実際の折り返し列数が食い違い、追加のたびに列がずれる)。
-          fullscreen &&
-            (adjustFullscreenCellWidth(),
-              (days = Math.ceil(days / getFullscreenColumns()) * getFullscreenColumns()));
           const maxDayLen = getGlobalMaxDayLen(),
             frag = document.createDocumentFragment();
           for (let i = days; i >= 1; i--)
@@ -6667,18 +6680,12 @@
               )
             );
           const prevScrollWidth = sb.scrollWidth,
-            prevScrollLeft = sb.scrollLeft,
-            prevScrollHeight = sb.scrollHeight,
-            prevScrollTop = sb.scrollTop;
+            prevScrollLeft = sb.scrollLeft;
           sb.insertBefore(frag, sb.firstChild),
             (scheduleEarliest = new Date(
               scheduleEarliest.getTime() - days * I
             )),
-            fullscreen
-              ? (sb.scrollTop =
-                prevScrollTop + (sb.scrollHeight - prevScrollHeight))
-              : (sb.scrollLeft =
-                prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
+            (sb.scrollLeft = prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
         },
         extendScheduleBarEnd = (days = 14) => {
           const maxDayLen = getGlobalMaxDayLen(),
@@ -6699,42 +6706,134 @@
           const available = sb.clientWidth;
           return available ? Math.max(1, Math.round(available / 120)) : 7;
         },
-        // 全画面カレンダーのセル幅は、実際の表示幅にちょうど収まる列数へ
-        // 丸めて均等割りする。これにより右端に余る半端な空白を無くす。
-        adjustFullscreenCellWidth = () => {
-          const available = sb.clientWidth;
-          if (!available) return;
-          const columns = getFullscreenColumns(),
-            cellWidth = available / columns;
-          sb.style.setProperty("--fs-cell-width", `${cellWidth}px`);
+        // 全画面カレンダーの1行(.fs-row)を作る。列数(columns)ぶん、
+        // 必ず連続した日付のセルを並べる。
+        buildFullscreenRow = (rowStart, columns, maxDayLen) => {
+          const row = document.createElement("div");
+          row.className = "fs-row";
+          for (let i = 0; i < columns; i++)
+            row.appendChild(
+              createScheduleCell(
+                new Date(rowStart.getTime() + i * I),
+                maxDayLen
+              )
+            );
+          return row;
         },
-        // 全画面カレンダーを開いたら、現在表示中心の前後1年ぶん
-        // (scheduleFullscreenWindowDays)を一度にまとめて読み込んでおく。
-        // スクロール中の境界越え(extendScheduleBarStart/End)に頼る範囲を
-        // 減らすことで、読み込みのたびに列がずれる「継ぎ目」を体感しにくく
-        // する。中心はf(選択中の日付)ではなく現在描画済みの範囲の中央を
-        // 使う。jumpScheduleBarToDateでのプレビュージャンプ時にfとは
-        // 無関係な日付が中心になっているケースがあるため。
-        fillScheduleBarFullscreen = () => {
+        // 全画面カレンダーの先頭側に行を追加する。追加した高さぶん
+        // scrollTopを補正し、見た目の位置がずれないようにする。
+        scheduleFullscreenExtendStart = (rows = 1) => {
+          const columns = getFullscreenColumns(),
+            maxDayLen = getGlobalMaxDayLen(),
+            frag = document.createDocumentFragment();
+          for (let r = rows; r >= 1; r--)
+            frag.appendChild(
+              buildFullscreenRow(
+                new Date(fsRowEarliest.getTime() - r * columns * I),
+                columns,
+                maxDayLen
+              )
+            );
+          const prevScrollHeight = sb.scrollHeight,
+            prevScrollTop = sb.scrollTop;
+          sb.insertBefore(frag, sb.firstChild),
+            (fsRowEarliest = new Date(
+              fsRowEarliest.getTime() - rows * columns * I
+            )),
+            (sb.scrollTop = prevScrollTop + (sb.scrollHeight - prevScrollHeight));
+        },
+        // 全画面カレンダーの末尾側に行を追加する。
+        scheduleFullscreenExtendEnd = (rows = 1) => {
+          const columns = getFullscreenColumns(),
+            maxDayLen = getGlobalMaxDayLen(),
+            frag = document.createDocumentFragment();
+          for (let r = 0; r < rows; r++)
+            frag.appendChild(
+              buildFullscreenRow(
+                new Date(fsRowLatest.getTime() + I + r * columns * I),
+                columns,
+                maxDayLen
+              )
+            );
+          sb.appendChild(frag),
+            (fsRowLatest = new Date(
+              fsRowLatest.getTime() + rows * columns * I
+            ));
+        },
+        // 表示中心(targetEarliest〜targetLatest)から外れた行を間引く。
+        // スクロールが止まったタイミングでだけ呼ぶ(syncScheduleBar
+        // FullscreenWindow参照)ことで、慣性スクロール中にDOMを増減させて
+        // 引っかかる(「継ぎ目」)問題を避ける。
+        scheduleFullscreenTrim = (targetEarliest, targetLatest) => {
+          const columns = getFullscreenColumns();
+          if (fsRowEarliest < targetEarliest) {
+            const rows = Math.floor(
+              (targetEarliest - fsRowEarliest) / I / columns
+            );
+            if (rows > 0) {
+              const prevScrollHeight = sb.scrollHeight,
+                prevScrollTop = sb.scrollTop;
+              for (let i = 0; i < rows; i++)
+                sb.firstChild && sb.removeChild(sb.firstChild);
+              (fsRowEarliest = new Date(
+                fsRowEarliest.getTime() + rows * columns * I
+              )),
+                (sb.scrollTop =
+                  prevScrollTop - (prevScrollHeight - sb.scrollHeight));
+            }
+          }
+          if (fsRowLatest > targetLatest) {
+            const rows = Math.floor(
+              (fsRowLatest - targetLatest) / I / columns
+            );
+            if (rows > 0) {
+              for (let i = 0; i < rows; i++)
+                sb.lastChild && sb.removeChild(sb.lastChild);
+              fsRowLatest = new Date(
+                fsRowLatest.getTime() - rows * columns * I
+              );
+            }
+          }
+        },
+        // 全画面カレンダーの中央に来ている日付(透かし表示・Week pane
+        // 追従・virtualizedの間引き基準に使う)。
+        getFullscreenCenterDate = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
+            return null;
+          const sbRect = sb.getBoundingClientRect(),
+            centerX = sbRect.left + sbRect.width / 2,
+            centerY = sbRect.top + sbRect.height / 2,
+            el = document.elementFromPoint(centerX, centerY),
+            cell = el && el.closest(".schedule-cell");
+          if (!cell) return null;
+          const [dy, dm, dd] = cell.dataset.date.split("-").map(Number);
+          return new Date(dy, dm - 1, dd);
+        },
+        // 全画面カレンダーの描画範囲を、現在の表示中心を軸に
+        // scheduleFullscreenWindowDaysぶんだけ維持する。近づいたら
+        // 伸ばし、離れすぎた側は間引く(virtualized表示)。
+        syncScheduleBarFullscreenWindow = () => {
+          if (
+            !document.body.classList.contains("schedule-bar-fullscreen") ||
+            null === fsRowEarliest ||
+            null === fsRowLatest
+          )
             return;
-          adjustFullscreenCellWidth();
-          const center = new Date(
-            (scheduleEarliest.getTime() + scheduleLatest.getTime()) / 2
-          ),
+          const columns = getFullscreenColumns(),
+            center = getFullscreenCenterDate() || f,
             targetEarliest = new Date(
               center.getTime() - scheduleFullscreenWindowDays * I
             ),
             targetLatest = new Date(
               center.getTime() + scheduleFullscreenWindowDays * I
             );
-          scheduleEarliest > targetEarliest &&
-            extendScheduleBarStart(
-              Math.round((scheduleEarliest - targetEarliest) / I)
+          fsRowEarliest > targetEarliest &&
+            scheduleFullscreenExtendStart(
+              Math.ceil((fsRowEarliest - targetEarliest) / I / columns)
             );
-          scheduleLatest < targetLatest &&
-            extendScheduleBarEnd(
-              Math.round((targetLatest - scheduleLatest) / I)
+          fsRowLatest < targetLatest &&
+            scheduleFullscreenExtendEnd(
+              Math.ceil((targetLatest - fsRowLatest) / I / columns)
             );
           // 画面がとても大きい場合の保険。展開直後は height の CSS
           // トランジション(0.25s)が始まったばかりで sb.clientHeight が
@@ -6743,29 +6842,83 @@
           const targetHeight = window.innerHeight;
           let guard = 0;
           for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
-            extendScheduleBarEnd();
+            scheduleFullscreenExtendEnd();
+          scheduleFullscreenTrim(targetEarliest, targetLatest);
+        },
+        // 全画面カレンダーの表示を、指定日を中心に作り直す(全画面に
+        // 入る瞬間・遠い日付へのジャンプ・リサイズ後の列数変更に使う)。
+        // 選択中の日付(f)がこの範囲に含まれていれば.selectedを付けるが、
+        // 中心そのものはfとは限らない(プレビュージャンプなど)。
+        renderScheduleBarFullscreenAround = (anchorDate) => {
+          sb.innerHTML = "";
+          const columns = getFullscreenColumns(),
+            maxDayLen = getGlobalMaxDayLen(),
+            selectedKey = toDateKey(f),
+            anchorKey = toDateKey(anchorDate);
+          fsRowEarliest = new Date(
+            anchorDate.getTime() - scheduleFullscreenWindowDays * I
+          );
+          const totalDays = 2 * scheduleFullscreenWindowDays,
+            rows = Math.max(1, Math.ceil(totalDays / columns)),
+            frag = document.createDocumentFragment();
+          let anchorCell = null;
+          for (let r = 0; r < rows; r++) {
+            const row = buildFullscreenRow(
+              new Date(fsRowEarliest.getTime() + r * columns * I),
+              columns,
+              maxDayLen
+            );
+            row.querySelectorAll(".schedule-cell").forEach((cell) => {
+              cell.dataset.date === selectedKey &&
+                cell.classList.add("selected"),
+                cell.dataset.date === anchorKey && (anchorCell = cell);
+            }),
+              frag.appendChild(row);
+          }
+          sb.appendChild(frag),
+            (fsRowLatest = new Date(
+              fsRowEarliest.getTime() + rows * columns * I - I
+            ));
+          const targetHeight = window.innerHeight;
+          let guard = 0;
+          for (; sb.scrollHeight <= targetHeight + 50 && guard < 30; guard++)
+            scheduleFullscreenExtendEnd();
+          anchorCell &&
+            ((scheduleScrollSuppressed = !0),
+              anchorCell.scrollIntoView({ inline: "nearest", block: "center" }),
+              setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
+            (lastSyncedWeekKey = null),
+            updateFullscreenYearWatermark();
         },
         // 下段カレンダーを全画面表示にする(フリックのトリガーから共通で呼ぶ)。
+        // Week paneは(通常表示側の設定を変えず)毎回非表示から始める。
+        // カレンダーをより広く使いたいことが多いためで、ユーザーが明示的に
+        // 開けば従来どおり好みとして保存され、閉じるとexitScheduleBar
+        // Fullscreenで通常表示側の保存済み状態に戻す。
         enterScheduleBarFullscreen = () => {
           document.body.classList.add("schedule-bar-fullscreen"),
             document.body.classList.remove("schedule-bar-collapsed"),
+            document.body.classList.add("week-pane-collapsed"),
             requestAnimationFrame(() => {
-              fillScheduleBarFullscreen();
-              const selectedCell = sb.querySelector(".schedule-cell.selected");
-              selectedCell &&
-                ((scheduleScrollSuppressed = !0),
-                  selectedCell.scrollIntoView({
-                    inline: "nearest",
-                    block: "center",
-                  }),
-                  setTimeout(() => (scheduleScrollSuppressed = !1), 50));
-              (lastSyncedWeekKey = null), updateFullscreenYearWatermark();
+              renderScheduleBarFullscreenAround(f);
             });
         },
-        // 全画面カレンダーを指定日にスクロールで移動する。前後1年分は
-        // 既に描画済みのことがほとんどなので、既存セルを探して
-        // scrollIntoViewするだけで済ませ、jumpScheduleBarToDateによる
-        // 全再構築(重い)は範囲外のときだけ行う。
+        // 全画面カレンダーを終了し、通常のリボン表示(行構造ではない
+        // 一列の横並び)へ作り直す。全画面用のDOM構造(.fs-row)のままだと
+        // リボン表示が崩れるため、必ず作り直しが要る。Week paneも
+        // 通常表示側の保存済み設定に戻す。
+        exitScheduleBarFullscreen = () => {
+          document.body.classList.remove("schedule-bar-fullscreen"),
+            document.body.classList.toggle(
+              "week-pane-collapsed",
+              "1" === storage.getItem("weekPaneCollapsed")
+            ),
+            clearTimeout(scheduleFullscreenSettleTimer),
+            renderScheduleBar();
+        },
+        // 全画面カレンダーを指定日にスクロールで移動する。既に描画済み
+        // なら既存セルを探してscrollIntoViewするだけで済ませ、範囲外の
+        // ときだけrenderScheduleBarFullscreenAroundで作り直す。
         scrollFullscreenCalendarToDate = (date) => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
             return;
@@ -6777,7 +6930,7 @@
               cell.scrollIntoView({ inline: "nearest", block: "center" }),
               setTimeout(() => (scheduleScrollSuppressed = !1), 50);
           } else {
-            jumpScheduleBarToDate(date);
+            renderScheduleBarFullscreenAround(date);
           }
         },
         // 全画面カレンダーの曜日/毎月同日フィルタの判定。dow/domは
@@ -6839,16 +6992,9 @@
           );
         },
         updateFullscreenYearWatermark = () => {
-          if (!document.body.classList.contains("schedule-bar-fullscreen"))
-            return;
-          const sbRect = sb.getBoundingClientRect(),
-            centerX = sbRect.left + sbRect.width / 2,
-            centerY = sbRect.top + sbRect.height / 2,
-            el = document.elementFromPoint(centerX, centerY),
-            cell = el && el.closest(".schedule-cell");
-          if (!cell) return;
-          const [dy, dm, dd] = cell.dataset.date.split("-").map(Number),
-            year = String(dy);
+          const date = getFullscreenCenterDate();
+          if (!date) return;
+          const year = String(date.getFullYear());
           fullscreenYearWatermarkEl.textContent = year;
           const prevActive = wp.querySelector(".week-year-header.active");
           prevActive && prevActive.classList.remove("active");
@@ -6856,38 +7002,7 @@
             `.week-year-header[data-year="${year}"]`
           );
           header && header.classList.add("active"),
-            alignWeekPaneToDate(new Date(dy, dm - 1, dd));
-        },
-        // 選択中の日付(f)には触れず、カレンダー表示だけを任意の日付
-        // 中心に作り直す(全画面カレンダーの遠い日付へのジャンプ用)。
-        jumpScheduleBarToDate = (targetDate) => {
-          sb.innerHTML = "";
-          const maxDayLen = getGlobalMaxDayLen(),
-            targetKey = toDateKey(targetDate);
-          (scheduleEarliest = new Date(
-            targetDate.getTime() - scheduleWindowDays * I
-          )),
-            (scheduleLatest = new Date(
-              targetDate.getTime() + scheduleWindowDays * I
-            ));
-          let targetCell = null;
-          const frag = document.createDocumentFragment();
-          for (
-            let d = new Date(scheduleEarliest);
-            d <= scheduleLatest;
-            d.setDate(d.getDate() + 1)
-          ) {
-            const cell = createScheduleCell(new Date(d), maxDayLen);
-            cell.dataset.date === targetKey && (targetCell = cell),
-              frag.appendChild(cell);
-          }
-          sb.appendChild(frag),
-            targetCell &&
-            ((scheduleScrollSuppressed = !0),
-              targetCell.scrollIntoView({ inline: "nearest", block: "center" }),
-              setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
-            fillScheduleBarFullscreen(),
-            updateFullscreenYearWatermark();
+            alignWeekPaneToDate(date);
         },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
@@ -6911,15 +7026,33 @@
         sb.addEventListener("scroll", () => {
           updateFullscreenYearWatermark();
           if (scheduleScrollSuppressed) return;
-          document.body.classList.contains("schedule-bar-fullscreen")
-            ? sb.scrollTop < 200
-              ? extendScheduleBarStart()
-              : sb.scrollHeight - sb.scrollTop - sb.clientHeight < 200 &&
-              extendScheduleBarEnd()
-            : sb.scrollLeft < 200
+          if (document.body.classList.contains("schedule-bar-fullscreen")) {
+            // renderScheduleBarFullscreenAround (rAF/setTimeout越し)が
+            // まだ一度も走っていない一瞬だけfsRowEarliest/Latestがnullの
+            // ことがあるため、その間は何もしない(以後のscrollイベントで
+            // 追いつける)。
+            if (null === fsRowEarliest || null === fsRowLatest) return;
+            // 慣性スクロール中でも空白を見せないための、その場しのぎの
+            // 小さな継ぎ足し(ここでのDOM操作は最小限に留める)。本格的な
+            // 範囲維持(伸ばす/間引く)はスクロールが止まってから
+            // syncScheduleBarFullscreenWindowでまとめて行う。スクロール中に
+            // 都度DOMを増減させると慣性と競合してカクつく(「継ぎ目」)
+            // ため、それを避ける狙い。
+            sb.scrollTop < 100
+              ? scheduleFullscreenExtendStart(2)
+              : sb.scrollHeight - sb.scrollTop - sb.clientHeight < 100 &&
+              scheduleFullscreenExtendEnd(2);
+            clearTimeout(scheduleFullscreenSettleTimer),
+              (scheduleFullscreenSettleTimer = setTimeout(
+                syncScheduleBarFullscreenWindow,
+                150
+              ));
+          } else {
+            sb.scrollLeft < 200
               ? extendScheduleBarStart()
               : sb.scrollWidth - sb.scrollLeft - sb.clientWidth < 200 &&
               extendScheduleBarEnd();
+          }
         }),
         wp.addEventListener("mouseleave", () => T(f)),
         wp.addEventListener("scroll", () => {
@@ -6977,7 +7110,8 @@
               (U(!1),
                 O(historyModalEl, !1),
                 stopQrScan(),
-                document.body.classList.remove("schedule-bar-fullscreen"),
+                document.body.classList.contains("schedule-bar-fullscreen") &&
+                exitScheduleBarFullscreen(),
                 activeBlockEl && s.blur());
           }
         }),
@@ -7295,7 +7429,13 @@
           // 開閉アニメーション(0.25s)が終わったタイミングで列数を再計算する。
           const resyncFullscreenAfterWeekPaneToggle = () => {
             document.body.classList.contains("schedule-bar-fullscreen") &&
-              setTimeout(fillScheduleBarFullscreen, 260);
+              setTimeout(
+                () =>
+                  renderScheduleBarFullscreenAround(
+                    getFullscreenCenterDate() || f
+                  ),
+                260
+              );
           };
           const closeWeekPane = () => {
             document.body.classList.add("week-pane-collapsed"),
@@ -7423,8 +7563,7 @@
                 zone.addEventListener("pointermove", (e) => {
                   null !== startY &&
                     e.clientY - startY > SWIPE_THRESHOLD &&
-                    (document.body.classList.remove("schedule-bar-fullscreen"),
-                      (startY = null));
+                    (exitScheduleBarFullscreen(), (startY = null));
                 });
               const reset = (e) => {
                 (startY = null),
@@ -7482,7 +7621,7 @@
         document
           .getElementById("scheduleFullscreenCloseBtn")
           .addEventListener("click", () => {
-            document.body.classList.remove("schedule-bar-fullscreen");
+            exitScheduleBarFullscreen();
           }),
         document
           .getElementById("scheduleFullscreenTodayBtn")
@@ -7819,11 +7958,19 @@
         "visible" === document.visibilityState &&
           (pullAndMergeAll(), checkForUpdate(), maybeAutoRefreshICS());
       });
-      // 全画面カレンダー表示中にウィンドウが広がった場合も、
-      // スクロール可能になるまでセルを補充する。
+      // 全画面カレンダー表示中に幅が変わると1行あたりの列数も変わるため、
+      // 表示中心を軸に作り直す。リサイズ中に何度も発火するのでデバウンスする。
+      let fullscreenResizeTimer = null;
       window.addEventListener("resize", () => {
         document.body.classList.contains("schedule-bar-fullscreen") &&
-          fillScheduleBarFullscreen(),
+          (clearTimeout(fullscreenResizeTimer),
+            (fullscreenResizeTimer = setTimeout(
+              () =>
+                renderScheduleBarFullscreenAround(
+                  getFullscreenCenterDate() || f
+                ),
+              200
+            ))),
           resizeTextBox();
       });
       // しばらく操作がないと、ノブ/アイコン類を控えめにフェードする。
