@@ -68,6 +68,16 @@
       user-select: none;
     }
 
+    /* 各種フリック/ドラッグ操作中(suppressTextSelection〜
+       restoreTextSelection)は、ページ全体で文字選択を止めておく。
+       全画面カレンダーの出入りのようにドラッグ中にDOM構造ごと
+       入れ替わる操作では、この見えない領域自身をuser-select:noneに
+       するだけでは、入れ替わった後にカーソル下へ来た本文が選択されて
+       しまうのを防げないため。 */
+    body.gesture-drag-active {
+      user-select: none;
+    }
+
     #weekPaneOpenZone {
       top: 0;
       right: 0;
@@ -7287,6 +7297,20 @@
           // パネル自体をフリックして閉じ、閉じているパネルは画面端の
           // 見えない領域(edge-swipe-zone)をフリックして開く。
           const SWIPE_THRESHOLD = 15;
+          // ドラッグ中にPCのテキスト選択が始まってしまったり、全画面
+          // カレンダーの出入りでDOM構造が入れ替わった拍子に新しく
+          // カーソル下に来た文字が選択されてしまうことがあるため、
+          // ジェスチャー中は選択そのものを止めておく。終了時には取り
+          // こぼした選択も念のため解除する(通常表示に戻った後まで
+          // 選択状態が残ってしまう不具合への対策)。
+          const suppressTextSelection = () => {
+            document.body.classList.add("gesture-drag-active");
+          };
+          const restoreTextSelection = () => {
+            document.body.classList.remove("gesture-drag-active");
+            const sel = window.getSelection();
+            sel && sel.removeAllRanges();
+          };
           // パネル本体のほとんどはメモ欄(textarea)が占めているため、
           // 通常のテキスト選択ドラッグと閉じるフリックを区別できるよう、
           // こちらは一回り大きいしきい値を使う。
@@ -7297,7 +7321,9 @@
           const setupPaneCloseSwipe = (paneEl, axis, sign, onClose) => {
             let startX = null, startY = null;
             paneEl.addEventListener("pointerdown", (e) => {
-              (startX = e.clientX), (startY = e.clientY);
+              (startX = e.clientX),
+                (startY = e.clientY),
+                suppressTextSelection();
             }),
               paneEl.addEventListener("pointermove", (e) => {
                 if (null === startX) return;
@@ -7316,7 +7342,7 @@
                   (onClose(), (startX = null), (startY = null));
               });
             const reset = () => {
-              (startX = null), (startY = null);
+              (startX = null), (startY = null), restoreTextSelection();
             };
             paneEl.addEventListener("pointerup", reset),
               paneEl.addEventListener("pointercancel", reset),
@@ -7333,7 +7359,8 @@
             zoneEl.addEventListener("pointerdown", (e) => {
               (startX = e.clientX),
                 (startY = e.clientY),
-                zoneEl.setPointerCapture(e.pointerId);
+                zoneEl.setPointerCapture(e.pointerId),
+                suppressTextSelection();
             }),
               zoneEl.addEventListener("pointermove", (e) => {
                 if (null === startX) return;
@@ -7350,13 +7377,15 @@
                 (startX = null),
                 (startY = null),
                 zoneEl.hasPointerCapture(e.pointerId) &&
-                zoneEl.releasePointerCapture(e.pointerId);
+                zoneEl.releasePointerCapture(e.pointerId),
+                restoreTextSelection();
             };
             const cancel = (e) => {
               (startX = null),
                 (startY = null),
                 zoneEl.hasPointerCapture(e.pointerId) &&
-                zoneEl.releasePointerCapture(e.pointerId);
+                zoneEl.releasePointerCapture(e.pointerId),
+                restoreTextSelection();
             };
             zoneEl.addEventListener("pointerup", finish),
               zoneEl.addEventListener("pointercancel", cancel);
@@ -7437,7 +7466,8 @@
               (startX = e.clientX),
                 (startY = e.clientY),
                 (triggered = !1),
-                zone.setPointerCapture(e.pointerId);
+                zone.setPointerCapture(e.pointerId),
+                suppressTextSelection();
             }),
               zone.addEventListener("pointermove", (e) => {
                 null === startY ||
@@ -7455,7 +7485,8 @@
                 (startY = null),
                 (triggered = !1),
                 zone.hasPointerCapture(e.pointerId) &&
-                zone.releasePointerCapture(e.pointerId);
+                zone.releasePointerCapture(e.pointerId),
+                restoreTextSelection();
             };
             zone.addEventListener("pointerup", finish),
               zone.addEventListener("pointercancel", finish);
@@ -7473,7 +7504,8 @@
               zone.addEventListener("pointerdown", (e) => {
                 (startY = e.clientY),
                   (triggered = !1),
-                  zone.setPointerCapture(e.pointerId);
+                  zone.setPointerCapture(e.pointerId),
+                  suppressTextSelection();
               }),
                 zone.addEventListener("pointermove", (e) => {
                   if (null === startY || triggered) return;
@@ -7489,7 +7521,8 @@
                 (startY = null),
                   (triggered = !1),
                   zone.hasPointerCapture(e.pointerId) &&
-                  zone.releasePointerCapture(e.pointerId);
+                  zone.releasePointerCapture(e.pointerId),
+                  restoreTextSelection();
               };
               zone.addEventListener("pointerup", reset),
                 zone.addEventListener("pointercancel", reset);
@@ -7503,7 +7536,9 @@
               );
               let startY = null;
               zone.addEventListener("pointerdown", (e) => {
-                (startY = e.clientY), zone.setPointerCapture(e.pointerId);
+                (startY = e.clientY),
+                  zone.setPointerCapture(e.pointerId),
+                  suppressTextSelection();
               }),
                 zone.addEventListener("pointermove", (e) => {
                   null !== startY &&
@@ -7513,7 +7548,8 @@
               const reset = (e) => {
                 (startY = null),
                   zone.hasPointerCapture(e.pointerId) &&
-                  zone.releasePointerCapture(e.pointerId);
+                  zone.releasePointerCapture(e.pointerId),
+                  restoreTextSelection();
               };
               zone.addEventListener("pointerup", reset),
                 zone.addEventListener("pointercancel", reset);
