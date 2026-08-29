@@ -393,7 +393,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding-bottom: 120px;
+      /* 下段カレンダー(100px)+その上の全画面化フリック領域(80px)+
+         余白(20px)ぶんを確保し、本文がその見えない領域の下に
+         埋もれてタップできなくならないようにする。 */
+      padding-bottom: 200px;
       box-sizing: border-box;
     }
 
@@ -417,9 +420,7 @@
     body.touch-editing .history-btn,
     body.touch-editing .copy-day-btn,
     body.touch-editing .h1-shortcut-bar,
-    body.touch-editing .week-pane-close-btn,
-    body.touch-editing .schedule-bar-collapse-btn,
-    body.touch-editing .schedule-bar-expand-btn {
+    body.touch-editing .week-pane-close-btn {
       display: none;
     }
 
@@ -1553,51 +1554,21 @@
       user-select: none;
     }
 
-    /* 下段カレンダーの開閉/全画面化は上へ/下へのフリックでもできるが、
-       画面下端からの上フリックはAndroidの「ホーム画面」ジェスチャーと
-       衝突してOSに奪われてしまうことがあるため、タップ用のボタンも
-       用意しておく(全画面中は専用の閉じるボタンが別にあるので、
-       ここは開いている通常表示のときだけ出す)。 */
-    .schedule-bar-collapse-btn,
-    .schedule-bar-expand-btn {
-      display: none;
-      position: fixed;
-      bottom: 76px;
-      /* searchPaneOpenZone/weekPaneOpenZone(z-index:460)より手前にして、
-         端が閉じているときでもこれらのボタンがフリック領域の下に
-         埋もれてクリックできなくなるのを防ぐ。 */
-      z-index: 470;
-      width: 28px;
-      height: 28px;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      color: inherit;
-      opacity: 0.55;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
+    /* 下段カレンダー(開いている・全画面ではない状態)の上端に、全画面化/
+       折りたたみ専用の見えないフリック領域を用意する。日エリア自体では
+       なくこの専用領域だけがジェスチャーを受け持つことで、日エリアの
+       タップ/横スクロールと干渉しないようにしている。上へフリックで
+       全画面、下へフリックで折りたたむ。 */
+    #scheduleBarFullscreenToggleZone {
+      left: 0;
+      right: 0;
+      bottom: 100px;
+      height: 80px;
     }
 
-    .schedule-bar-collapse-btn:hover,
-    .schedule-bar-expand-btn:hover {
-      opacity: 1;
-    }
-
-    .schedule-bar-collapse-btn {
-      right: 8px;
-      font-size: 20px;
-    }
-
-    .schedule-bar-expand-btn {
-      right: 40px;
-      font-size: 16px;
-    }
-
-    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen) .schedule-bar-collapse-btn,
-    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen) .schedule-bar-expand-btn {
-      display: flex;
+    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen)
+      #scheduleBarFullscreenToggleZone {
+      pointer-events: auto;
     }
 
     .schedule-cell {
@@ -1907,9 +1878,7 @@
     body.ui-idle .history-btn,
     body.ui-idle .copy-day-btn,
     body.ui-idle .morning-page-btn,
-    body.ui-idle .week-pane-close-btn,
-    body.ui-idle .schedule-bar-collapse-btn,
-    body.ui-idle .schedule-bar-expand-btn {
+    body.ui-idle .week-pane-close-btn {
       opacity: 0.12;
     }
 
@@ -2629,8 +2598,7 @@
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
   <div id="scheduleBarOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
-  <button id="scheduleBarCollapseBtn" class="schedule-bar-collapse-btn" type="button" aria-label="日カレンダーを閉じる" title="閉じる">×</button>
-  <button id="scheduleBarExpandBtn" class="schedule-bar-expand-btn" type="button" aria-label="全画面カレンダーを開く" title="全画面表示">⤢</button>
+  <div id="scheduleBarFullscreenToggleZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <div id="scheduleBarFullscreenExitZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
@@ -7492,62 +7460,39 @@
             zone.addEventListener("pointerup", finish),
               zone.addEventListener("pointercancel", finish);
           })(),
-            // 開いている(全画面ではない)下段カレンダー自体へのフリック:
-            // 上へ引けば全画面表示、下へ引けば折りたたむ。横方向優位の
-            // 動き(通常の日送りスクロール)やメモ欄内の操作は無視する。
+            // 下段カレンダー(開いている・全画面ではない状態)の上端専用の
+            // 見えないフリック領域(scheduleBarFullscreenToggleZone):
+            // 上へドラッグ/フリックすれば全画面表示、下へなら折りたたむ。
+            // 日エリア自体にはこのジェスチャーを持たせず、専用領域だけが
+            // 受け持つことでタップや横スクロールと干渉しないようにする。
             (() => {
-              let startX = null, startY = null, triggered = !1;
-              sb.addEventListener("pointerdown", (e) => {
-                if (
-                  document.body.classList.contains("schedule-bar-fullscreen") ||
-                  e.target.closest(".schedule-note")
-                )
-                  return;
-                (startX = e.clientX), (startY = e.clientY), (triggered = !1);
+              const zone = document.getElementById(
+                "scheduleBarFullscreenToggleZone"
+              );
+              let startY = null, triggered = !1;
+              zone.addEventListener("pointerdown", (e) => {
+                (startY = e.clientY),
+                  (triggered = !1),
+                  zone.setPointerCapture(e.pointerId);
               }),
-                sb.addEventListener("pointermove", (e) => {
-                  if (
-                    null === startY ||
-                    triggered ||
-                    document.body.classList.contains("schedule-bar-fullscreen")
-                  )
-                    return;
-                  const dx = e.clientX - startX,
-                    dy = e.clientY - startY;
-                  if (
-                    Math.abs(dy) < SWIPE_THRESHOLD ||
-                    Math.abs(dx) > Math.abs(dy)
-                  )
-                    return;
-                  (triggered = !0),
-                    dy < 0
-                      ? enterScheduleBarFullscreen()
-                      : (document.body.classList.add("schedule-bar-collapsed"),
-                        storage.setItem("scheduleBarCollapsed", "1"));
+                zone.addEventListener("pointermove", (e) => {
+                  if (null === startY || triggered) return;
+                  const dy = e.clientY - startY;
+                  Math.abs(dy) < SWIPE_THRESHOLD ||
+                    ((triggered = !0),
+                      dy < 0
+                        ? enterScheduleBarFullscreen()
+                        : (document.body.classList.add("schedule-bar-collapsed"),
+                          storage.setItem("scheduleBarCollapsed", "1")));
                 });
-              const reset = () => {
-                (startX = null), (startY = null), (triggered = !1);
+              const reset = (e) => {
+                (startY = null),
+                  (triggered = !1),
+                  zone.hasPointerCapture(e.pointerId) &&
+                  zone.releasePointerCapture(e.pointerId);
               };
-              sb.addEventListener("pointerup", reset),
-                sb.addEventListener("pointercancel", reset);
-            })(),
-            // 下段カレンダー(開いている・全画面ではない状態)の折りたたみ/
-            // 全画面化ボタン。上下スワイプは画面下端からだとAndroidの
-            // 「ホーム画面」ジェスチャーと衝突しやすいため、確実に押せる
-            // ボタンでも同じ操作をできるようにしておく。
-            (() => {
-              document
-                .getElementById("scheduleBarCollapseBtn")
-                .addEventListener("click", (e) => {
-                  e.stopPropagation(),
-                    document.body.classList.add("schedule-bar-collapsed"),
-                    storage.setItem("scheduleBarCollapsed", "1");
-                }),
-                document
-                  .getElementById("scheduleBarExpandBtn")
-                  .addEventListener("click", (e) => {
-                    e.stopPropagation(), enterScheduleBarFullscreen();
-                  });
+              zone.addEventListener("pointerup", reset),
+                zone.addEventListener("pointercancel", reset);
             })(),
             // 全画面カレンダー: 上端の見えない領域を下へフリックして閉じる
             // (グリッド自体の縦スクロールと競合しないよう、専用の領域に
