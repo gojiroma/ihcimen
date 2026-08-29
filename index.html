@@ -3306,9 +3306,11 @@
           if (activeBlockEl === blockEl) flushActiveBlock();
           const dateKey = toDateKey(f),
             text = storage.getItem(dateKey) || "# ",
-            next = (text.slice(0, block.localStart) + text.slice(block.localEnd)) || "# ";
+            next = text.slice(0, block.localStart) + text.slice(block.localEnd);
+          // 最後の1ブロックを消して空になった場合、"# " だけの空ページを
+          // storageに残さない(バックアップ・検索・データ上のゴミになるため)。
           snapshotHistory(dateKey, text),
-            storage.setItem(dateKey, next),
+            Z(next) ? storage.setItem(dateKey, next) : storage.removeItem(dateKey),
             H(),
             maybeSyncPushChannel("entries"),
             renderDayBlocks(f);
@@ -3763,6 +3765,20 @@
             });
           });
           return renamed;
+        },
+        // 中身が実質空("# "だけ、など)の日付キーをstorageから取り除く。
+        // 以前はブロックを全削除すると"# "だけが残ってしまっていたため、
+        // 既に溜まっている分の一括クリーンアップも兼ねる。storage.lengthが
+        // 変わるので、末尾から逆順に見ていく。
+        cleanupEmptyDayEntries = () => {
+          let removed = 0;
+          for (let i = storage.length - 1; i >= 0; i--) {
+            const key = storage.key(i);
+            /^\d{4}-\d{2}-\d{2}$/.test(key) &&
+              !Z(storage.getItem(key) || "") &&
+              (storage.removeItem(key), removed++);
+          }
+          return removed;
         },
         // "- [ ]"/"- [x]" チェックボックス行を、出現順で数えたcheckboxIndex番目
         // だけトグルする(markedのタスクリスト判定と同じ構文のみ対象)。
@@ -4873,9 +4889,12 @@
           const data = Array.from({ length: storage.length }).reduce(
             (acc, _, idx) => {
               const key = storage.key(idx);
-              return "syncSeed" === key
-                ? acc
-                : ((acc[key] = storage.getItem(key)), acc);
+              if ("syncSeed" === key) return acc;
+              const value = storage.getItem(key);
+              // 日付キーの中身が実質空("# "だけ、など)の場合は、
+              // 空のページとしてバックアップから除外する。
+              if (/^\d{4}-\d{2}-\d{2}$/.test(key) && !Z(value)) return acc;
+              return (acc[key] = value), acc;
             },
             {}
           ),
@@ -7913,6 +7932,7 @@
               console.warn("[sync] initial pull failed:", err);
             })
             .then(() => {
+              cleanupEmptyDayEntries();
               const renamedCount = dedupeDuplicateHeadings();
               renamedCount &&
                 showToast(
