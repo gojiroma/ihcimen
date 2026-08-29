@@ -186,6 +186,35 @@
       right: 180px;
     }
 
+    /* 全画面カレンダー: 今日の位置へスクロールし直すボタン
+       (閉じるボタンの隣に並べる)。 */
+    .schedule-fullscreen-today {
+      display: none;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 502;
+      width: 48px;
+      height: 48px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 1px solid #ccc;
+      background-color: var(--bg-color);
+      color: inherit;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    body.schedule-bar-fullscreen .schedule-fullscreen-today {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      right: 240px;
+    }
+
     /* 全画面カレンダー: 曜日・毎月同日での絞り込み */
     .schedule-fullscreen-filter {
       display: none;
@@ -2583,6 +2612,9 @@
   <div id="scheduleBarFullscreenExitZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
+  </button>
+  <button id="scheduleFullscreenTodayBtn" class="schedule-fullscreen-today" type="button" aria-label="今日にスクロール" title="今日に戻る">
+    今日
   </button>
   <div id="scheduleFullscreenFilter" class="schedule-fullscreen-filter">
     <select id="filterDowSelect" title="曜日で絞り込み" aria-label="曜日で絞り込み">
@@ -5480,11 +5512,12 @@
           requestAnimationFrame(scanFrame);
         },
         scheduleWindowDays = 30,
-        // 全画面カレンダーは、開いた瞬間に前後5年ぶん(約1825日)を
-        // 先読みで描画してしまう。スクロール中の無限読み込み(extend系)に
-        // 頼らないことで、読み込み境界をまたぐたびに列がずれて見える
-        // 「継ぎ目」問題の発生機会そのものを減らす。
-        scheduleFullscreenWindowDays = 1825,
+        // 全画面カレンダーは、開いた瞬間に前後1年ぶん(約400日、去年〜
+        // 今年〜来年がだいたい収まる範囲)を先読みで描画してしまう。
+        // スクロール中の無限読み込み(extend系)に頼らないことで、読み込み
+        // 境界をまたぐたびに列がずれて見える「継ぎ目」問題の発生機会
+        // そのものを減らす(値が大きいほど開いた瞬間の描画が重くなる)。
+        scheduleFullscreenWindowDays = 400,
         weekPaneWindowWeeks = 52,
         getDateFromISOWeek = (year, week) => {
           const d = new Date(year, 0, 1);
@@ -6675,7 +6708,7 @@
             cellWidth = available / columns;
           sb.style.setProperty("--fs-cell-width", `${cellWidth}px`);
         },
-        // 全画面カレンダーを開いたら、現在表示中心の前後5年ぶん
+        // 全画面カレンダーを開いたら、現在表示中心の前後1年ぶん
         // (scheduleFullscreenWindowDays)を一度にまとめて読み込んでおく。
         // スクロール中の境界越え(extendScheduleBarStart/End)に頼る範囲を
         // 減らすことで、読み込みのたびに列がずれる「継ぎ目」を体感しにくく
@@ -6729,7 +6762,7 @@
               (lastSyncedWeekKey = null), updateFullscreenYearWatermark();
             });
         },
-        // 全画面カレンダーを指定日にスクロールで移動する。前後5年分は
+        // 全画面カレンダーを指定日にスクロールで移動する。前後1年分は
         // 既に描画済みのことがほとんどなので、既存セルを探して
         // scrollIntoViewするだけで済ませ、jumpScheduleBarToDateによる
         // 全再構築(重い)は範囲外のときだけ行う。
@@ -7450,6 +7483,11 @@
           .getElementById("scheduleFullscreenCloseBtn")
           .addEventListener("click", () => {
             document.body.classList.remove("schedule-bar-fullscreen");
+          }),
+        document
+          .getElementById("scheduleFullscreenTodayBtn")
+          .addEventListener("click", (e) => {
+            e.stopPropagation(), scrollFullscreenCalendarToDate(new Date());
           }),
         (() => {
           const dowSelect = document.getElementById("filterDowSelect"),
