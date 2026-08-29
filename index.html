@@ -136,9 +136,6 @@
     }
 
     /* 下段カレンダーの全画面モード(下段カレンダー自体を上へフリック) */
-    body.schedule-bar-fullscreen .menu-trigger,
-    body.schedule-bar-fullscreen .history-btn,
-    body.schedule-bar-fullscreen .copy-day-btn,
     body.schedule-bar-fullscreen .morning-page-btn,
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
@@ -420,6 +417,8 @@
       touch-action: pan-y;
       opacity: 1;
       transition: opacity 0.15s ease;
+      /* 長押し/ダブルクリック時にテキスト選択されてしまうのを防ぐ */
+      user-select: none;
     }
 
     /* タッチデバイスで編集中は、周辺UIを隠して本文に集中できるようにする */
@@ -427,8 +426,6 @@
     body.touch-editing .week-pane,
     body.touch-editing .search-pane,
     body.touch-editing .edge-swipe-zone,
-    body.touch-editing .history-btn,
-    body.touch-editing .copy-day-btn,
     body.touch-editing .h1-shortcut-bar,
     body.touch-editing .week-pane-close-btn {
       display: none;
@@ -608,39 +605,16 @@
       padding: 0;
     }
 
-    .menu-trigger {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      z-index: 450;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.55;
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      padding: 6px;
-      transition: left 0.2s ease, opacity 0.2s ease;
-    }
-
-    .menu-trigger:hover {
-      opacity: 1;
-    }
-
-    body:not(.search-pane-collapsed) .menu-trigger {
-      left: 250px;
-    }
-
-    .menu-drawer details {
+    /* 折り畳みはせず、常に全項目を一望できるようにする */
+    .menu-drawer section {
       margin-top: 10px;
       padding: 6px 0;
       border-top: 1px solid rgba(128, 128, 128, 0.3);
     }
 
-    .menu-drawer summary {
-      cursor: pointer;
+    .menu-drawer section>h3 {
+      margin: 0;
+      font-size: 1em;
       font-weight: 700;
       padding: 4px 0;
     }
@@ -1010,20 +984,13 @@
       padding-top: 36px;
     }
 
-    .sync-sub-detail {
+    /* 「引き継ぐ」「一時共有」ボタンで表示する領域。折り畳みはせず、
+       一度表示したらそのまま残す。 */
+    .sync-reveal-panel {
+      display: none;
       margin-top: 12px;
       padding: 6px 0 0;
       border-top: 1px solid rgba(128, 128, 128, 0.2);
-    }
-
-    .sync-sub-detail summary {
-      cursor: pointer;
-      font-size: 13px;
-      opacity: 0.8;
-    }
-
-    .sync-sub-detail ul {
-      font-size: 13px;
     }
 
     /* QRスキャン(全画面) */
@@ -1438,24 +1405,31 @@
       width: 80%;
     }
 
+    /* ハンバーガーボタンは廃止し、日付表示のダブルクリック/ダブルタップで
+       巨大モーダルとして開く。 */
     .menu-drawer {
       position: fixed;
-      top: 0;
-      left: 0;
+      top: 50%;
+      left: 50%;
       margin: 0;
-      width: 280px;
-      max-width: 85%;
-      height: 100%;
+      width: min(92vw, 900px);
+      height: min(88vh, 900px);
       box-sizing: border-box;
       overflow-y: auto;
-      border: none;
-      border-right: 1px solid rgba(128, 128, 128, 0.4);
-      transform: translateX(-100%);
-      transition: transform 0.25s ease;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      padding: 20px;
+      transform: translate(-50%, -50%) scale(0.92);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.2s ease, opacity 0.2s ease;
     }
 
     .menu-drawer.open {
-      transform: translateX(0);
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
     }
 
     #syncQrCanvas {
@@ -1839,72 +1813,17 @@
       }
     }
 
-    /* バージョン履歴 */
-    .history-btn {
-      position: fixed;
-      top: 10px;
-      right: 176px;
-      z-index: 450;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.55;
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      padding: 6px;
-      transition: right 0.25s ease, opacity 0.2s ease;
-    }
-
-    .history-btn:hover {
-      opacity: 1;
-    }
-
-    /* 本文コピー */
-    .copy-day-btn {
-      position: fixed;
-      top: 10px;
-      right: 212px;
-      z-index: 450;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      opacity: 0.55;
-      background: none;
-      border: none;
-      color: inherit;
-      cursor: pointer;
-      padding: 6px;
-      transition: right 0.25s ease, opacity 0.2s ease;
-    }
-
-    .copy-day-btn:hover {
-      opacity: 1;
-    }
-
     /* 操作がしばらくないと、アイコン類を控えめにフェードする */
-    body.ui-idle .menu-trigger,
-    body.ui-idle .history-btn,
-    body.ui-idle .copy-day-btn,
     body.ui-idle .morning-page-btn,
     body.ui-idle .week-pane-close-btn {
       opacity: 0.12;
-    }
-
-    body.week-pane-collapsed .history-btn {
-      right: 10px;
-    }
-
-    body.week-pane-collapsed .copy-day-btn {
-      right: 46px;
     }
 
     /* モーニングページ */
     .morning-page-btn {
       position: fixed;
       top: 10px;
-      right: 248px;
+      right: 176px;
       z-index: 450;
       display: flex;
       align-items: center;
@@ -1923,7 +1842,7 @@
     }
 
     body.week-pane-collapsed .morning-page-btn {
-      right: 82px;
+      right: 10px;
     }
 
     .history-modal-content {
@@ -2266,28 +2185,6 @@
     <div class="initial-load-spinner"></div>
     <div class="initial-load-text">同期データを取得中...</div>
   </div>
-  <button id="menuTrigger" class="menu-trigger" type="button" aria-label="メニュー" title="メニュー (?)">
-    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"
-      stroke-linecap="round">
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
-  </button>
-  <button id="historyBtn" class="history-btn" type="button" aria-label="バージョン履歴" title="バージョン履歴">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 16 14" />
-    </svg>
-  </button>
-  <button id="copyDayBtn" class="copy-day-btn" type="button" aria-label="本文をコピー" title="本文をコピー">
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
-      stroke-linecap="round" stroke-linejoin="round">
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  </button>
   <button id="morningPageBtn" class="morning-page-btn" type="button" aria-label="モーニングページを作成" title="モーニングページを作成">
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
       stroke-linecap="round" stroke-linejoin="round">
@@ -2311,7 +2208,7 @@
   </div>
   <div id="searchPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <div class="container">
-    <div class="date-display" id="dateDisplay" title="クリックで今日に移動">
+    <div class="date-display" id="dateDisplay" title="クリック:今日に移動(今日を表示中は本文をコピー) / 長押し:バージョン履歴 / ダブルクリック:メニュー">
       <span class="year" id="yearDisplay">YYYY</span>
       <span class="month-day" id="monthDayDisplay">MM/DD</span>
       <span class="weekday" id="weekdayDisplay">EEEE</span>
@@ -2338,20 +2235,8 @@
   <div id="shortcutModal" class="search-modal close-on-click-outside">
     <div class="search-modal-content menu-drawer">
       <h2>メニュー</h2>
-      <details>
-        <summary>マウス操作</summary>
-        <ul>
-          <li>本文はクリックで編集モードに切り替わります。</li>
-          <li>下段カレンダーは画面下端をフリック(上へ)して開きます。しっかり大きく引くとそのまま全画面表示になります。開いている間はカレンダー自体を下へフリックで閉じる、上へフリックで全画面表示に切り替えられます。全画面表示中は画面上端を下へフリックすると戻ります。</li>
-          <li>右のWeek pane・左の検索パネルも同様に、閉じている間は画面端をフリックして開き、開いている間はパネル自体をフリックして閉じます。</li>
-          <li>見出しのショートカット・バージョン履歴は、本文エリア右下/左上のアイコンから利用できます。</li>
-          <li>右上の陽アイコンから、懸案事項・最初に着手すること・考えるテーマ・身体のケアをまとめたモーニングページを作成できます(直近14日分の未完了項目を自動で拾って懸案事項に並べます)。</li>
-          <li>見出しの先頭に "!"(いくつでも)を付けると優先度が上がります。ICSの予定が多い日は本文の上に優先度順の一覧と時間配分の目安が表示されます。</li>
-          <li>下段カレンダーの各日セル右上には、天気予報のアイコンと最高気温が表示されます(位置情報が使えない場合は東京の予報)。</li>
-        </ul>
-      </details>
-      <details>
-        <summary>キーボードショートカット</summary>
+      <section>
+        <h3>キーボードショートカット</h3>
         <p>
           以下は本文の入力中や検索窓の入力中には反応しません。それ以外の場面でキーを押すと動作します。
         </p>
@@ -2377,20 +2262,9 @@
           <li><strong>Esc :</strong> このウィンドウ(や全画面カレンダー)を閉じる</li>
           <li><strong>Cmd/Ctrl + Enter :</strong> 編集中のメモ(新規・既存とも)を保存して、続けて別の話題を書き始める</li>
         </ul>
-      </details>
-      <details id="backupDetailsSection">
-        <summary>データのバックアップと復元</summary>
-        <ul>
-          <li>
-            「エクスポート」でメモ全体をJSONファイルとしてダウンロードできます。定期的に保存しておくことをおすすめします。
-          </li>
-          <li>
-            別のブラウザや端末でJSONを読み込むには「インポート」からファイルを選択します。
-          </li>
-          <li>
-            タブのタイトルに表示されている括弧内の数値は、保存領域の使用率です。
-          </li>
-        </ul>
+      </section>
+      <section id="backupDetailsSection">
+        <h3>データのバックアップと復元</h3>
         <div class="menu-inline-actions">
           <button id="backupExportBtn" type="button" class="menu-inline-btn">
             エクスポート
@@ -2404,12 +2278,9 @@
             すべてリセット
           </button>
         </div>
-        <p class="sync-note">
-          この端末とサーバー上のデータを削除して初期状態に戻します。先に自動でエクスポートします。
-        </p>
-      </details>
-      <details id="syncDetailsSection">
-        <summary>同期とプライバシー</summary>
+      </section>
+      <section id="syncDetailsSection">
+        <h3>同期とプライバシー</h3>
         <div class="sync-panel">
           <div class="sync-toggle-row">
             <span>同期</span>
@@ -2417,9 +2288,6 @@
               <span class="sync-toggle-knob"></span>
             </button>
           </div>
-          <p id="syncOffNote" class="sync-note">
-            メモはこの端末のブラウザにのみ保存されています。ブラウザのデータを消去したりリセットすると失われるため、「データのバックアップと復元」からのエクスポートで定期的に控えを取っておくと安心です。
-          </p>
           <div id="syncStartChoice" class="menu-inline-actions">
             <button id="syncStartFreshBtn" type="button" class="menu-inline-btn">
               はじめから
@@ -2429,9 +2297,15 @@
             </button>
           </div>
           <div id="syncOnPanel">
-            <p class="sync-note">同期は有効です。</p>
-            <details class="sync-sub-detail">
-              <summary>別の端末に引き継ぐ(QRコード・シードを表示)</summary>
+            <div class="menu-inline-actions">
+              <button id="syncHandoffRevealBtn" type="button" class="menu-inline-btn">
+                引き継ぐ
+              </button>
+              <button id="syncShareRevealBtn" type="button" class="menu-inline-btn">
+                一時共有
+              </button>
+            </div>
+            <div id="syncHandoffPanel" class="sync-reveal-panel">
               <canvas id="syncQrCanvas"></canvas>
               <p class="sync-seed-row">
                 シード:
@@ -2440,9 +2314,6 @@
                   コピー
                 </button>
               </p>
-              <p class="sync-note">
-                カメラのない端末には、6桁のコードでも引き継げます(10分間だけ有効)。
-              </p>
               <button id="syncIssueCodeBtn" type="button" class="menu-inline-btn">
                 6桁コードを発行
               </button>
@@ -2450,12 +2321,8 @@
                 <span id="syncHandoffCodeText" class="sync-handoff-code-text"></span>
                 <span id="syncHandoffCodeTimer" class="sync-handoff-code-timer"></span>
               </div>
-            </details>
-            <details class="sync-sub-detail">
-              <summary>私の日誌を一時的に見せる(タブを閉じると終了)</summary>
-              <p class="sync-note">
-                シードそのものは相手に伝わりません。発行したリンクは1回しか開けず、開いた相手の端末にも保存されません。相手がタブを閉じると、そのアクセスはすぐに失われます。リンクは発行から3時間で失効し、新しいリンクを発行すると古いリンクはすぐに無効になります。
-              </p>
+            </div>
+            <div id="syncSharePanel" class="sync-reveal-panel">
               <button id="shareIssueBtn" type="button" class="menu-inline-btn">
                 共有リンクを発行
               </button>
@@ -2468,19 +2335,13 @@
                 </div>
                 <span id="shareLinkTimer" class="share-link-timer"></span>
               </div>
-            </details>
+            </div>
           </div>
           <div id="syncContinuePanel">
-            <p>
-              別の端末のシードをQRコードで読み取るか、下に貼り付けてください。
-            </p>
             <input type="text" id="syncSeedInput" placeholder="シードを貼り付け" />
             <button id="syncImportBtn" type="button" class="menu-inline-btn">
               読み込む
             </button>
-            <p class="sync-note">
-              カメラがない場合は、相手の端末で発行した6桁コードでも引き継げます。
-            </p>
             <div class="sync-code-row">
               <input type="text" id="syncHandoffCodeInput" placeholder="6桁コード" inputmode="numeric" maxlength="6" />
               <button id="syncRedeemCodeBtn" type="button" class="menu-inline-btn">
@@ -2488,27 +2349,10 @@
               </button>
             </div>
           </div>
-          <details class="sync-sub-detail">
-            <summary>同期の仕組み</summary>
-            <ul>
-              <li>
-                同期する内容は、送信前に端末上で暗号化されます。サーバーには読み取れない暗号文しか保存されません。
-              </li>
-              <li>
-                シードを紛失すると、それまでに同期していたデータは復号できなくなります(ただし各端末に残っているローカルの日誌そのものには影響しません)。
-              </li>
-              <li>
-                7日間同期が行われなかったデータは、サーバー側から自動的に削除されます。削除された後にこの端末を開くと、ローカルに残っているデータから自動的に復元されます。その後は、本文を編集するたびに再びサーバーへ同期されます。
-              </li>
-            </ul>
-          </details>
         </div>
-      </details>
-      <details>
-        <summary>ICSカレンダー</summary>
-        <p class="sync-note">
-          外部のICS(iCalendar)カレンダーを読み込んで、下段カレンダーのセルに予定を表示します。複数登録でき、それぞれに色を割り当てられます。
-        </p>
+      </section>
+      <section>
+        <h3>ICSカレンダー</h3>
         <div id="icsCalendarList" class="ics-calendar-list"></div>
         <input type="text" id="icsUrlInput" placeholder="ICSのURL(https://...)" class="ics-url-input" />
         <div id="icsAddColorPicker" class="ics-color-picker">
@@ -2529,12 +2373,9 @@
           </button>
         </div>
         <p id="icsStatusText" class="sync-note"></p>
-      </details>
-      <details id="icsPublishDetailsSection">
-        <summary>ICS公開URL</summary>
-        <p class="sync-note">
-          日カレンダー・週カレンダーの予定メモを、外部のカレンダーアプリから購読できるICSとして公開します。発行したURLを知っている人は誰でも内容を読めます(サーバーに平文で保存されます)。URLは最後の更新から3時間で自動的に失効する一時的な共有リンクです(編集を続けている間は延長されます)。「再発行」を押すと古いURLはすぐに無効になり、新しいURLに切り替わります。
-        </p>
+      </section>
+      <section id="icsPublishDetailsSection">
+        <h3>ICS公開URL</h3>
         <div class="ics-publish-row" data-kind="day">
           <span class="ics-publish-label">日カレンダー</span>
           <div class="menu-inline-actions">
@@ -2575,7 +2416,7 @@
           </div>
           <p class="sync-note ics-publish-status" data-kind="week"></p>
         </div>
-      </details>
+      </section>
       <div id="storageUsagePanel" class="storage-usage-panel">
         <p id="storageUsageText" class="storage-usage-text"></p>
         <div class="storage-usage-bar">
@@ -2810,7 +2651,6 @@
           weekPane: wp,
         } = e,
         syncToggleBtnEl = document.getElementById("syncToggleBtn"),
-        syncOffNoteEl = document.getElementById("syncOffNote"),
         syncStartChoiceEl = document.getElementById("syncStartChoice"),
         syncStartFreshBtnEl = document.getElementById("syncStartFreshBtn"),
         syncStartContinueBtnEl = document.getElementById(
@@ -2862,8 +2702,6 @@
         icsStatusTextEl = document.getElementById("icsStatusText"),
         contentAreaEl = document.querySelector(".content-area"),
         containerEl = document.querySelector(".container"),
-        historyBtnEl = document.getElementById("historyBtn"),
-        copyDayBtnEl = document.getElementById("copyDayBtn"),
         morningPageBtnEl = document.getElementById("morningPageBtn"),
         infoWidgetEl = document.getElementById("infoWidget"),
         busyDayPanelEl = document.getElementById("busyDayPanel"),
@@ -2908,9 +2746,6 @@
         scheduleScrollSuppressed = !1,
         weekScrollSuppressed = !1,
         lastSyncedWeekKey = null,
-        // メニュードロワーを開いたときに検索パネルを一時的に閉じたかどうか
-        // (閉じた場合のみ、メニューを閉じるときに元の開閉状態へ戻す)。
-        menuAutoCollapsedSearchPane = !1,
         // 全画面カレンダーの絞り込み条件(曜日/毎月同日)。空文字はすべて表示。
         scheduleFullscreenFilterDow = storage.getItem("scheduleFullscreenFilterDow") || "",
         scheduleFullscreenFilterDom = storage.getItem("scheduleFullscreenFilterDom") || "",
@@ -4565,25 +4400,19 @@
         // パネルのため、両方開いていると二重に重なって見えてしまう。
         // メニューを開くときは検索パネルを一時的に閉じ(ユーザーが選んだ
         // 表示/非表示の設定自体は変えない)、メニューを閉じたら元の状態に戻す。
+        // メニューは画面中央の巨大モーダルとして表示するため、以前のような
+        // 左サイドの検索パネルとの重なりはもう起きない(検索パネルは
+        // そのままにしておく)。
         U = (show) => {
           const drawer = p.querySelector(".menu-drawer");
           if (show) {
-            !document.body.classList.contains("search-pane-collapsed") &&
-              ((menuAutoCollapsedSearchPane = !0),
-                document.body.classList.add("search-pane-collapsed")),
-              renderStorageUsagePanel(),
+            renderStorageUsagePanel(),
               O(p, !0),
               requestAnimationFrame(() =>
                 requestAnimationFrame(() => drawer.classList.add("open"))
               );
           } else {
-            drawer.classList.remove("open"),
-              setTimeout(() => O(p, !1), 250);
-            menuAutoCollapsedSearchPane &&
-              (document.body.classList.remove("search-pane-collapsed"),
-                renderSearchPaneResults(searchPaneInputEl.value),
-                renderSearchHistoryChips());
-            menuAutoCollapsedSearchPane = !1;
+            drawer.classList.remove("open"), setTimeout(() => O(p, !1), 200);
           }
         },
         saveCurrentMemo = () => {
@@ -5468,7 +5297,6 @@
           const seed = getSyncSeed(),
             on = !!seed;
           syncToggleBtnEl.setAttribute("aria-checked", on ? "true" : "false"),
-            O(syncOffNoteEl, !on),
             O(syncStartChoiceEl, !1),
             O(syncOnPanelEl, on),
             O(syncContinuePanelEl, !1),
@@ -7190,6 +7018,18 @@
             O(syncContinuePanelEl, !0),
             startQrScan();
         }),
+        // 「引き継ぐ」「一時共有」は押すと必要な要素が表示されるだけで、
+        // 折り畳み(閉じる)には戻さない。
+        document
+          .getElementById("syncHandoffRevealBtn")
+          .addEventListener("click", () => {
+            O(document.getElementById("syncHandoffPanel"), !0);
+          }),
+        document
+          .getElementById("syncShareRevealBtn")
+          .addEventListener("click", () => {
+            O(document.getElementById("syncSharePanel"), !0);
+          }),
         syncCopyBtnEl.addEventListener("click", () => {
           const seed = getSyncSeed();
           seed &&
@@ -7243,23 +7083,51 @@
           // している)。なぞった距離に応じて連続的に移動する(STEP_PXごとに
           // 1日、指を戻せば逆方向にも戻る)。ドラッグでなければ、それぞれの
           // 本来のタップ動作(日付→今日へ移動、本文→編集モードへ)を行う。
+          // 日付表示だけはさらに長押し(履歴表示)・ダブルタップ(メニュー
+          // 表示)にも対応する(onLongPress/onDoubleTapを渡したときだけ)。
           const SWIPE_THRESHOLD = 40,
             STEP_PX = 28,
-            setupDaySwipe = (el, onTap) => {
+            LONG_PRESS_MS = 500,
+            DOUBLE_TAP_MS = 350,
+            MOVE_CANCEL_PX = 10,
+            setupDaySwipe = (el, { onTap, onLongPress, onDoubleTap } = {}) => {
               let startX = null,
                 startY = null,
                 dragMoved = !1,
                 dragging = !1,
-                lastStep = 0;
+                lastStep = 0,
+                pressX = null,
+                pressY = null,
+                longPressTimer = null,
+                longPressFired = !1,
+                clickCount = 0,
+                clickTimer = null;
+              const cancelLongPress = () => {
+                clearTimeout(longPressTimer), (longPressTimer = null);
+              };
               el.addEventListener("pointerdown", (e) => {
                 "touch" === e.pointerType &&
                   ((startX = e.clientX),
                     (startY = e.clientY),
                     (dragMoved = !1),
                     (dragging = !1),
-                    (lastStep = 0));
+                    (lastStep = 0)),
+                  (pressX = e.clientX),
+                  (pressY = e.clientY),
+                  (longPressFired = !1),
+                  onLongPress &&
+                  (cancelLongPress(),
+                    (longPressTimer = setTimeout(() => {
+                      (longPressFired = !0),
+                        (longPressTimer = null),
+                        onLongPress(e);
+                    }, LONG_PRESS_MS)));
               }),
                 el.addEventListener("pointermove", (e) => {
+                  longPressTimer &&
+                    (Math.abs(e.clientX - pressX) > MOVE_CANCEL_PX ||
+                      Math.abs(e.clientY - pressY) > MOVE_CANCEL_PX) &&
+                    cancelLongPress();
                   if (null === startX || "touch" !== e.pointerType) return;
                   const dx = e.clientX - startX,
                     dy = e.clientY - startY;
@@ -7269,7 +7137,7 @@
                       Math.abs(dx) <= Math.abs(dy)
                     )
                       return;
-                    dragging = !0;
+                    (dragging = !0), cancelLongPress();
                   }
                   const step = Math.trunc(dx / STEP_PX),
                     delta = step - lastStep;
@@ -7279,36 +7147,75 @@
                       K(-delta),
                       playPitchForDate(f));
                 }),
-                el.addEventListener("pointerup", () => {
-                  startX = null;
-                }),
+                el.addEventListener("pointerup", cancelLongPress),
                 el.addEventListener("pointercancel", () => {
-                  (startX = null), (dragMoved = !1);
+                  (startX = null), (dragMoved = !1), cancelLongPress();
                 }),
+                onLongPress &&
+                el.addEventListener("contextmenu", (e) => e.preventDefault()),
                 el.addEventListener("click", (e) => {
                   if (dragMoved) return void (dragMoved = !1);
-                  onTap(e);
+                  // 長押しの直後にも(離した瞬間の)clickが発生する。放置すると
+                  // documentまでバブリングし、開いたばかりのモーダルを
+                  // 「外側クリック」扱いで即閉じしてしまうため、ここで止める。
+                  if (longPressFired)
+                    return e.stopPropagation(), void (longPressFired = !1);
+                  if (!onDoubleTap) return void (onTap && onTap(e));
+                  clickCount++;
+                  1 === clickCount
+                    ? (clickTimer = setTimeout(() => {
+                      1 === clickCount && onTap && onTap(e),
+                        (clickCount = 0);
+                    }, DOUBLE_TAP_MS))
+                    : (clearTimeout(clickTimer),
+                      (clickCount = 0),
+                      // このclickイベントがdocumentまでバブリングすると、
+                      // 「モーダル外クリックで閉じる」ハンドラが同じ
+                      // イベントを「開いた直後のモーダルの外側クリック」と
+                      // 誤認して即座に閉じてしまうため、ここで止める。
+                      e.stopPropagation(),
+                      onDoubleTap(e));
                 });
             };
-          setupDaySwipe(dd, () => window.moveToToday()),
-            setupDaySwipe(o, (e) => {
-              const clickedEl = e.target.closest(".content-block");
-              if (!clickedEl) return;
-              const headingText = clickedEl._block.headingText,
-                pos = findSourcePositionForClick(
-                  e.clientX,
-                  e.clientY,
-                  clickedEl._block.fullText
-                );
-              if (activeBlockEl && activeBlockEl !== clickedEl) {
-                s.blur();
-                const freshEl = Array.from(
-                  o.querySelectorAll(".content-block")
-                ).find((el) => el._block.headingText === headingText);
-                freshEl && activateBlock(freshEl, pos);
+          setupDaySwipe(dd, {
+            onTap: async () => {
+              if (toDateKey(f) === toDateKey(new Date())) {
+                const text = buildDayBlocks(f)
+                  .map((b) => b.fullText)
+                  .join("\n\n");
+                try {
+                  await navigator.clipboard.writeText(text);
+                  showToast("本文をコピーしました", "success");
+                } catch (err) {
+                  showToast("コピーに失敗しました", "error");
+                }
               } else {
-                activateBlock(clickedEl, pos);
+                window.moveToToday();
               }
+            },
+            onLongPress: () => openHistoryModal(),
+            onDoubleTap: () => U(!0),
+          }),
+            setupDaySwipe(o, {
+              onTap: (e) => {
+                const clickedEl = e.target.closest(".content-block");
+                if (!clickedEl) return;
+                const headingText = clickedEl._block.headingText,
+                  pos = findSourcePositionForClick(
+                    e.clientX,
+                    e.clientY,
+                    clickedEl._block.fullText
+                  );
+                if (activeBlockEl && activeBlockEl !== clickedEl) {
+                  s.blur();
+                  const freshEl = Array.from(
+                    o.querySelectorAll(".content-block")
+                  ).find((el) => el._block.headingText === headingText);
+                  freshEl && activateBlock(freshEl, pos);
+                } else {
+                  activateBlock(clickedEl, pos);
+                }
+              },
             });
         })(),
         (() => {
@@ -7574,21 +7481,6 @@
                 zone.addEventListener("pointercancel", reset);
             })();
         })(),
-        historyBtnEl.addEventListener("click", (e) => {
-          e.stopPropagation(), openHistoryModal();
-        }),
-        copyDayBtnEl.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          const text = buildDayBlocks(f)
-            .map((b) => b.fullText)
-            .join("\n\n");
-          try {
-            await navigator.clipboard.writeText(text);
-            showToast("本文をコピーしました", "success");
-          } catch (err) {
-            showToast("コピーに失敗しました", "error");
-          }
-        }),
         morningPageBtnEl.addEventListener("click", (e) => {
           e.stopPropagation(), activeBlockEl && s.blur(), insertMorningPageBlock();
         }),
@@ -7602,11 +7494,6 @@
             idx = headers.indexOf(h1);
           addH1Shortcut(toDateKey(f), idx, h1.textContent);
         }),
-        document
-          .getElementById("menuTrigger")
-          .addEventListener("click", (e) => {
-            e.stopPropagation(), U(!0);
-          }),
         document
           .getElementById("backupExportBtn")
           .addEventListener("click", (e) => {
