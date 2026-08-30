@@ -1653,6 +1653,11 @@
       flex-direction: column;
       overflow-y: auto;
       overflow-x: hidden;
+      /* 縦スクロールはネイティブに任せつつ、横方向はブラウザに奪わせない。
+         これがないと、タッチデバイスで閉じるフリック(右方向)の途中で
+         ブラウザが縦スクロールジェスチャーと誤認してpointercancelを
+         発行してしまい、setupPaneCloseSwipeが閾値に届く前に中断される。 */
+      touch-action: pan-y;
       border-left: 1px solid #ddd;
       background-color: var(--bg-color);
       z-index: 400;
@@ -1753,6 +1758,11 @@
       padding: 0;
       resize: none;
       overflow-y: auto;
+      /* textareaは.week-pane側のtouch-action指定を継承せず単独の
+         タッチ領域になるため、ここにも明示しないと横方向のフリックを
+         ブラウザの縦スクロール判定に奪われ、閉じるジェスチャーが
+         pointercancelで中断されてしまう。 */
+      touch-action: pan-y;
     }
 
     /* h1へのジャンプ時にジャンプ先を一瞬ハイライトする */
