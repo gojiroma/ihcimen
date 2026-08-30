@@ -94,10 +94,6 @@
       z-index: 502;
     }
 
-    body.schedule-bar-fullscreen .week-pane-close-btn {
-      z-index: 502;
-    }
-
     body.week-pane-collapsed #weekPaneOpenZone {
       pointer-events: auto;
     }
@@ -425,8 +421,7 @@
     body.touch-editing .week-pane,
     body.touch-editing .search-pane,
     body.touch-editing .edge-swipe-zone,
-    body.touch-editing .h1-shortcut-bar,
-    body.touch-editing .week-pane-close-btn {
+    body.touch-editing .h1-shortcut-bar {
       display: none;
     }
 
@@ -1670,37 +1665,6 @@
       transition: transform 0.25s ease;
     }
 
-    /* 週サマリーの中身(.week-pane)は日付移動のたびに丸ごと
-       再描画されるため、閉じるボタンは中に入れず兄弟要素として
-       固定配置しておく。 */
-    .week-pane-close-btn {
-      position: fixed;
-      top: 6px;
-      right: 6px;
-      z-index: 450;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      color: inherit;
-      opacity: 0.55;
-      font-size: 20px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .week-pane-close-btn:hover {
-      opacity: 1;
-    }
-
-    body.week-pane-collapsed .week-pane-close-btn {
-      display: none;
-    }
-
     .week-cell {
       position: relative;
       flex: 0 0 auto;
@@ -1810,11 +1774,6 @@
       100% {
         background-color: transparent;
       }
-    }
-
-    /* 操作がしばらくないと、アイコン類を控えめにフェードする */
-    body.ui-idle .week-pane-close-btn {
-      opacity: 0.12;
     }
 
     .history-modal-content {
@@ -2017,29 +1976,6 @@
       border-color: rgba(80, 80, 80, 0.8);
     }
 
-    /* パネル自体のフリックで閉じる操作はAndroidでは分かりにくいため、
-       タップで確実に閉じられるボタンも用意しておく。 */
-    .search-pane-close-btn {
-      flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      color: inherit;
-      opacity: 0.55;
-      font-size: 20px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .search-pane-close-btn:hover {
-      opacity: 1;
-    }
-
     #searchPaneResults {
       list-style: none;
       margin: 0;
@@ -2166,7 +2102,6 @@
         <line x1="21" y1="21" x2="15.5" y2="15.5" />
       </svg>
       <input type="text" id="searchPaneInput" placeholder="検索 (fキー)" />
-      <button id="searchPaneCloseBtn" class="search-pane-close-btn" type="button" aria-label="検索パネルを閉じる" title="閉じる">×</button>
     </div>
     <div id="searchPaneHistory" class="search-pane-history"></div>
     <ul id="searchPaneResults"></ul>
@@ -2456,7 +2391,6 @@
   </div>
   <div id="weekPane" class="week-pane"></div>
   <div id="weekPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
-  <button id="weekPaneCloseBtn" class="week-pane-close-btn" type="button" aria-label="週サマリーを閉じる" title="閉じる">×</button>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -7200,7 +7134,7 @@
           };
 
           // 検索パネル(左): 端を右へフリックまたはタップで開く、パネル
-          // 自体を左へフリックするか閉じるボタンで閉じる。
+          // 自体を左へフリックして閉じる。
           const closeSearchPane = () => {
             document.body.classList.add("search-pane-collapsed"),
               storage.setItem("searchPaneCollapsed", "1");
@@ -7221,15 +7155,10 @@
               "x",
               -1,
               closeSearchPane
-            ),
-            document
-              .getElementById("searchPaneCloseBtn")
-              .addEventListener("click", (e) => {
-                e.stopPropagation(), closeSearchPane();
-              });
+            );
 
           // Week pane(右): 端を左へフリックまたはタップで開く、パネル
-          // 自体を右へフリックするか閉じるボタンで閉じる。全画面カレンダー
+          // 自体を右へフリックして閉じる。全画面カレンダー
           // 表示中はWeek paneの幅の分だけカレンダーグリッドの幅も変わるので、
           // 開閉アニメーション(0.25s)が終わったタイミングで列数を再計算する。
           const resyncFullscreenAfterWeekPaneToggle = () => {
@@ -7257,12 +7186,7 @@
                 resyncFullscreenAfterWeekPaneToggle();
             }
           ),
-            setupPaneCloseSwipe(wp, "x", 1, closeWeekPane),
-            document
-              .getElementById("weekPaneCloseBtn")
-              .addEventListener("click", (e) => {
-                e.stopPropagation(), closeWeekPane();
-              });
+            setupPaneCloseSwipe(wp, "x", 1, closeWeekPane);
 
           // 下段カレンダー(下): 閉じている間は下端をフリックで開く
           // (タップに近い小さな動きは通常表示、しっかり上へ引けば
