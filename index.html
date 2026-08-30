@@ -1726,6 +1726,9 @@
       padding: 0;
       resize: none;
       overflow-y: auto;
+      /* .week-noteと同じ理由でtouch-actionを明示(タッチデバイスで
+         閉じるフリックがpointercancelで中断されるのを防ぐ)。 */
+      touch-action: pan-y;
     }
 
     .week-label {
@@ -1985,6 +1988,10 @@
       margin: 0;
       padding: 0;
       overflow-y: auto;
+      /* .week-noteと同じ理由: 縦スクロール領域を持つこの要素はtouch-action
+         を明示しないと、閉じるフリック(左方向)の途中でブラウザに縦スクロール
+         ジェスチャーと誤認されpointercancelで中断されてしまう。 */
+      touch-action: pan-y;
       flex: 1;
     }
 
