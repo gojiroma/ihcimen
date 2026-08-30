@@ -3903,32 +3903,26 @@
           for (let idx = 0; idx < storage.length; idx++) {
             const key = storage.key(idx);
             if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+              // 見出し単位のブロックだけでなく、見出しより前にある本文
+              // (過去データ等)も取りこぼさないよう、getLocalHeadingBlocks
+              // で作った全ブロックを対象に全文検索する。
               const text = storage.getItem(key),
-                headings = getHeadings(text);
-              if (headings.length) {
-                headings.forEach((h, hIdx) => {
-                  const sectionEnd =
-                    hIdx + 1 < headings.length ? headings[hIdx + 1].start : text.length,
-                    sectionBody = text.slice(h.end, sectionEnd),
-                    fullSection = h.text + sectionBody;
-                  normalizeForSearch(fullSection).includes(nq) &&
-                    results.push({
-                      date: key,
-                      headingIdx: hIdx,
-                      headingText: h.text,
-                      jumpPos: h.end,
-                      snippet: buildSnippet(fullSection, query),
-                    });
-                });
-              } else if (normalizeForSearch(text).includes(nq)) {
-                results.push({
-                  date: key,
-                  headingIdx: null,
-                  headingText: null,
-                  jumpPos: 0,
-                  snippet: buildSnippet(text, query),
-                });
-              }
+                blocks = getLocalHeadingBlocks(text);
+              let hIdx = -1;
+              blocks.forEach((b) => {
+                const isHeaded = null !== b.headingText;
+                isHeaded && hIdx++;
+                const sectionBody = text.slice(b.bodyStart, b.bodyEnd),
+                  fullSection = (b.headingText || "") + sectionBody;
+                normalizeForSearch(fullSection).includes(nq) &&
+                  results.push({
+                    date: key,
+                    headingIdx: isHeaded ? hIdx : null,
+                    headingText: b.headingText,
+                    jumpPos: b.headEnd,
+                    snippet: buildSnippet(fullSection, query),
+                  });
+              });
             } else if (key.startsWith("note:")) {
               // 下段カレンダーの日付セルの予定メモも検索対象にする。
               const dateKey = key.slice(5);
