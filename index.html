@@ -5689,16 +5689,26 @@
             .replace(/;/g, "\\;")
             .replace(/,/g, "\\,")
             .replace(/\n/g, "\\n"),
+        // RFC5545の行折り返し(75octet)。バイト数だけで機械的に切ると、
+        // 日本語などマルチバイト文字の途中で切れてしまい、各断片を
+        // 別々にデコードした際に文字化けする(仕様上も「マルチオクテット
+        // 文字を跨いで折り返してはならない」とされている)。そのため
+        // 文字(コードポイント)単位で見て、その文字を含めるとバイト数が
+        // 上限を超える直前で折り返す。
         foldICSLine = (line) => {
-          const bytes = new TextEncoder().encode(line);
-          if (bytes.length <= 75) return line;
+          const encoder = new TextEncoder();
+          if (encoder.encode(line).length <= 75) return line;
           const parts = [];
-          let start = 0;
-          while (start < bytes.length) {
-            const end = Math.min(start + 75, bytes.length);
-            parts.push(new TextDecoder().decode(bytes.slice(start, end)));
-            start = end;
+          let chunk = "",
+            chunkBytes = 0;
+          for (const ch of line) {
+            const chBytes = encoder.encode(ch).length;
+            chunk &&
+              chunkBytes + chBytes > 75 &&
+              (parts.push(chunk), (chunk = ""), (chunkBytes = 0));
+            (chunk += ch), (chunkBytes += chBytes);
           }
+          chunk && parts.push(chunk);
           return parts.join("\r\n ");
         },
         formatICSDateOnly = (date) =>
