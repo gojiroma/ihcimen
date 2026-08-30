@@ -270,13 +270,6 @@
       opacity: 1;
     }
 
-    /* 行の列数はJSが確定させているため、絞り込みで隠れたセルが
-       display:noneで詰まってしまうと1行あたりの列数が変わって
-       見えてしまう。visibility:hiddenで空きマスとして残す。 */
-    body.schedule-bar-fullscreen .schedule-bar .schedule-cell.filtered-out {
-      visibility: hidden;
-    }
-
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
        画面全体を覆う表示にしたいので、Week paneより手前(高いz-index)に
        置き、幅が狭い画面でもWeek paneの裏に隠れないようにする。 */
@@ -1532,11 +1525,12 @@
       user-select: none;
     }
 
-    /* 下段カレンダー(開いている・全画面ではない状態)の上端に、全画面化/
-       折りたたみ専用の見えないフリック領域を用意する。日エリア自体では
-       なくこの専用領域だけがジェスチャーを受け持つことで、日エリアの
-       タップ/横スクロールと干渉しないようにしている。上へフリックで
-       全画面、下へフリックで折りたたむ。 */
+    /* 下段カレンダー(開いている・全画面ではない状態)の上端に、折りたたみ
+       専用の見えないフリック領域を用意する。日エリア自体にはこの
+       ジェスチャーを持たせず、専用領域だけが受け持つことでタップや
+       横スクロールと干渉しないようにしている。下へフリックで折りたたむ
+       (以前はここから全画面表示にも入れたが、日付付近をタップした
+       だけで意図せず全画面化してしまう不具合の元だったため廃止した)。 */
     #scheduleBarFullscreenToggleZone {
       left: 0;
       right: 0;
@@ -5935,15 +5929,7 @@
             cell = document.createElement("div");
           (cell.className = "schedule-cell"),
             (cell.dataset.date = key),
-            (cell.dataset.dow = String(day)),
-            (cell.dataset.dom = String(d.getDate())),
-            (cell.dataset.holiday = holidayName ? "1" : "0"),
             1 === d.getDate() && cell.classList.add("month-start"),
-            matchesScheduleFullscreenFilter(
-              cell.dataset.dow,
-              cell.dataset.dom,
-              !!holidayName
-            ) || cell.classList.add("filtered-out"),
             applyCellColor(cell, key, maxDayLen);
           holidayName
             ? cell.setAttribute(
@@ -6347,93 +6333,128 @@
           const available = sb.clientWidth;
           return available ? Math.max(1, Math.round(available / 120)) : 7;
         },
-        // 全画面カレンダーの1行(.fs-row)を作る。列数(columns)ぶん、
-        // 必ず連続した日付のセルを並べる。
-        buildFullscreenRow = (rowStart, columns, maxDayLen) => {
+        // 全画面カレンダーの1行(.fs-row)を作る。渡された日付ぶんの
+        // セルを順番に並べる(絞り込みで非該当の日は呼び出し側で
+        // 既に除いてあるので、ここでは詰まった状態になる)。
+        buildFullscreenRowFromDates = (dates, maxDayLen) => {
           const row = document.createElement("div");
-          row.className = "fs-row";
-          for (let i = 0; i < columns; i++)
-            row.appendChild(
-              createScheduleCell(
-                new Date(rowStart.getTime() + i * I),
-                maxDayLen
-              )
-            );
-          return row;
+          return (
+            (row.className = "fs-row"),
+            dates.forEach((d) => row.appendChild(createScheduleCell(d, maxDayLen))),
+            row
+          );
+        },
+        // 全画面カレンダーの曜日/毎月同日フィルタを日付そのものに対して
+        // 判定する(行を組む前に該当する日付だけを集めたいため)。
+        dateMatchesFullscreenFilter = (d) => {
+          const key = toDateKey(d),
+            year = d.getFullYear(),
+            holidayName = (M[year] && M[year][key]) || (C[year] && C[year][key]);
+          return matchesScheduleFullscreenFilter(
+            String(d.getDay()),
+            String(d.getDate()),
+            !!holidayName
+          );
+        },
+        // 絞り込みに該当する日付を、startDateから1日ずつdirSign方向
+        // (+1で未来、-1で過去)へ辿ってcount件集める。scanEdgeは実際に
+        // 調べ終えた最後の暦日(該当・非該当を問わない)で、次に続けて
+        // 呼ぶときの起点に使う。該当する日が滅多に無い絞り込みでも
+        // スキャンが終わらなくならないよう、日数に上限を設けておく。
+        FS_FILTER_SCAN_LIMIT_DAYS = 3660,
+        collectFullscreenFilterDates = (startDate, count, dirSign) => {
+          const dates = [];
+          let cursor = new Date(startDate.getTime()),
+            scanned = 0;
+          for (; dates.length < count && scanned < FS_FILTER_SCAN_LIMIT_DAYS; scanned++)
+            dateMatchesFullscreenFilter(cursor) &&
+              dates.push(new Date(cursor.getTime())),
+              (cursor = new Date(cursor.getTime() + dirSign * I));
+          return { dates, scanEdge: new Date(cursor.getTime() - dirSign * I) };
         },
         // 全画面カレンダーの先頭側に行を追加する。追加した高さぶん
         // scrollTopを補正し、見た目の位置がずれないようにする。
         scheduleFullscreenExtendStart = (rows = 1) => {
           const columns = getFullscreenColumns(),
             maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment();
-          for (let r = rows; r >= 1; r--)
+            { dates, scanEdge } = collectFullscreenFilterDates(
+              new Date(fsRowEarliest.getTime() - I),
+              rows * columns,
+              -1
+            );
+          if (!dates.length) return;
+          dates.reverse();
+          const frag = document.createDocumentFragment();
+          for (let i = 0; i < dates.length; i += columns)
             frag.appendChild(
-              buildFullscreenRow(
-                new Date(fsRowEarliest.getTime() - r * columns * I),
-                columns,
-                maxDayLen
-              )
+              buildFullscreenRowFromDates(dates.slice(i, i + columns), maxDayLen)
             );
           const prevScrollHeight = sb.scrollHeight,
             prevScrollTop = sb.scrollTop;
           sb.insertBefore(frag, sb.firstChild),
-            (fsRowEarliest = new Date(
-              fsRowEarliest.getTime() - rows * columns * I
-            )),
+            (fsRowEarliest = scanEdge),
             (sb.scrollTop = prevScrollTop + (sb.scrollHeight - prevScrollHeight));
         },
         // 全画面カレンダーの末尾側に行を追加する。
         scheduleFullscreenExtendEnd = (rows = 1) => {
           const columns = getFullscreenColumns(),
             maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment();
-          for (let r = 0; r < rows; r++)
-            frag.appendChild(
-              buildFullscreenRow(
-                new Date(fsRowLatest.getTime() + I + r * columns * I),
-                columns,
-                maxDayLen
-              )
+            { dates, scanEdge } = collectFullscreenFilterDates(
+              new Date(fsRowLatest.getTime() + I),
+              rows * columns,
+              1
             );
-          sb.appendChild(frag),
-            (fsRowLatest = new Date(
-              fsRowLatest.getTime() + rows * columns * I
-            ));
+          if (!dates.length) return;
+          const frag = document.createDocumentFragment();
+          for (let i = 0; i < dates.length; i += columns)
+            frag.appendChild(
+              buildFullscreenRowFromDates(dates.slice(i, i + columns), maxDayLen)
+            );
+          sb.appendChild(frag), (fsRowLatest = scanEdge);
+        },
+        // .fs-row内のセルから実際の日付を読み取る(絞り込み中は行ごとの
+        // 該当日数が一定でないため、トリムの判定は日数計算ではなく
+        // 描画済みセルの実日付を見て行う)。
+        fsRowCellDate = (cell) => {
+          const [y, m, d] = cell.dataset.date.split("-").map(Number);
+          return new Date(y, m - 1, d);
         },
         // 表示中心(targetEarliest〜targetLatest)から外れた行を間引く。
         // スクロールが止まったタイミングでだけ呼ぶ(syncScheduleBar
         // FullscreenWindow参照)ことで、慣性スクロール中にDOMを増減させて
         // 引っかかる(「継ぎ目」)問題を避ける。
         scheduleFullscreenTrim = (targetEarliest, targetLatest) => {
-          const columns = getFullscreenColumns();
-          if (fsRowEarliest < targetEarliest) {
-            const rows = Math.floor(
-              (targetEarliest - fsRowEarliest) / I / columns
-            );
-            if (rows > 0) {
-              const prevScrollHeight = sb.scrollHeight,
-                prevScrollTop = sb.scrollTop;
-              for (let i = 0; i < rows; i++)
-                sb.firstChild && sb.removeChild(sb.firstChild);
-              (fsRowEarliest = new Date(
-                fsRowEarliest.getTime() + rows * columns * I
-              )),
-                (sb.scrollTop =
-                  prevScrollTop - (prevScrollHeight - sb.scrollHeight));
+          const prevScrollHeight = sb.scrollHeight,
+            prevScrollTop = sb.scrollTop;
+          let removedFromStart = !1;
+          for (; sb.firstChild;) {
+            const cells = sb.firstChild.querySelectorAll(".schedule-cell");
+            if (!cells.length) {
+              sb.removeChild(sb.firstChild);
+              continue;
             }
+            if (fsRowCellDate(cells[cells.length - 1]) >= targetEarliest) break;
+            sb.removeChild(sb.firstChild), (removedFromStart = !0);
           }
-          if (fsRowLatest > targetLatest) {
-            const rows = Math.floor(
-              (fsRowLatest - targetLatest) / I / columns
-            );
-            if (rows > 0) {
-              for (let i = 0; i < rows; i++)
-                sb.lastChild && sb.removeChild(sb.lastChild);
-              fsRowLatest = new Date(
-                fsRowLatest.getTime() - rows * columns * I
-              );
+          removedFromStart &&
+            (sb.scrollTop = prevScrollTop - (prevScrollHeight - sb.scrollHeight));
+          for (; sb.lastChild;) {
+            const cells = sb.lastChild.querySelectorAll(".schedule-cell");
+            if (!cells.length) {
+              sb.removeChild(sb.lastChild);
+              continue;
             }
+            if (fsRowCellDate(cells[0]) <= targetLatest) break;
+            sb.removeChild(sb.lastChild);
+          }
+          if (sb.firstChild) {
+            const cells = sb.firstChild.querySelectorAll(".schedule-cell");
+            cells.length && (fsRowEarliest = fsRowCellDate(cells[0]));
+          }
+          if (sb.lastChild) {
+            const cells = sb.lastChild.querySelectorAll(".schedule-cell");
+            cells.length &&
+              (fsRowLatest = fsRowCellDate(cells[cells.length - 1]));
           }
         },
         // 全画面カレンダーの中央に来ている日付(透かし表示・Week pane
@@ -6495,18 +6516,25 @@
           const columns = getFullscreenColumns(),
             maxDayLen = getGlobalMaxDayLen(),
             selectedKey = toDateKey(f),
-            anchorKey = toDateKey(anchorDate);
-          fsRowEarliest = new Date(
-            anchorDate.getTime() - scheduleFullscreenWindowDays * I
-          );
-          const totalDays = 2 * scheduleFullscreenWindowDays,
-            rows = Math.max(1, Math.ceil(totalDays / columns)),
-            frag = document.createDocumentFragment();
+            anchorKey = toDateKey(anchorDate),
+            before = collectFullscreenFilterDates(
+              new Date(anchorDate.getTime() - I),
+              scheduleFullscreenWindowDays,
+              -1
+            ),
+            after = collectFullscreenFilterDates(
+              anchorDate,
+              scheduleFullscreenWindowDays,
+              1
+            ),
+            dates = before.dates.slice().reverse().concat(after.dates);
+          (fsRowEarliest = before.dates.length ? before.scanEdge : anchorDate),
+            (fsRowLatest = after.dates.length ? after.scanEdge : anchorDate);
+          const frag = document.createDocumentFragment();
           let anchorCell = null;
-          for (let r = 0; r < rows; r++) {
-            const row = buildFullscreenRow(
-              new Date(fsRowEarliest.getTime() + r * columns * I),
-              columns,
+          for (let i = 0; i < dates.length; i += columns) {
+            const row = buildFullscreenRowFromDates(
+              dates.slice(i, i + columns),
               maxDayLen
             );
             row.querySelectorAll(".schedule-cell").forEach((cell) => {
@@ -6516,9 +6544,13 @@
             }),
               frag.appendChild(row);
           }
-          sb.appendChild(frag),
-            (fsRowLatest = new Date(
-              fsRowEarliest.getTime() + rows * columns * I - I
+          sb.appendChild(frag);
+          // 絞り込みでanchorDate自身が非該当のときは、その代わりに
+          // 直後(無ければ直前)の該当日をスクロール先にする。
+          !anchorCell &&
+            (after.dates[0] || before.dates[0]) &&
+            (anchorCell = sb.querySelector(
+              `.schedule-cell[data-date="${toDateKey(after.dates[0] || before.dates[0])}"]`
             ));
           const targetHeight = window.innerHeight;
           let guard = 0;
@@ -6591,17 +6623,12 @@
             (!scheduleFullscreenFilterDom || dom === scheduleFullscreenFilterDom)
           );
         },
-        // 全画面カレンダーの曜日/毎月同日フィルタを、既に描画済みの
-        // セルへ反映する(絞り込み条件を変えたときに呼ぶ)。
+        // 全画面カレンダーの曜日/毎月同日フィルタを反映する(絞り込み
+        // 条件を変えたときに呼ぶ)。該当しない日はセルごと詰められるので、
+        // 現在の表示中心を軸に描画を作り直す。
         applyScheduleFullscreenFilter = () => {
-          sb.querySelectorAll(".schedule-cell").forEach((cell) => {
-            const show = matchesScheduleFullscreenFilter(
-              cell.dataset.dow,
-              cell.dataset.dom,
-              "1" === cell.dataset.holiday
-            );
-            cell.classList.toggle("filtered-out", !show);
-          });
+          document.body.classList.contains("schedule-bar-fullscreen") &&
+            renderScheduleBarFullscreenAround(getFullscreenCenterDate() || f);
         },
         // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
         // 属する週のセルを、Week pane側でも中央に合わせておく。
@@ -7225,9 +7252,11 @@
           })(),
             // 下段カレンダー(開いている・全画面ではない状態)の上端専用の
             // 見えないフリック領域(scheduleBarFullscreenToggleZone):
-            // 上へドラッグ/フリックすれば全画面表示、下へなら折りたたむ。
-            // 日エリア自体にはこのジェスチャーを持たせず、専用領域だけが
-            // 受け持つことでタップや横スクロールと干渉しないようにする。
+            // 下へドラッグ/フリックすれば折りたたむ。日エリア自体には
+            // このジェスチャーを持たせず、専用領域だけが受け持つことで
+            // タップや横スクロールと干渉しないようにする(上フリックでの
+            // 全画面化は、日付付近をタップしただけで意図せず全画面に
+            // なってしまう不具合の元だったため廃止した)。
             (() => {
               const zone = document.getElementById(
                 "scheduleBarFullscreenToggleZone"
@@ -7242,12 +7271,10 @@
                 zone.addEventListener("pointermove", (e) => {
                   if (null === startY || triggered) return;
                   const dy = e.clientY - startY;
-                  Math.abs(dy) < SWIPE_THRESHOLD ||
+                  dy > SWIPE_THRESHOLD &&
                     ((triggered = !0),
-                      dy < 0
-                        ? enterScheduleBarFullscreen()
-                        : (document.body.classList.add("schedule-bar-collapsed"),
-                          storage.setItem("scheduleBarCollapsed", "1")));
+                      document.body.classList.add("schedule-bar-collapsed"),
+                      storage.setItem("scheduleBarCollapsed", "1"));
                 });
               const reset = (e) => {
                 (startY = null),
