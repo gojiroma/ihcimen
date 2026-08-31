@@ -7273,11 +7273,13 @@
           })(),
             // 下段カレンダー(開いている・全画面ではない状態)の上端専用の
             // 見えないフリック領域(scheduleBarFullscreenToggleZone):
-            // 下へドラッグ/フリックすれば折りたたむ。日エリア自体には
-            // このジェスチャーを持たせず、専用領域だけが受け持つことで
-            // タップや横スクロールと干渉しないようにする(上フリックでの
-            // 全画面化は、日付付近をタップしただけで意図せず全画面に
-            // なってしまう不具合の元だったため廃止した)。
+            // 下へドラッグ/フリックすれば折りたたむ、しっかり上へ引けば
+            // 全画面表示にする。日エリア自体にはこのジェスチャーを持た
+            // せず、専用領域だけが受け持つことでタップや横スクロールと
+            // 干渉しないようにする。上方向は、日付付近をタップしただけの
+            // 小さな縦ぶれで意図せず全画面化してしまっていた不具合対策
+            // として、下方向より大きい閾値(CLOSE_SWIPE_THRESHOLD)を要求
+            // することでタップと区別する。
             (() => {
               const zone = document.getElementById(
                 "scheduleBarFullscreenToggleZone"
@@ -7292,10 +7294,12 @@
                 zone.addEventListener("pointermove", (e) => {
                   if (null === startY || triggered) return;
                   const dy = e.clientY - startY;
-                  dy > SWIPE_THRESHOLD &&
-                    ((triggered = !0),
+                  dy > SWIPE_THRESHOLD
+                    ? ((triggered = !0),
                       document.body.classList.add("schedule-bar-collapsed"),
-                      storage.setItem("scheduleBarCollapsed", "1"));
+                      storage.setItem("scheduleBarCollapsed", "1"))
+                    : dy < -CLOSE_SWIPE_THRESHOLD &&
+                    ((triggered = !0), enterScheduleBarFullscreen());
                 });
               const reset = (e) => {
                 (startY = null),
