@@ -6495,6 +6495,13 @@
         // 全画面カレンダーの描画範囲を、現在の表示中心を軸に
         // scheduleFullscreenWindowDaysぶんだけ維持する。近づいたら
         // 伸ばし、離れすぎた側は間引く(virtualized表示)。
+        // renderScheduleBarFullscreenAroundと同じくscheduleFullscreenWindowDays
+        // は「該当する日の件数」であり、暦日数ではない(絞り込み中は該当日が
+        // 疎らなため両者が大きくズレる)。以前は暦日数として計算しており、
+        // 絞り込み中に初期描画(該当件数基準の広い範囲)とスクロール時の
+        // 間引き(暦日数基準の狭い範囲)の基準がズレて、スクロールした瞬間に
+        // 表示が大きく崩れる不具合があったため、ここでもcollectFullscreen
+        // FilterDatesで実際の該当日を数えて範囲を揃える。
         syncScheduleBarFullscreenWindow = () => {
           if (
             !document.body.classList.contains("schedule-bar-fullscreen") ||
@@ -6504,20 +6511,28 @@
             return;
           const columns = getFullscreenColumns(),
             center = getFullscreenCenterDate() || f,
-            targetEarliest = new Date(
-              center.getTime() - scheduleFullscreenWindowDays * I
+            before = collectFullscreenFilterDates(
+              new Date(center.getTime() - I),
+              scheduleFullscreenWindowDays,
+              -1
             ),
-            targetLatest = new Date(
-              center.getTime() + scheduleFullscreenWindowDays * I
-            );
-          fsRowEarliest > targetEarliest &&
-            scheduleFullscreenExtendStart(
-              Math.ceil((fsRowEarliest - targetEarliest) / I / columns)
-            );
-          fsRowLatest < targetLatest &&
-            scheduleFullscreenExtendEnd(
-              Math.ceil((targetLatest - fsRowLatest) / I / columns)
-            );
+            after = collectFullscreenFilterDates(
+              center,
+              scheduleFullscreenWindowDays,
+              1
+            ),
+            targetEarliest = before.dates.length
+              ? before.dates[before.dates.length - 1]
+              : before.scanEdge,
+            targetLatest = after.dates.length
+              ? after.dates[after.dates.length - 1]
+              : after.scanEdge,
+            missingBefore = before.dates.filter((d) => d < fsRowEarliest).length,
+            missingAfter = after.dates.filter((d) => d > fsRowLatest).length;
+          missingBefore &&
+            scheduleFullscreenExtendStart(Math.ceil(missingBefore / columns));
+          missingAfter &&
+            scheduleFullscreenExtendEnd(Math.ceil(missingAfter / columns));
           // 画面がとても大きい場合の保険。展開直後は height の CSS
           // トランジション(0.25s)が始まったばかりで sb.clientHeight が
           // まだ縮んだままのことがあるため、判定には最終的な高さになる
