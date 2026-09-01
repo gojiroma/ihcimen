@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="38" />
+  <meta name="app-version" content="39" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -44,11 +44,11 @@
       transition: padding-right 0.25s ease, padding-left 0.25s ease;
     }
 
-    body.week-pane-collapsed .container {
+    body.day-pane-collapsed .container {
       padding-right: 0;
     }
 
-    body.week-pane-collapsed .week-pane {
+    body.day-pane-collapsed .day-pane {
       transform: translateX(100%);
       pointer-events: none;
     }
@@ -78,7 +78,7 @@
       user-select: none;
     }
 
-    #weekPaneOpenZone {
+    #dayPaneOpenZone {
       top: 0;
       right: 0;
       bottom: 0;
@@ -86,15 +86,15 @@
     }
 
     /* 全画面カレンダー(z-index:500)の上に来るよう、全画面表示中は
-       常に手前に出しておく(pointer-eventsはweek-pane-collapsedの
+       常に手前に出しておく(pointer-eventsはday-pane-collapsedの
        ときだけautoになるので、開いている間は素通りする)。閉じるタイミングで
        z-indexだけを動かすと、ドラッグ中にヒットテストが変わってしまうため
        常時適用にしている。 */
-    body.schedule-bar-fullscreen #weekPaneOpenZone {
+    body.schedule-bar-fullscreen #dayPaneOpenZone {
       z-index: 502;
     }
 
-    body.week-pane-collapsed #weekPaneOpenZone {
+    body.day-pane-collapsed #dayPaneOpenZone {
       pointer-events: auto;
     }
 
@@ -121,7 +121,7 @@
     #scheduleBarFullscreenExitZone {
       top: 0;
       left: 0;
-      /* 右のWeek pane(160px)には重ねない。カレンダーグリッドの真上だけ */
+      /* 右のDay pane(160px)には重ねない。カレンダーグリッドの真上だけ */
       right: 160px;
       height: 24px;
       z-index: 504;
@@ -271,8 +271,8 @@
     }
 
     /* 全画面カレンダー中央の、うっすらとした大きな年の透かし表示。
-       画面全体を覆う表示にしたいので、Week paneより手前(高いz-index)に
-       置き、幅が狭い画面でもWeek paneの裏に隠れないようにする。 */
+       画面全体を覆う表示にしたいので、Day paneより手前(高いz-index)に
+       置き、幅が狭い画面でもDay paneの裏に隠れないようにする。 */
     .fullscreen-year-watermark {
       display: none;
       position: fixed;
@@ -358,23 +358,23 @@
       cursor: pointer;
     }
 
-    /* 全画面カレンダー: 右端にWeek pane(年の見出しも兼ねる)。
-       Week pane自体は開いている間もフリックで閉じられ、閉じると
+    /* 全画面カレンダー: 右端にDay pane(1日ずつのリスト)。
+       Day pane自体は開いている間もフリックで閉じられ、閉じると
        カレンダー側がその分右へ広がる。 */
     body.schedule-bar-fullscreen .schedule-bar {
       left: 0;
       right: 160px;
     }
 
-    body.schedule-bar-fullscreen.week-pane-collapsed .schedule-bar {
+    body.schedule-bar-fullscreen.day-pane-collapsed .schedule-bar {
       right: 0;
     }
 
-    body.schedule-bar-fullscreen .week-pane {
+    body.schedule-bar-fullscreen .day-pane {
       z-index: 501;
     }
 
-    body.schedule-bar-fullscreen .week-cell.fullscreen-centered {
+    body.schedule-bar-fullscreen .day-pane .schedule-cell.fullscreen-centered {
       box-shadow: inset 0 0 0 2px rgba(59, 130, 196, 0.6);
     }
 
@@ -411,7 +411,7 @@
 
     /* タッチデバイスで編集中は、周辺UIを隠して本文に集中できるようにする */
     body.touch-editing .schedule-bar,
-    body.touch-editing .week-pane,
+    body.touch-editing .day-pane,
     body.touch-editing .search-pane,
     body.touch-editing .edge-swipe-zone,
     body.touch-editing .h1-shortcut-bar {
@@ -1643,7 +1643,7 @@
       overflow-y: auto;
     }
 
-    .week-pane {
+    .day-pane {
       position: fixed;
       top: 0;
       right: 0;
@@ -1664,108 +1664,18 @@
       transition: transform 0.25s ease;
     }
 
-    .week-cell {
-      position: relative;
+    /* Day pane内では.schedule-cellを縦積みリスト用に配置し直す
+       (下段カレンダーの横並びリボンとは向きが逆になるため)。 */
+    .day-pane .schedule-cell {
       flex: 0 0 auto;
+      width: 100%;
       min-height: 80px;
-      box-sizing: border-box;
+      border-right: none;
       border-bottom: 1px solid #ddd;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
     }
 
-    .week-cell.selected {
-      box-shadow: inset 0 0 0 2px rgba(80, 80, 80, 0.6);
-    }
-
-    .week-year-header {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      flex: 0 0 auto;
-      box-sizing: border-box;
-      padding: 6px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      background-color: var(--bg-color);
-      border-bottom: 2px solid #ddd;
-    }
-
-    /* 全画面カレンダーの中央に来ている年の見出し(旧・年ルーラーの目盛りに相当) */
-    .week-year-header.active {
-      box-shadow: inset 2px 0 0 rgba(59, 130, 196, 0.6);
-      background-color: rgba(59, 130, 196, 0.08);
-    }
-
-    .year-label {
-      font-size: 13px;
-      font-weight: 700;
-      line-height: 1.3;
-      cursor: pointer;
-    }
-
-    .year-label:hover {
-      opacity: 0.7;
-    }
-
-    .year-note {
-      width: 100%;
-      min-width: 0;
-      min-height: 32px;
-      border: none;
-      outline: 0;
-      background-color: transparent;
-      color: inherit;
-      font-size: 12px;
-      font-family: inherit;
-      font-weight: 400;
-      line-height: 1.3;
-      padding: 0;
-      resize: none;
-      overflow-y: auto;
-      /* .week-noteと同じ理由でtouch-actionを明示(タッチデバイスで
-         閉じるフリックがpointercancelで中断されるのを防ぐ)。 */
-      touch-action: pan-y;
-    }
-
-    .week-label {
-      font-size: 11px;
-      cursor: pointer;
-      line-height: 1.3;
-    }
-
-    .week-num {
-      font-weight: 700;
-    }
-
-    .week-daterange {
-      font-weight: 300;
-      opacity: 0.6;
-    }
-
-    .week-note {
-      flex: 1;
-      width: 100%;
-      min-width: 0;
+    .day-pane .schedule-note {
       min-height: 40px;
-      border: none;
-      outline: 0;
-      background-color: transparent;
-      color: inherit;
-      font-size: 13px;
-      font-family: inherit;
-      line-height: 1.3;
-      padding: 0;
-      resize: none;
-      overflow-y: auto;
-      /* textareaは.week-pane側のtouch-action指定を継承せず単独の
-         タッチ領域になるため、ここにも明示しないと横方向のフリックを
-         ブラウザの縦スクロール判定に奪われ、閉じるジェスチャーが
-         pointercancelで中断されてしまう。 */
-      touch-action: pan-y;
     }
 
     /* h1へのジャンプ時にジャンプ先を一瞬ハイライトする */
@@ -1864,7 +1774,7 @@
       justify-content: flex-end;
     }
 
-    body.week-pane-collapsed .h1-shortcut-bar {
+    body.day-pane-collapsed .h1-shortcut-bar {
       right: 10px;
     }
 
@@ -1988,7 +1898,7 @@
       margin: 0;
       padding: 0;
       overflow-y: auto;
-      /* .week-noteと同じ理由: 縦スクロール領域を持つこの要素はtouch-action
+      /* .schedule-noteと同じ理由: 縦スクロール領域を持つこの要素はtouch-action
          を明示しないと、閉じるフリック(左方向)の途中でブラウザに縦スクロール
          ジェスチャーと誤認されpointercancelで中断されてしまう。 */
       touch-action: pan-y;
@@ -2400,8 +2310,8 @@
     <button type="button" class="cell-color-swatch" data-color="brown" style="background-color: #ecdfc8" title="ベージュ"></button>
     <button type="button" class="cell-color-clear" data-color="">指定なし</button>
   </div>
-  <div id="weekPane" class="week-pane"></div>
-  <div id="weekPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
+  <div id="dayPane" class="day-pane"></div>
+  <div id="dayPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <input type="file" id="fileInput" style="display: none" />
   <script>
     (() => {
@@ -2544,7 +2454,7 @@
         "toastContainer",
         "dateDisplay",
         "scheduleBar",
-        "weekPane",
+        "dayPane",
       ].reduce((e, t) => ((e[t] = document.getElementById(t)), e), {}),
         {
           yearDisplay: t,
@@ -2558,7 +2468,7 @@
           toastContainer: toastContainerEl,
           dateDisplay: dd,
           scheduleBar: sb,
-          weekPane: wp,
+          dayPane: wp,
         } = e,
         syncToggleBtnEl = document.getElementById("syncToggleBtn"),
         syncStartChoiceEl = document.getElementById("syncStartChoice"),
@@ -2650,11 +2560,11 @@
         fsRowEarliest = null,
         fsRowLatest = null,
         scheduleFullscreenSettleTimer = null,
-        weekEarliestMonday = null,
-        weekLatestMonday = null,
+        dayPaneEarliest = null,
+        dayPaneLatest = null,
         scheduleScrollSuppressed = !1,
-        weekScrollSuppressed = !1,
-        lastSyncedWeekKey = null,
+        dayPaneScrollSuppressed = !1,
+        lastSyncedDayKey = null,
         // 全画面カレンダーの絞り込み条件(曜日/毎月同日)。空文字はすべて表示。
         scheduleFullscreenFilterDow = storage.getItem("scheduleFullscreenFilterDow") || "",
         scheduleFullscreenFilterDom = storage.getItem("scheduleFullscreenFilterDom") || "",
@@ -4305,7 +4215,7 @@
         refreshUIAfterSync = () => {
           !sDirty && A(f);
           renderScheduleBar();
-          renderWeekPane();
+          renderDayPane();
           renderH1ShortcutBar();
           renderIcsCalendarList();
           maybeAutoRefreshICS();
@@ -5192,33 +5102,7 @@
         // スクロールしてもDOM量は常に一定に収まる。値が大きいほど
         // 手前に確保するバッファが増えて安全だが、その分セル数も増える。
         scheduleFullscreenWindowDays = 90,
-        weekPaneWindowWeeks = 52,
-        getDateFromISOWeek = (year, week) => {
-          const d = new Date(year, 0, 1);
-          const dayNum = d.getDay();
-          const monday = new Date(year, 0, 1 + (week - 1) * 7 - (dayNum + 6) % 7);
-          return monday;
-        },
-        getISOWeekInfo = (date) => {
-          const d = new Date(date.getFullYear(), date.getMonth(), date.getDate()),
-            dayNum = (d.getDay() + 6) % 7;
-          d.setDate(d.getDate() - dayNum + 3);
-          const isoYear = d.getFullYear(),
-            jan1 = new Date(isoYear, 0, 1),
-            weekNum = Math.ceil(((d - jan1) / I + 1) / 7),
-            monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-          return monday.setDate(monday.getDate() - dayNum), { isoYear, weekNum, monday };
-        },
-        getWeekCharCount = (monday) => {
-          let total = 0;
-          for (let i = 0; i < 7; i++) {
-            const d = new Date(monday.getTime() + i * I),
-              key = toDateKey(d),
-              entry = storage.getItem(key);
-            entry && (total += entry.length);
-          }
-          return total;
-        },
+        dayPaneWindowDays = 30,
         // 日ごとの本文の相対的な文字数を、短いビープ音のピッチで表現する
         playPitchForDate = (date) => {
           try {
@@ -5313,19 +5197,6 @@
             .map((k) => storage.getItem(k).length);
           return Math.max(1, ...lens);
         },
-        getGlobalMaxWeekLen = () => {
-          const totals = {};
-          Object.keys(storage)
-            .filter((k) => /^\d{4}-\d{2}-\d{2}$/.test(k))
-            .forEach((k) => {
-              const [y, m, dd] = k.split("-").map(Number),
-                d = new Date(y, m - 1, dd),
-                { isoYear, weekNum } = getISOWeekInfo(d),
-                wk = `${isoYear}-W${weekNum}`;
-              totals[wk] = (totals[wk] || 0) + storage.getItem(k).length;
-            });
-          return Math.max(1, ...Object.values(totals));
-        },
         // --- カレンダーセルの色分け(長押し/右クリック) ---
         CELL_COLORS = {
           pink: "#fadce3",
@@ -5373,25 +5244,6 @@
             "has-custom-bg",
             hasCustomCellColor(dateKey)
           );
-        },
-        getWeekColorKey = (weekKey) => `weekColor:${weekKey}`,
-        getWeekColor = (weekKey) =>
-          storage.getItem(getWeekColorKey(weekKey)) || "",
-        setWeekColor = (weekKey, color) => {
-          color
-            ? storage.setItem(getWeekColorKey(weekKey), color)
-            : storage.removeItem(getWeekColorKey(weekKey));
-        },
-        applyWeekColor = (cell, weekKey, weekTotal, maxWeekLen) => {
-          const custom = getWeekColor(weekKey);
-          if (custom && CELL_COLORS[custom]) {
-            cell.style.backgroundColor = CELL_COLORS[custom];
-            cell.classList.add("has-custom-bg");
-            return;
-          }
-          cell.classList.remove("has-custom-bg");
-          const heat = (weekTotal / maxWeekLen) * 0.5;
-          cell.style.backgroundColor = `rgba(59, 130, 196, ${heat})`;
         },
         // --- ICSカレンダー(外部iCalendarフィードの取り込み) ---
         ICS_DOW = { SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6 },
@@ -5741,7 +5593,7 @@
             "0"
           )}Z`;
         },
-        // getISOWeekInfoの逆算: ISO週番号(YYYY-Www)からその週の月曜日を求める。
+        // ISO週番号(YYYY-Www)からその週の月曜日を求める。
         // ISO8601では「1月4日は必ず第1週に属する」と定義されているので、
         // 1月4日を含む週の月曜日を起点に、週番号-1週ぶん進める。
         mondayFromIsoWeek = (weekKey) => {
@@ -5932,9 +5784,8 @@
         closeCellColorPicker = () => {
           cellColorPickerEl.classList.remove("open");
         },
-        openCellColorPicker = (targetKey, x, y, targetType = "day") => {
-          (cellColorPickerEl.dataset.targetDate = targetKey),
-            (cellColorPickerEl.dataset.targetType = targetType);
+        openCellColorPicker = (targetKey, x, y) => {
+          cellColorPickerEl.dataset.targetDate = targetKey;
           const vw = window.innerWidth,
             clampedX = Math.min(Math.max(x, 100), vw - 100);
           (cellColorPickerEl.style.left = clampedX + "px"),
@@ -6064,209 +5915,72 @@
             cell.appendChild(noteInput);
           return cell;
         },
-        createWeekCell = (monday, maxWeekLen) => {
-          const { isoYear, weekNum } = getISOWeekInfo(monday),
-            weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`,
-            sunday = new Date(monday.getTime() + 6 * I),
-            weekTotal = getWeekCharCount(monday),
-            cell = document.createElement("div");
-          (cell.className = "week-cell"),
-            (cell.dataset.weekKey = weekKey),
-            (cell.dataset.weekTotal = String(weekTotal)),
-            applyWeekColor(cell, weekKey, weekTotal, maxWeekLen),
-            cell.setAttribute(
-              "title",
-              weekTotal > 0 ? `本文合計 ${weekTotal} 文字` : "本文なし"
-            );
-          cell.addEventListener("mouseenter", () => {
-            previewScheduleDate(monday);
-            // 全画面カレンダー表示中は、Week paneのセルにホバーしただけで
-            // 下段カレンダー側もその週にスクロール追従させる(スクロール
-            // 操作をしなくても、ホバーだけで場所を合わせられるように)。
-            scrollFullscreenCalendarToDate(monday);
-          });
-          cell.addEventListener("contextmenu", (e) => {
-            e.target.closest(".week-note") ||
-              (e.preventDefault(),
-                openCellColorPicker(weekKey, e.clientX, e.clientY, "week"));
-          });
-          let weekLongPressTimer = null,
-            weekLongPressStartX = 0,
-            weekLongPressStartY = 0,
-            suppressNextWeekLabelClick = !1;
-          cell.addEventListener("pointerdown", (e) => {
-            "touch" === e.pointerType &&
-              !e.target.closest(".week-note") &&
-              ((weekLongPressStartX = e.clientX),
-                (weekLongPressStartY = e.clientY),
-                (weekLongPressTimer = setTimeout(() => {
-                  openCellColorPicker(
-                    weekKey,
-                    weekLongPressStartX,
-                    weekLongPressStartY,
-                    "week"
-                  ),
-                    (suppressNextWeekLabelClick = !0),
-                    (weekLongPressTimer = null);
-                }, 500)));
-          }),
-            cell.addEventListener("pointermove", (e) => {
-              weekLongPressTimer &&
-                (Math.abs(e.clientX - weekLongPressStartX) > 10 ||
-                  Math.abs(e.clientY - weekLongPressStartY) > 10) &&
-                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
-            }),
-            cell.addEventListener("pointerup", () => {
-              weekLongPressTimer &&
-                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
-            }),
-            cell.addEventListener("pointercancel", () => {
-              weekLongPressTimer &&
-                (clearTimeout(weekLongPressTimer), (weekLongPressTimer = null));
-            });
-          const weekLabel = document.createElement("div"),
-            weekNumEl = document.createElement("span"),
-            weekDateRangeEl = document.createElement("span");
-          (weekLabel.className = "week-label"),
-            (weekNumEl.className = "week-num"),
-            (weekNumEl.textContent = `Week ${String(weekNum).padStart(2, "0")}`),
-            (weekDateRangeEl.className = "week-daterange"),
-            (weekDateRangeEl.textContent = ` (${monday.getMonth() + 1}/${monday.getDate()}-${sunday.getMonth() + 1
-            }/${sunday.getDate()})`),
-            weekLabel.appendChild(weekNumEl),
-            weekLabel.appendChild(weekDateRangeEl),
-            weekLabel.addEventListener("click", () => {
-              if (suppressNextWeekLabelClick)
-                return void (suppressNextWeekLabelClick = !1);
-              selectScheduleDate(monday);
-            });
-          const noteInput = document.createElement("textarea");
-          (noteInput.className = "week-note"),
-            (noteInput.placeholder = "週のメモ"),
-            (noteInput.value = storage.getItem(`weeknote:${weekKey}`) || "");
-          noteInput.addEventListener("input", () => {
-            const v = noteInput.value;
-            v
-              ? storage.setItem(`weeknote:${weekKey}`, v)
-              : storage.removeItem(`weeknote:${weekKey}`);
-            maybeSyncPushChannel("calendar");
-          }),
-            cell.appendChild(weekLabel),
-            cell.appendChild(noteInput);
-          return cell;
+        // Day pane(右側)用のセル。下段カレンダーと同じ日セルを流用しつつ、
+        // ホバー時に全画面カレンダー側もその日へスクロール追従させる。
+        createDayPaneCell = (d, maxDayLen) => {
+          const cell = createScheduleCell(d, maxDayLen);
+          return (
+            cell.addEventListener("mouseenter", () =>
+              scrollFullscreenCalendarToDate(d)
+            ),
+            cell
+          );
         },
-        // 年の見出し(旧・左端の年ルーラーをここへ統合)。クリックでその年の
-        // 最初の週へ移動でき、メモも書き込める(週・日と同じ「メモ付きの
-        // セル」として扱う)。
-        createWeekYearHeader = (year, monday) => {
-          const header = document.createElement("div");
-          (header.className = "week-year-header"), (header.dataset.year = year);
-          const label = document.createElement("div");
-          (label.className = "year-label"),
-            (label.textContent = `${year}年`),
-            label.addEventListener("click", () => selectScheduleDate(monday));
-          const noteInput = document.createElement("textarea");
-          (noteInput.className = "year-note"),
-            (noteInput.placeholder = "年のメモ"),
-            (noteInput.value = storage.getItem(`yearnote:${year}`) || "");
-          noteInput.addEventListener("input", () => {
-            const v = noteInput.value;
-            v
-              ? storage.setItem(`yearnote:${year}`, v)
-              : storage.removeItem(`yearnote:${year}`);
-            maybeSyncPushChannel("calendar");
-          }),
-            header.appendChild(label),
-            header.appendChild(noteInput);
-          return header;
-        },
-        syncWeekYearHeaders = () => {
-          wp.querySelectorAll(".week-year-header").forEach((h) => h.remove());
-          let lastYear = null;
-          wp.querySelectorAll(".week-cell").forEach((cell) => {
-            const [isoYear, weekNum] = cell.dataset.weekKey.split("-W");
-            if (isoYear !== lastYear) {
-              const monday = getDateFromISOWeek(
-                Number(isoYear),
-                Number(weekNum)
-              );
-              wp.insertBefore(
-                createWeekYearHeader(isoYear, monday),
-                cell
-              );
-              lastYear = isoYear;
-            }
-          });
-        },
-        renderWeekPane = () => {
+        renderDayPane = () => {
           wp.innerHTML = "";
-          const {
-            isoYear: selYear,
-            weekNum: selWeek,
-            monday: centerMonday,
-          } = getISOWeekInfo(f),
-            selectedKey = `${selYear}-W${String(selWeek).padStart(2, "0")}`,
-            maxWeekLen = getGlobalMaxWeekLen();
-          (weekEarliestMonday = new Date(
-            centerMonday.getTime() - weekPaneWindowWeeks * 7 * I
-          )),
-            (weekLatestMonday = new Date(
-              centerMonday.getTime() + weekPaneWindowWeeks * 7 * I
-            ));
+          const selectedKey = toDateKey(f),
+            maxDayLen = getGlobalMaxDayLen();
+          (dayPaneEarliest = new Date(f.getTime() - dayPaneWindowDays * I)),
+            (dayPaneLatest = new Date(f.getTime() + dayPaneWindowDays * I));
           let selectedCell = null;
           const frag = document.createDocumentFragment();
           for (
-            let m = new Date(weekEarliestMonday);
-            m <= weekLatestMonday;
-            m.setDate(m.getDate() + 7)
+            let d = new Date(dayPaneEarliest);
+            d <= dayPaneLatest;
+            d.setDate(d.getDate() + 1)
           ) {
-            const cell = createWeekCell(new Date(m), maxWeekLen);
-            cell.dataset.weekKey === selectedKey &&
+            const cell = createDayPaneCell(new Date(d), maxDayLen);
+            cell.dataset.date === selectedKey &&
               (cell.classList.add("selected"), (selectedCell = cell)),
               frag.appendChild(cell);
           }
           wp.appendChild(frag),
-            syncWeekYearHeaders(),
             selectedCell &&
-            ((weekScrollSuppressed = !0),
+            ((dayPaneScrollSuppressed = !0),
               selectedCell.scrollIntoView({ inline: "nearest", block: "center" }),
-              setTimeout(() => (weekScrollSuppressed = !1), 50));
+              setTimeout(() => (dayPaneScrollSuppressed = !1), 50));
         },
-        extendWeekPaneStart = (weeks = 8) => {
-          const maxWeekLen = getGlobalMaxWeekLen(),
+        extendDayPaneStart = (days = 14) => {
+          const maxDayLen = getGlobalMaxDayLen(),
             frag = document.createDocumentFragment();
-          for (let i = weeks; i >= 1; i--)
+          for (let i = days; i >= 1; i--)
             frag.appendChild(
-              createWeekCell(
-                new Date(weekEarliestMonday.getTime() - i * 7 * I),
-                maxWeekLen
+              createDayPaneCell(
+                new Date(dayPaneEarliest.getTime() - i * I),
+                maxDayLen
               )
             );
           const prevScrollHeight = wp.scrollHeight,
             prevScrollTop = wp.scrollTop;
           wp.insertBefore(frag, wp.firstChild),
-            syncWeekYearHeaders(),
-            (weekEarliestMonday = new Date(
-              weekEarliestMonday.getTime() - weeks * 7 * I
+            (dayPaneEarliest = new Date(
+              dayPaneEarliest.getTime() - days * I
             )),
             (wp.scrollTop =
               prevScrollTop + (wp.scrollHeight - prevScrollHeight));
         },
-        extendWeekPaneEnd = (weeks = 8) => {
-          const maxWeekLen = getGlobalMaxWeekLen(),
+        extendDayPaneEnd = (days = 14) => {
+          const maxDayLen = getGlobalMaxDayLen(),
             frag = document.createDocumentFragment();
-          for (let i = 1; i <= weeks; i++)
+          for (let i = 1; i <= days; i++)
             frag.appendChild(
-              createWeekCell(
-                new Date(weekLatestMonday.getTime() + i * 7 * I),
-                maxWeekLen
+              createDayPaneCell(
+                new Date(dayPaneLatest.getTime() + i * I),
+                maxDayLen
               )
             );
           wp.appendChild(frag),
-            syncWeekYearHeaders(),
-            (weekLatestMonday = new Date(
-              weekLatestMonday.getTime() + weeks * 7 * I
-            ));
+            (dayPaneLatest = new Date(dayPaneLatest.getTime() + days * I));
         },
         renderScheduleBar = () => {
           if (document.body.classList.contains("schedule-bar-fullscreen")) {
@@ -6297,8 +6011,8 @@
                 selectedCell.scrollIntoView({ inline: "start", block: "nearest" }),
                 setTimeout(() => (scheduleScrollSuppressed = !1), 50));
           }
-          renderWeekPane(),
-            (lastSyncedWeekKey = null),
+          renderDayPane(),
+            (lastSyncedDayKey = null),
             updateFullscreenYearWatermark(),
             renderBusyDayPanel();
         },
@@ -6478,7 +6192,7 @@
               (fsRowLatest = fsRowCellDate(cells[cells.length - 1]));
           }
         },
-        // 全画面カレンダーの中央に来ている日付(透かし表示・Week pane
+        // 全画面カレンダーの中央に来ている日付(透かし表示・Day pane
         // 追従・virtualizedの間引き基準に使う)。
         getFullscreenCenterDate = () => {
           if (!document.body.classList.contains("schedule-bar-fullscreen"))
@@ -6596,30 +6310,30 @@
             ((scheduleScrollSuppressed = !0),
               anchorCell.scrollIntoView({ inline: "nearest", block: "center" }),
               setTimeout(() => (scheduleScrollSuppressed = !1), 50)),
-            (lastSyncedWeekKey = null),
+            (lastSyncedDayKey = null),
             updateFullscreenYearWatermark();
         },
         // 下段カレンダーを全画面表示にする(フリックのトリガーから共通で呼ぶ)。
-        // Week paneは(通常表示側の設定を変えず)毎回非表示から始める。
+        // Day paneは(通常表示側の設定を変えず)毎回非表示から始める。
         // カレンダーをより広く使いたいことが多いためで、ユーザーが明示的に
         // 開けば従来どおり好みとして保存され、閉じるとexitScheduleBar
         // Fullscreenで通常表示側の保存済み状態に戻す。
         enterScheduleBarFullscreen = () => {
           document.body.classList.add("schedule-bar-fullscreen"),
             document.body.classList.remove("schedule-bar-collapsed"),
-            document.body.classList.add("week-pane-collapsed"),
+            document.body.classList.add("day-pane-collapsed"),
             requestAnimationFrame(() => {
               renderScheduleBarFullscreenAround(f);
             });
         },
         // 全画面カレンダーを終了し、通常のリボン表示(行構造ではない
         // 一列の横並び)へ作り直す。全画面用のDOM構造(.fs-row)のままだと
-        // リボン表示が崩れるため、必ず作り直しが要る。Week paneも
+        // リボン表示が崩れるため、必ず作り直しが要る。Day paneも
         // 通常表示側の保存済み設定に戻す。
         exitScheduleBarFullscreen = () => {
           document.body.classList.remove("schedule-bar-fullscreen"),
             document.body.classList.toggle(
-              "week-pane-collapsed",
+              "day-pane-collapsed",
               "1" === storage.getItem("weekPaneCollapsed")
             ),
             clearTimeout(scheduleFullscreenSettleTimer),
@@ -6666,29 +6380,27 @@
           document.body.classList.contains("schedule-bar-fullscreen") &&
             renderScheduleBarFullscreenAround(getFullscreenCenterDate() || f);
         },
-        // 左端の年ルーラーのWeek pane版: 日別スクロールで中央に来た日付が
-        // 属する週のセルを、Week pane側でも中央に合わせておく。
-        alignWeekPaneToDate = (date) => {
-          const { isoYear, weekNum } = getISOWeekInfo(date),
-            weekKey = `${isoYear}-W${String(weekNum).padStart(2, "0")}`;
-          if (weekKey === lastSyncedWeekKey) return;
+        // 日別スクロールで中央に来た日付のセルを、Day pane側でも中央に
+        // 合わせておく。
+        alignDayPaneToDate = (date) => {
+          const dateKey = toDateKey(date);
+          if (dateKey === lastSyncedDayKey) return;
           const cell = wp.querySelector(
-            `.week-cell[data-week-key="${weekKey}"]`
+            `.schedule-cell[data-date="${dateKey}"]`
           );
           if (!cell) return;
-          lastSyncedWeekKey = weekKey;
+          lastSyncedDayKey = dateKey;
           const prevCentered = wp.querySelector(
-            ".week-cell.fullscreen-centered"
+            ".schedule-cell.fullscreen-centered"
           );
           prevCentered && prevCentered.classList.remove("fullscreen-centered"),
             cell.classList.add("fullscreen-centered"),
-            (weekScrollSuppressed = !0),
+            (dayPaneScrollSuppressed = !0),
             cell.scrollIntoView({ block: "center" }),
-            setTimeout(() => (weekScrollSuppressed = !1), 50);
+            setTimeout(() => (dayPaneScrollSuppressed = !1), 50);
         },
-        // 全画面カレンダーの中央に来ているセルの年を、透かし表示と
-        // 左端の年ルーラーのアクティブ目盛りに反映する。あわせて
-        // 右端のWeek paneもその日の週に追従させる。
+        // 全画面カレンダーの中央に来ているセルの年を、透かし表示に
+        // 反映する。あわせて右端のDay paneもその日に追従させる。
         updateIdleClockWatermark = () => {
           idleClockWatermarkEl.textContent = new Date().toLocaleTimeString(
             "ja-JP",
@@ -6700,13 +6412,7 @@
           if (!date) return;
           const year = String(date.getFullYear());
           fullscreenYearWatermarkEl.textContent = year;
-          const prevActive = wp.querySelector(".week-year-header.active");
-          prevActive && prevActive.classList.remove("active");
-          const header = wp.querySelector(
-            `.week-year-header[data-year="${year}"]`
-          );
-          header && header.classList.add("active"),
-            alignWeekPaneToDate(date);
+          alignDayPaneToDate(date);
         },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
@@ -6760,21 +6466,19 @@
         }),
         wp.addEventListener("mouseleave", () => T(f)),
         wp.addEventListener("scroll", () => {
-          if (weekScrollSuppressed) return;
+          if (dayPaneScrollSuppressed) return;
           wp.scrollTop < 200
-            ? extendWeekPaneStart()
+            ? extendDayPaneStart()
             : wp.scrollHeight - wp.scrollTop - wp.clientHeight < 200 &&
-            extendWeekPaneEnd();
-          // Week pane scroll synchronization with schedule bar
+            extendDayPaneEnd();
+          // Day pane scroll synchronization with schedule bar
           if (document.body.classList.contains("schedule-bar-fullscreen")) {
-            const centerCell = wp.querySelector(".week-cell.fullscreen-centered");
+            const centerCell = wp.querySelector(
+              ".schedule-cell.fullscreen-centered"
+            );
             if (centerCell) {
-              const weekKey = centerCell.dataset.weekKey;
-              const [year, week] = weekKey.split("-W");
-              const monday = getDateFromISOWeek(parseInt(year), parseInt(week.replace(/^0+/, "")));
-              if (monday) {
-                scrollFullscreenCalendarToDate(monday);
-              }
+              const [y, m, d] = centerCell.dataset.date.split("-").map(Number);
+              scrollFullscreenCalendarToDate(new Date(y, m - 1, d));
             }
           }
         }),
@@ -7219,11 +6923,11 @@
               closeSearchPane
             );
 
-          // Week pane(右): 端を左へフリックまたはタップで開く、パネル
+          // Day pane(右): 端を左へフリックまたはタップで開く、パネル
           // 自体を右へフリックして閉じる。全画面カレンダー
-          // 表示中はWeek paneの幅の分だけカレンダーグリッドの幅も変わるので、
+          // 表示中はDay paneの幅の分だけカレンダーグリッドの幅も変わるので、
           // 開閉アニメーション(0.25s)が終わったタイミングで列数を再計算する。
-          const resyncFullscreenAfterWeekPaneToggle = () => {
+          const resyncFullscreenAfterDayPaneToggle = () => {
             document.body.classList.contains("schedule-bar-fullscreen") &&
               setTimeout(
                 () =>
@@ -7233,22 +6937,28 @@
                 260
               );
           };
-          const closeWeekPane = () => {
-            document.body.classList.add("week-pane-collapsed"),
+          const closeDayPane = () => {
+            document.body.classList.add("day-pane-collapsed"),
               storage.setItem("weekPaneCollapsed", "1"),
-              resyncFullscreenAfterWeekPaneToggle();
+              resyncFullscreenAfterDayPaneToggle();
           };
           setupZoneOpenSwipe(
-            document.getElementById("weekPaneOpenZone"),
+            document.getElementById("dayPaneOpenZone"),
             "x",
             -1,
             () => {
-              document.body.classList.remove("week-pane-collapsed"),
+              document.body.classList.remove("day-pane-collapsed"),
                 storage.setItem("weekPaneCollapsed", "0"),
-                resyncFullscreenAfterWeekPaneToggle();
+                resyncFullscreenAfterDayPaneToggle();
             }
           ),
-            setupPaneCloseSwipe(wp, "x", 1, closeWeekPane);
+            setupPaneCloseSwipe(wp, "x", 1, closeDayPane),
+            // Day paneが開いている状態からさらに左へフリック/ドラッグすると
+            // 全画面カレンダーに展開する。
+            setupPaneCloseSwipe(wp, "x", -1, () => {
+              document.body.classList.contains("schedule-bar-fullscreen") ||
+                enterScheduleBarFullscreen();
+            });
 
           // 下段カレンダー(下): 閉じている間は下端をフリックで開く
           // (タップに近い小さな動きは通常表示、しっかり上へ引けば
@@ -7351,7 +7061,14 @@
               };
               zone.addEventListener("pointerup", reset),
                 zone.addEventListener("pointercancel", reset);
-            })();
+            })(),
+            // 全画面カレンダー: グリッド自体を右へフリック/ドラッグすると
+            // 通常の1列表示(リボン)に戻る。全画面でないときは何もしない
+            // (下段カレンダーの通常の横スクロールを妨げないため)。
+            setupPaneCloseSwipe(sb, "x", 1, () => {
+              document.body.classList.contains("schedule-bar-fullscreen") &&
+                exitScheduleBarFullscreen();
+            });
         })(),
         historySliderEl.addEventListener("input", renderHistoryPreview),
         historyRestoreBtnEl.addEventListener("click", restoreHistoryVersion),
@@ -7415,29 +7132,17 @@
         cellColorPickerEl.addEventListener("click", (e) => {
           const btn = e.target.closest("[data-color]");
           if (!btn) return;
-          const targetKey = cellColorPickerEl.dataset.targetDate,
-            targetType = cellColorPickerEl.dataset.targetType || "day";
+          const targetKey = cellColorPickerEl.dataset.targetDate;
           closeCellColorPicker();
-          if ("week" === targetType) {
-            setWeekColor(targetKey, btn.dataset.color);
-            const cell = wp.querySelector(
-              `.week-cell[data-week-key="${targetKey}"]`
-            );
-            cell &&
-              applyWeekColor(
-                cell,
-                targetKey,
-                Number(cell.dataset.weekTotal || 0),
-                getGlobalMaxWeekLen()
-              );
-          } else {
-            setCellColor(targetKey, btn.dataset.color);
-            const cell = sb.querySelector(
+          setCellColor(targetKey, btn.dataset.color);
+          const maxDayLen = getGlobalMaxDayLen();
+          [sb, wp].forEach((container) => {
+            const cell = container.querySelector(
               `.schedule-cell[data-date="${targetKey}"]`
             );
-            cell && applyCellColor(cell, targetKey, getGlobalMaxDayLen());
-            targetKey === toDateKey(f) && applyMainAreaColor(targetKey);
-          }
+            cell && applyCellColor(cell, targetKey, maxDayLen);
+          });
+          targetKey === toDateKey(f) && applyMainAreaColor(targetKey);
           maybeSyncPushChannel("calendar");
         }),
         icsAddColorPickerEl.addEventListener("click", (e) => {
@@ -7630,13 +7335,13 @@
           renderH1ShortcutBar();
           storage.getItem("privacyNoticeDismissed") &&
             (document.getElementById("privacyBanner").style.display = "none");
-          // Week paneの初期折りたたみ状態(保存済みの設定 > 画面幅による自動判定)
+          // Day paneの初期折りたたみ状態(保存済みの設定 > 画面幅による自動判定)
           {
             const stored = storage.getItem("weekPaneCollapsed"),
               shouldCollapse =
                 null !== stored ? "1" === stored : window.innerWidth <= 900;
             document.body.classList.toggle(
-              "week-pane-collapsed",
+              "day-pane-collapsed",
               shouldCollapse
             );
           }
