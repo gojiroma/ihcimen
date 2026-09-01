@@ -6943,18 +6943,6 @@
             storage.setItem("privacyNoticeDismissed", "1"),
               (document.getElementById("privacyBanner").style.display = "none");
           }),
-        document
-          .querySelector(".container")
-          .addEventListener("click", (e) => {
-            // date-display / content-area 以外の余白タップで
-            // ブラウザ自体のフルスクリーン表示を切り替える。
-            e.target === e.currentTarget &&
-              (document.fullscreenElement
-                ? document.exitFullscreen().catch(() => { })
-                : document.documentElement
-                  .requestFullscreen()
-                  .catch(() => { }));
-          }),
         (() => {
           // タッチデバイスでは日付表示・本文(閲覧モード)を左右にドラッグ
           // すると日付を移動できる(パラパラめくる感覚。日付表示だけだと
@@ -6999,6 +6987,17 @@
                     (longPressTimer = setTimeout(() => {
                       (longPressFired = !0),
                         (longPressTimer = null),
+                        // 長押しでモーダル等を開くと、指/マウスを離した瞬間の
+                        // clickがその場所(開いたモーダルの背景など)へ発生する。
+                        // このelにはヒットしないためlongPressFiredでは防げず、
+                        // documentまでバブリングして「モーダル外クリック」と
+                        // 誤認され、開いた直後に閉じてしまう。次のclickを
+                        // 1回だけキャプチャ段階で握りつぶして防ぐ。
+                        document.addEventListener(
+                          "click",
+                          (ev) => ev.stopPropagation(),
+                          { capture: !0, once: !0 }
+                        ),
                         onLongPress(e);
                     }, LONG_PRESS_MS)));
               }),
