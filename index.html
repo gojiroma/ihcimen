@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="39" />
+  <meta name="app-version" content="40" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -98,26 +98,6 @@
       pointer-events: auto;
     }
 
-    body.schedule-bar-collapsed .schedule-bar {
-      transform: translateY(100%);
-      pointer-events: none;
-    }
-
-    body.schedule-bar-collapsed .content-area {
-      padding-bottom: 80px;
-    }
-
-    #scheduleBarOpenZone {
-      left: 0;
-      right: 0;
-      bottom: 0;
-      height: 80px;
-    }
-
-    body.schedule-bar-collapsed:not(.schedule-bar-fullscreen) #scheduleBarOpenZone {
-      pointer-events: auto;
-    }
-
     #scheduleBarFullscreenExitZone {
       top: 0;
       left: 0;
@@ -131,7 +111,7 @@
       pointer-events: auto;
     }
 
-    /* 下段カレンダーの全画面モード(下段カレンダー自体を上へフリック) */
+    /* 全画面カレンダー表示中は、主要な通常表示UIを隠す */
     body.schedule-bar-fullscreen .h1-shortcut-bar,
     body.schedule-bar-fullscreen .search-pane,
     body.schedule-bar-fullscreen #searchPaneOpenZone,
@@ -143,6 +123,7 @@
       display: flex;
       height: 100vh;
       transform: translateY(0);
+      pointer-events: auto;
       /* 以前はセルを直接flex-wrapで折り返していたが、折り返し列数の
          JS側の想定(getFullscreenColumns)と実際のレイアウトがズレる
          (スクロールバーの出現/消失、フォント読み込みなど)たびに
@@ -294,7 +275,7 @@
       display: block;
     }
 
-    /* 下段カレンダーを折りたたんでいる間、画面中央にうっすらと現在時刻を表示する */
+    /* 全画面カレンダーでない間、画面中央にうっすらと現在時刻を表示する */
     .idle-clock-watermark {
       display: none;
       position: fixed;
@@ -311,7 +292,7 @@
       white-space: nowrap;
     }
 
-    body.schedule-bar-collapsed:not(.schedule-bar-fullscreen) .idle-clock-watermark {
+    body:not(.schedule-bar-fullscreen) .idle-clock-watermark {
       display: block;
     }
 
@@ -388,10 +369,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      /* 下段カレンダー(100px)+その上の全画面化フリック領域(80px)+
-         余白(20px)ぶんを確保し、本文がその見えない領域の下に
-         埋もれてタップできなくならないようにする。 */
-      padding-bottom: 200px;
+      padding-bottom: 24px;
       box-sizing: border-box;
     }
 
@@ -1523,24 +1501,10 @@
       /* 開閉/全画面化のドラッグ操作中に地の文字が選択されてしまうのを防ぐ
          (メモ欄のtextarea自体の選択には影響しない)。 */
       user-select: none;
-    }
-
-    /* 下段カレンダー(開いている・全画面ではない状態)の上端に、折りたたみ
-       専用の見えないフリック領域を用意する。日エリア自体にはこの
-       ジェスチャーを持たせず、専用領域だけが受け持つことでタップや
-       横スクロールと干渉しないようにしている。下へフリックで折りたたむ
-       (以前はここから全画面表示にも入れたが、日付付近をタップした
-       だけで意図せず全画面化してしまう不具合の元だったため廃止した)。 */
-    #scheduleBarFullscreenToggleZone {
-      left: 0;
-      right: 0;
-      bottom: 100px;
-      height: 80px;
-    }
-
-    body:not(.schedule-bar-collapsed):not(.schedule-bar-fullscreen)
-      #scheduleBarFullscreenToggleZone {
-      pointer-events: auto;
+      /* リボン表示(通常時の横並び)はDay paneと役割が重複するため廃止した。
+         全画面カレンダーに入っているときだけ表示する。 */
+      transform: translateY(100%);
+      pointer-events: none;
     }
 
     .schedule-cell {
@@ -1665,7 +1629,7 @@
     }
 
     /* Day pane内では.schedule-cellを縦積みリスト用に配置し直す
-       (下段カレンダーの横並びリボンとは向きが逆になるため)。 */
+       (全画面カレンダー内での横並びグリッド用スタイルとは向きが異なるため)。 */
     .day-pane .schedule-cell {
       flex: 0 0 auto;
       width: 100%;
@@ -2269,8 +2233,6 @@
   <div id="saveStatus" class="save-status"></div>
   <div id="toastContainer" class="toast-container"></div>
   <div id="scheduleBar" class="schedule-bar"></div>
-  <div id="scheduleBarOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
-  <div id="scheduleBarFullscreenToggleZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <div id="scheduleBarFullscreenExitZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <button id="scheduleFullscreenCloseBtn" class="schedule-fullscreen-close" type="button" aria-label="全画面カレンダーを閉じる">
     ×
@@ -2553,10 +2515,7 @@
         syncScanStream = null,
         syncHealthy = !0,
         audioCtx = null,
-        scheduleEarliest = null,
-        scheduleLatest = null,
         // 全画面カレンダー(行virtualized表示)側の描画済み範囲。
-        // 通常のリボン表示(scheduleEarliest/Latest)とは別に管理する。
         fsRowEarliest = null,
         fsRowLatest = null,
         scheduleFullscreenSettleTimer = null,
@@ -5094,7 +5053,6 @@
             };
           requestAnimationFrame(scanFrame);
         },
-        scheduleWindowDays = 30,
         // 全画面カレンダーは、常に表示中心の前後この日数ぶんだけを
         // 描画・保持する(virtualized表示)。開いた瞬間だけでなく、
         // スクロールで表示中心が動くたびにこの範囲を維持し続け、
@@ -5982,85 +5940,17 @@
           wp.appendChild(frag),
             (dayPaneLatest = new Date(dayPaneLatest.getTime() + days * I));
         },
+        // 下段のリボン表示は右端のDay paneと役割が重複するため廃止した。
+        // 通常時はsbを空にしておき、全画面カレンダーに入るときだけ
+        // renderScheduleBarFullscreenAroundで組み立て直す。
         renderScheduleBar = () => {
-          if (document.body.classList.contains("schedule-bar-fullscreen")) {
-            renderScheduleBarFullscreenAround(f);
-          } else {
-            sb.innerHTML = "";
-            const selectedKey = toDateKey(f),
-              maxDayLen = getGlobalMaxDayLen();
-            (scheduleEarliest = new Date(f.getTime() - scheduleWindowDays * I)),
-              (scheduleLatest = new Date(f.getTime() + scheduleWindowDays * I));
-            let selectedCell = null;
-            const frag = document.createDocumentFragment();
-            for (
-              let d = new Date(scheduleEarliest);
-              d <= scheduleLatest;
-              d.setDate(d.getDate() + 1)
-            ) {
-              const cell = createScheduleCell(new Date(d), maxDayLen);
-              cell.dataset.date === selectedKey &&
-                (cell.classList.add("selected"), (selectedCell = cell)),
-                frag.appendChild(cell);
-            }
-            sb.appendChild(frag),
-              selectedCell &&
-              ((scheduleScrollSuppressed = !0),
-                // 選択中の日を中央ではなく左端に置き、今日以降のこれからの
-                // 日々が右側に見えるようにする。
-                selectedCell.scrollIntoView({ inline: "start", block: "nearest" }),
-                setTimeout(() => (scheduleScrollSuppressed = !1), 50));
-          }
+          document.body.classList.contains("schedule-bar-fullscreen")
+            ? renderScheduleBarFullscreenAround(f)
+            : (sb.innerHTML = "");
           renderDayPane(),
             (lastSyncedDayKey = null),
             updateFullscreenYearWatermark(),
             renderBusyDayPanel();
-        },
-        // 下段カレンダーを開く/ホバーで覗く瞬間、たまたまカーソルの下に
-        // あったセルに hover が発火して意図しない日付のプレビューに
-        // 飛んでしまうのを防ぐため、開く前にスクロール位置を合わせ、
-        // 今日のセルがカーソルの位置に来るようにしておく。
-        alignTodayCellToCursorX = (clientX) => {
-          if ("number" != typeof clientX) return;
-          const todayCell = sb.querySelector(
-            `.schedule-cell[data-date="${toDateKey(new Date())}"]`
-          );
-          if (!todayCell) return;
-          const rect = todayCell.getBoundingClientRect(),
-            cellCenterX = rect.left + rect.width / 2;
-          sb.scrollLeft -= clientX - cellCenterX;
-        },
-        // 通常表示(リボン)専用。全画面は行(.fs-row)単位の別実装を使う。
-        extendScheduleBarStart = (days = 14) => {
-          const maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment();
-          for (let i = days; i >= 1; i--)
-            frag.appendChild(
-              createScheduleCell(
-                new Date(scheduleEarliest.getTime() - i * I),
-                maxDayLen
-              )
-            );
-          const prevScrollWidth = sb.scrollWidth,
-            prevScrollLeft = sb.scrollLeft;
-          sb.insertBefore(frag, sb.firstChild),
-            (scheduleEarliest = new Date(
-              scheduleEarliest.getTime() - days * I
-            )),
-            (sb.scrollLeft = prevScrollLeft + (sb.scrollWidth - prevScrollWidth));
-        },
-        extendScheduleBarEnd = (days = 14) => {
-          const maxDayLen = getGlobalMaxDayLen(),
-            frag = document.createDocumentFragment();
-          for (let i = 1; i <= days; i++)
-            frag.appendChild(
-              createScheduleCell(
-                new Date(scheduleLatest.getTime() + i * I),
-                maxDayLen
-              )
-            );
-          sb.appendChild(frag),
-            (scheduleLatest = new Date(scheduleLatest.getTime() + days * I));
         },
         // 全画面カレンダーの1行あたりの列数(1列あたり約120px目安)。
         // 表示幅が取れない場合は7列(1週間分)を仮定しておく。
@@ -6313,14 +6203,13 @@
             (lastSyncedDayKey = null),
             updateFullscreenYearWatermark();
         },
-        // 下段カレンダーを全画面表示にする(フリックのトリガーから共通で呼ぶ)。
+        // 全画面カレンダーを開く(フリックのトリガーから共通で呼ぶ)。
         // Day paneは(通常表示側の設定を変えず)毎回非表示から始める。
         // カレンダーをより広く使いたいことが多いためで、ユーザーが明示的に
         // 開けば従来どおり好みとして保存され、閉じるとexitScheduleBar
         // Fullscreenで通常表示側の保存済み状態に戻す。
         enterScheduleBarFullscreen = () => {
           document.body.classList.add("schedule-bar-fullscreen"),
-            document.body.classList.remove("schedule-bar-collapsed"),
             document.body.classList.add("day-pane-collapsed"),
             requestAnimationFrame(() => {
               renderScheduleBarFullscreenAround(f);
@@ -6423,16 +6312,6 @@
             renderScheduleBar();
         };
       sb.addEventListener("mouseleave", () => T(f)),
-        sb.addEventListener(
-          "wheel",
-          (e) => {
-            if (document.body.classList.contains("schedule-bar-fullscreen"))
-              return;
-            e.preventDefault();
-            sb.scrollLeft += e.deltaX + e.deltaY;
-          },
-          { passive: false }
-        ),
         sb.addEventListener("scroll", () => {
           updateFullscreenYearWatermark();
           if (scheduleScrollSuppressed) return;
@@ -6457,11 +6336,6 @@
                 syncScheduleBarFullscreenWindow,
                 150
               ));
-          } else {
-            sb.scrollLeft < 200
-              ? extendScheduleBarStart()
-              : sb.scrollWidth - sb.scrollLeft - sb.clientWidth < 200 &&
-              extendScheduleBarEnd();
           }
         }),
         wp.addEventListener("mouseleave", () => T(f)),
@@ -6960,85 +6834,10 @@
                 enterScheduleBarFullscreen();
             });
 
-          // 下段カレンダー(下): 閉じている間は下端をフリックで開く
-          // (タップに近い小さな動きは通常表示、しっかり上へ引けば
-          // 全画面表示に直行する)。
+          // 全画面カレンダー: 上端の見えない領域を下へフリックして閉じる
+          // (グリッド自体の縦スクロールと競合しないよう、専用の領域に
+          // している)。
           (() => {
-            const zone = document.getElementById("scheduleBarOpenZone");
-            let startX = null, startY = null, triggered = !1;
-            zone.addEventListener("pointerdown", (e) => {
-              (startX = e.clientX),
-                (startY = e.clientY),
-                (triggered = !1),
-                zone.setPointerCapture(e.pointerId),
-                suppressTextSelection();
-            }),
-              zone.addEventListener("pointermove", (e) => {
-                null === startY ||
-                  triggered ||
-                  e.clientY - startY < -SWIPE_THRESHOLD &&
-                  ((triggered = !0), enterScheduleBarFullscreen());
-              });
-            const finish = (e) => {
-              null === startX ||
-                triggered ||
-                (document.body.classList.remove("schedule-bar-collapsed"),
-                  storage.setItem("scheduleBarCollapsed", "0"),
-                  alignTodayCellToCursorX(e.clientX));
-              (startX = null),
-                (startY = null),
-                (triggered = !1),
-                zone.hasPointerCapture(e.pointerId) &&
-                zone.releasePointerCapture(e.pointerId),
-                restoreTextSelection();
-            };
-            zone.addEventListener("pointerup", finish),
-              zone.addEventListener("pointercancel", finish);
-          })(),
-            // 下段カレンダー(開いている・全画面ではない状態)の上端専用の
-            // 見えないフリック領域(scheduleBarFullscreenToggleZone):
-            // 下へドラッグ/フリックすれば折りたたむ、しっかり上へ引けば
-            // 全画面表示にする。日エリア自体にはこのジェスチャーを持た
-            // せず、専用領域だけが受け持つことでタップや横スクロールと
-            // 干渉しないようにする。上方向は、日付付近をタップしただけの
-            // 小さな縦ぶれで意図せず全画面化してしまっていた不具合対策
-            // として、下方向より大きい閾値(CLOSE_SWIPE_THRESHOLD)を要求
-            // することでタップと区別する。
-            (() => {
-              const zone = document.getElementById(
-                "scheduleBarFullscreenToggleZone"
-              );
-              let startY = null, triggered = !1;
-              zone.addEventListener("pointerdown", (e) => {
-                (startY = e.clientY),
-                  (triggered = !1),
-                  zone.setPointerCapture(e.pointerId),
-                  suppressTextSelection();
-              }),
-                zone.addEventListener("pointermove", (e) => {
-                  if (null === startY || triggered) return;
-                  const dy = e.clientY - startY;
-                  dy > SWIPE_THRESHOLD
-                    ? ((triggered = !0),
-                      document.body.classList.add("schedule-bar-collapsed"),
-                      storage.setItem("scheduleBarCollapsed", "1"))
-                    : dy < -CLOSE_SWIPE_THRESHOLD &&
-                    ((triggered = !0), enterScheduleBarFullscreen());
-                });
-              const reset = (e) => {
-                (startY = null),
-                  (triggered = !1),
-                  zone.hasPointerCapture(e.pointerId) &&
-                  zone.releasePointerCapture(e.pointerId),
-                  restoreTextSelection();
-              };
-              zone.addEventListener("pointerup", reset),
-                zone.addEventListener("pointercancel", reset);
-            })(),
-            // 全画面カレンダー: 上端の見えない領域を下へフリックして閉じる
-            // (グリッド自体の縦スクロールと競合しないよう、専用の領域に
-            // している)。
-            (() => {
               const zone = document.getElementById(
                 "scheduleBarFullscreenExitZone"
               );
@@ -7062,13 +6861,12 @@
               zone.addEventListener("pointerup", reset),
                 zone.addEventListener("pointercancel", reset);
             })(),
-            // 全画面カレンダー: グリッド自体を右へフリック/ドラッグすると
-            // 通常の1列表示(リボン)に戻る。全画面でないときは何もしない
-            // (下段カレンダーの通常の横スクロールを妨げないため)。
-            setupPaneCloseSwipe(sb, "x", 1, () => {
-              document.body.classList.contains("schedule-bar-fullscreen") &&
-                exitScheduleBarFullscreen();
-            });
+          // 全画面カレンダー: グリッド自体を右へフリック/ドラッグすると
+          // 通常の1列表示(Day pane)に戻る。全画面でないときは何もしない。
+          setupPaneCloseSwipe(sb, "x", 1, () => {
+            document.body.classList.contains("schedule-bar-fullscreen") &&
+              exitScheduleBarFullscreen();
+          });
         })(),
         historySliderEl.addEventListener("input", renderHistoryPreview),
         historyRestoreBtnEl.addEventListener("click", restoreHistoryVersion),
@@ -7345,11 +7143,6 @@
               shouldCollapse
             );
           }
-          // 下段カレンダーはユーザーが折りたたむまで常に表示する
-          document.body.classList.toggle(
-            "schedule-bar-collapsed",
-            "1" === storage.getItem("scheduleBarCollapsed")
-          );
           // 検索パネルの初期折りたたみ状態(保存済みの設定がなければ常に折りたたみ)
           document.body.classList.toggle(
             "search-pane-collapsed",
@@ -7368,7 +7161,7 @@
           // 初回設定
           H();
           renderSyncPanel();
-          // 下段カレンダー折りたたみ中の現在時刻ウォーターマーク
+          // 通常表示中(全画面カレンダーでない間)の現在時刻ウォーターマーク
           updateIdleClockWatermark();
           setInterval(updateIdleClockWatermark, 1000);
           // 日付表示内容が変更されたときに title を更新する
