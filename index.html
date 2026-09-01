@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Daily Notes</title>
-  <meta name="app-version" content="41" />
+  <meta name="app-version" content="42" />
   <link rel="icon" id="favicon" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -6690,6 +6690,17 @@
           };
           const restoreTextSelection = () => {
             document.body.classList.remove("gesture-drag-active");
+            // textarea/inputにフォーカスが入っている間にremoveAllRangesを
+            // 呼ぶと、SafariではそのフォーカスごとBlurしてしまう(クリック
+            // した瞬間だけフォーカスされ、pointerup直後に外れて入力できなく
+            // なる不具合の原因だった)。地の文選択の解除が目的なので、
+            // フォーム要素にフォーカスがある間は何もしない。
+            const active = document.activeElement;
+            if (
+              active &&
+              ("TEXTAREA" === active.tagName || "INPUT" === active.tagName)
+            )
+              return;
             const sel = window.getSelection();
             sel && sel.removeAllRanges();
           };
