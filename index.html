@@ -2926,7 +2926,8 @@
             Z(next) ? storage.setItem(dateKey, next) : storage.removeItem(dateKey),
             H(),
             maybeSyncPushChannel("entries"),
-            renderDayBlocks(f);
+            renderDayBlocks(f),
+            renderSearchPaneResults(searchPaneInputEl.value);
         },
         // --- 天気・日経平均・ドル円のミニウィジェット ---
         // 位置情報はブラウザの許可が得られた場合のみ使い、拒否/取得失敗時は
