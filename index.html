@@ -3913,7 +3913,8 @@
           flashHighlight(liEl);
         },
         commitSearchResult = (r, liEl) => {
-          addSearchHistory(searchPaneInputEl.value.trim() || r.headingText || "");
+          const q = searchPaneInputEl.value.trim();
+          q && addSearchHistory(q);
           activeBlockEl && s.blur();
           saveCurrentMemo(),
             (f = new Date(r.date)),
