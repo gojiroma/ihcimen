@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Manual Entries - Daily Notes</title>
+  <meta name="app-version" content="42" />
+  <link rel="icon" id="favicon" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Daily Notes" />
+  <style>
+    ::-webkit-scrollbar {
+      display: none;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      font-family: "BIZ UDGothic", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+        "Yu Gothic", Meiryo, sans-serif;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+
+    .content {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      margin: 0 0 24px 0;
+      color: #333;
+      text-align: center;
+    }
+
+    h2 {
+      font-size: 1.2rem;
+      margin: 24px 0 16px 0;
+      color: #555;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 8px;
+    }
+
+    .section {
+      margin-bottom: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #444;
+    }
+
+    textarea,
+    input[type="text"],
+    input[type="number"],
+    input[type="date"] {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    textarea:focus,
+    input:focus {
+      outline: none;
+      border-color: #3b82c4;
+    }
+
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    button {
+      background-color: #3b82c4;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: #2a6fa3;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .button-secondary {
+      background-color: #666;
+    }
+
+    .button-secondary:hover {
+      background-color: #555;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .entry-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: flex-end;
+    }
+
+    .entry-row input {
+      flex: 1;
+    }
+
+    .add-button {
+      background-color: #4caf50;
+      min-width: 40px;
+      padding: 12px;
+    }
+
+    .add-button:hover {
+      background-color: #3d8b40;
+    }
+
+    .remove-button {
+      background-color: #f44336;
+      min-width: 40px;
+      padding: 12px;
+    }
+
+    .remove-button:hover {
+      background-color: #d32f2f;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+      text-align: center;
+    }
+
+    .status-success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+
+    .status-error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+
+    .error-list {
+      background-color: #f8d7da;
+      color: #721c24;
+      padding: 12px;
+      border-radius: 8px;
+      margin: 16px 0;
+    }
+
+    .error-item {
+      padding: 4px 0;
+      font-size: 0.9rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .container {
+        background-color: #1a1a1a;
+      }
+
+      .content {
+        background-color: #2a2a2a;
+        color: #e0e0e0;
+      }
+
+      h1,
+      h2 {
+        color: #f0f0f0;
+      }
+
+      label {
+        color: #b0b0b0;
+      }
+
+      textarea,
+      input {
+        background-color: #3a3a3a;
+        border-color: #555;
+        color: #e0e0e0;
+      }
+
+      .status-success {
+        background-color: #1e392a;
+        color: #81c784;
+      }
+
+      .status-error {
+        background-color: #451a1a;
+        color: #ff8a80;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="content">
+      <h1>手動入力</h1>
+
+      <div class="section">
+        <h2>歩数データ</h2>
+        <div id="steps-entries">
+          <div class="entry-row">
+            <input type="date" class="steps-date" />
+            <input type="number" class="steps-value" placeholder="歩数" min="0" />
+            <button class="remove-button" onclick="removeEntry(this)">−</button>
+          </div>
+        </div>
+        <button class="add-button" onclick="addStepsEntry()">+ 歩数行を追加</button>
+        <button class="button-secondary" onclick="importSteps()">歩数をインポート</button>
+        <div id="steps-status" class="status" style="display: none;"></div>
+        <div id="steps-errors" class="error-list" style="display: none;"></div>
+      </div>
+
+      <div class="section">
+        <h2>睡眠データ</h2>
+        <div id="sleep-entries">
+          <div class="entry-row">
+            <input type="date" class="sleep-date" />
+            <input type="number" class="sleep-duration" placeholder="睡眠時間(分)" min="0" />
+            <input type="number" class="sleep-score" placeholder="睡眠スコア" min="0" max="100" />
+            <button class="remove-button" onclick="removeEntry(this)">−</button>
+          </div>
+        </div>
+        <button class="add-button" onclick="addSleepEntry()">+ 睡眠行を追加</button>
+        <button class="button-secondary" onclick="importSleep()">睡眠をインポート</button>
+        <div id="sleep-status" class="status" style="display: none;"></div>
+        <div id="sleep-errors" class="error-list" style="display: none;"></div>
+      </div>
+
+      <div class="button-group" style="margin-top: 24px;">
+        <button onclick="goBack()">戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function addStepsEntry() {
+      const container = document.getElementById('steps-entries');
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <input type="date" class="steps-date" />
+        <input type="number" class="steps-value" placeholder="歩数" min="0" />
+        <button class="remove-button" onclick="removeEntry(this)">−</button>
+      `;
+      container.appendChild(row);
+    }
+
+    function addSleepEntry() {
+      const container = document.getElementById('sleep-entries');
+      const row = document.createElement('div');
+      row.className = 'entry-row';
+      row.innerHTML = `
+        <input type="date" class="sleep-date" />
+        <input type="number" class="sleep-duration" placeholder="睡眠時間(分)" min="0" />
+        <input type="number" class="sleep-score" placeholder="睡眠スコア" min="0" max="100" />
+        <button class="remove-button" onclick="removeEntry(this)">−</button>
+      `;
+      container.appendChild(row);
+    }
+
+    function removeEntry(button) {
+      const row = button.parentElement;
+      const container = row.parentElement;
+      if (container.children.length > 1) {
+        container.removeChild(row);
+      }
+    }
+
+    async function importSteps() {
+      const entries = [];
+      document.querySelectorAll('#steps-entries .entry-row').forEach(row => {
+        const dateInput = row.querySelector('.steps-date');
+        const valueInput = row.querySelector('.steps-value');
+        if (dateInput.value && valueInput.value) {
+          entries.push({
+            date: dateInput.value,
+            steps: valueInput.value
+          });
+        }
+      });
+
+      if (entries.length === 0) {
+        showStatus('steps-status', 'エントリを入力してください', 'error');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('accessToken');
+        const response = await fetch('/api/manual/steps', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Access-Token': token
+          },
+          body: JSON.stringify({ entries })
+        });
+
+        const result = await response.json();
+        if (result.ok) {
+          showStatus('steps-status', `インポート完了: ${result.imported}件`, 'success');
+          if (result.errors && result.errors.length > 0) {
+            showErrors('steps-errors', result.errors);
+          }
+        } else {
+          showStatus('steps-status', result.message || 'インポートに失敗しました', 'error');
+          if (result.errors) {
+            showErrors('steps-errors', result.errors);
+          }
+        }
+      } catch (error) {
+        showStatus('steps-status', 'ネットワークエラー: ' + error.message, 'error');
+      }
+    }
+
+    async function importSleep() {
+      const entries = [];
+      document.querySelectorAll('#sleep-entries .entry-row').forEach(row => {
+        const dateInput = row.querySelector('.sleep-date');
+        const durationInput = row.querySelector('.sleep-duration');
+        const scoreInput = row.querySelector('.sleep-score');
+        const entry = { date: dateInput.value };
+        if (durationInput.value) entry.duration = durationInput.value;
+        if (scoreInput.value) entry.score = scoreInput.value;
+        if (entry.date && (entry.duration || entry.score)) {
+          entries.push(entry);
+        }
+      });
+
+      if (entries.length === 0) {
+        showStatus('sleep-status', 'エントリを入力してください', 'error');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('accessToken');
+        const response = await fetch('/api/manual/sleep', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Access-Token': token
+          },
+          body: JSON.stringify({ entries })
+        });
+
+        const result = await response.json();
+        if (result.ok) {
+          const messages = [];
+          if (result.imported_duration > 0) messages.push(`${result.imported_duration}件の睡眠時間`);
+          if (result.imported_score > 0) messages.push(`${result.imported_score}件の睡眠スコア`);
+          showStatus('sleep-status', `インポート完了: ${messages.join('、')}`, 'success');
+          if (result.errors && result.errors.length > 0) {
+            showErrors('sleep-errors', result.errors);
+          }
+        } else {
+          showStatus('sleep-status', result.message || 'インポートに失敗しました', 'error');
+          if (result.errors) {
+            showErrors('sleep-errors', result.errors);
+          }
+        }
+      } catch (error) {
+        showStatus('sleep-status', 'ネットワークエラー: ' + error.message, 'error');
+      }
+    }
+
+    function showStatus(elementId, message, type) {
+      const element = document.getElementById(elementId);
+      element.textContent = message;
+      element.className = 'status status-' + type;
+      element.style.display = 'block';
+    }
+
+    function showErrors(elementId, errors) {
+      const element = document.getElementById(elementId);
+      element.innerHTML = errors.map(err => 
+        `<div class="error-item">行 ${err.index + 1}: ${err.error}${err.date ? ' (日付: ' + err.date + ')' : ''}${err.duration ? ' (睡眠時間: ' + err.duration + ')' : ''}${err.score ? ' (スコア: ' + err.score + ')' : ''}${err.steps ? ' (歩数: ' + err.steps + ')' : ''}</div>`
+      ).join('');
+      element.style.display = 'block';
+    }
+
+    function goBack() {
+      window.location.href = '/';
+    }
+
+    // Set today's date as default for first inputs
+    document.addEventListener('DOMContentLoaded', () => {
+      const today = new Date().toISOString().split('T')[0];
+      document.querySelectorAll('.steps-date, .sleep-date').forEach(input => {
+        if (!input.value) {
+          input.value = today;
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>

@@ -16,9 +16,19 @@
         { "key": "Cache-Control", "value": "no-cache" },
         { "key": "Service-Worker-Allowed", "value": "/" }
       ]
+    },
+    {
+      "source": "/static/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
     }
   ],
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" }
+  "builds": [
+    { "src": "app.py", "use": "@vercel/python" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "app.py" }
   ]
 }
