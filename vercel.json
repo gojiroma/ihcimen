@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "runtimes": {
+    "python": "python3.11"
+  },
   "git": {
     "deploymentEnabled": {
       "*": false,
