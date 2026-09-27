@@ -620,24 +620,30 @@ if __name__ == "__main__":
     app.run(debug=True, port=5001)
 
 
-# Vercel Serverless Function handler
 def handler(request):
     """Vercel Serverless Function entry point."""
     from io import BytesIO
+    from werkzeug.test import EnvironBuilder
+    from werkzeug.wrappers import Response as WerkzeugResponse
     
-    # Build query string
-    query_parts = []
+    # Get query string from Vercel request
+    query_string = request.query_string if hasattr(request, 'query_string') else ''
     if hasattr(request, 'query') and request.query:
+        query_parts = []
         for key, values in request.query.items():
-            for value in (values if isinstance(values, list) else [values]):
-                query_parts.append(f"{key}={value}")
-    query_string = "&".join(query_parts) if query_parts else ""
+            if isinstance(values, list):
+                for value in values:
+                    query_parts.append(f"{key}={value}")
+            else:
+                query_parts.append(f"{key}={values}")
+        query_string = "&".join(query_parts)
     
-    # Build WSGI environ
+    # Get body
     body = getattr(request, 'body', None) or b''
     if isinstance(body, str):
         body = body.encode('utf-8')
     
+    # Build WSGI environ
     environ = {
         'REQUEST_METHOD': request.method,
         'PATH_INFO': request.path,
@@ -654,22 +660,24 @@ def handler(request):
         if key_upper != 'HOST':
             environ[f'HTTP_{key_upper}'] = value
     
-    # Set content length
+    # Set content info
     if body:
         environ['CONTENT_LENGTH'] = str(len(body))
-        environ['CONTENT_TYPE'] = request.headers.get('Content-Type', 'application/octet-stream')
+        content_type = request.headers.get('Content-Type', 'application/octet-stream')
+        environ['CONTENT_TYPE'] = content_type
     
     # Dispatch to Flask
     with app.request_context(environ):
         try:
             response = app.full_dispatch_request()
-            return {
-                'statusCode': response.status_code,
-                'headers': dict(response.headers),
-                'body': response.get_data(as_text=True),
-            }
+            return WerkzeugResponse(
+                response.get_data(),
+                status=response.status_code,
+                headers=list(response.headers.items())
+            )
         except Exception as e:
-            return {
-                'statusCode': 500,
-                'body': str(e),
-            }
+            return WerkzeugResponse(
+                str(e).encode('utf-8'),
+                status=500,
+                headers=[('Content-Type', 'text/plain')]
+            )
