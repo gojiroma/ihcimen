@@ -643,10 +643,15 @@ def handler(request):
     if isinstance(body, str):
         body = body.encode('utf-8')
     
+    # Strip /api prefix from path to match Flask routes
+    path = request.path
+    if path.startswith('/api/'):
+        path = path[5:]  # Remove '/api' prefix
+    
     # Build WSGI environ
     environ = {
         'REQUEST_METHOD': request.method,
-        'PATH_INFO': request.path,
+        'PATH_INFO': path,
         'QUERY_STRING': query_string,
         'SERVER_NAME': 'localhost',
         'SERVER_PORT': '443',
