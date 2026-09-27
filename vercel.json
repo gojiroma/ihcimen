@@ -1,7 +1,11 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" }
-  ],
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true
+    }
+  },
   "crons": [
     { "path": "/api/cleanup", "schedule": "0 3 * * *" }
   ],
