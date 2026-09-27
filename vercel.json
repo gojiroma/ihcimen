@@ -9,9 +9,6 @@
       "main": true
     }
   },
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" }
-  ],
   "crons": [
     { "path": "/api/cleanup", "schedule": "0 3 * * *" }
   ],

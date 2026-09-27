@@ -129,7 +129,7 @@ def is_fetchable_url(url):
         return False
 
 
-@app.route("/api/push", methods=["POST", "DELETE"])
+@app.route("/push", methods=["POST", "DELETE"])
 def push():
     if request.method == "DELETE":
         sync_id = request.args.get("sync_id", "")
@@ -217,7 +217,7 @@ def push():
         conn.close()
 
 
-@app.route("/api/pull", methods=["GET"])
+@app.route("/pull", methods=["GET"])
 def pull():
     sync_id = request.args.get("sync_id", "")
     if not SYNC_ID_RE.match(sync_id):
@@ -256,7 +256,7 @@ def pull():
         conn.close()
 
 
-@app.route("/api/export-flag", methods=["POST"])
+@app.route("/export-flag", methods=["POST"])
 def export_flag():
     # その日(JST)最初にページを開いた端末だけが自動エクスポートを実行できる
     # ように、sync_idごとに「最後に自動エクスポートを行った日付」を排他的に
@@ -301,7 +301,7 @@ def export_flag():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["POST"])
+@app.route("/handoff", methods=["POST"])
 def handoff_push():
     # カメラのない端末同士でシードを引き継ぐための、時間限定コードの発行。
     # 「私の日誌」の一時共有リンクもこのエンドポイントを流用しており、その
@@ -368,7 +368,7 @@ def handoff_push():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["GET"])
+@app.route("/handoff", methods=["GET"])
 def handoff_pull():
     code_hash = request.args.get("code_hash", "")
     if not CODE_HASH_RE.match(code_hash):
@@ -403,7 +403,7 @@ def handoff_pull():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["DELETE"])
+@app.route("/handoff", methods=["DELETE"])
 def handoff_delete():
     # 新しい共有リンク/コードを発行したときに、まだ引き換えられていない
     # 古いものを明示的に無効化するための取り消し。
@@ -429,7 +429,7 @@ def handoff_delete():
         conn.close()
 
 
-@app.route("/api/ics-proxy", methods=["GET"])
+@app.route("/ics-proxy", methods=["GET"])
 def ics_proxy():
     # ICSはブラウザから直接fetchするとCORSで弾かれるホストが多いため、
     # サーバー側で代わりに取得してテキストをそのまま返す(自ドメインなので
@@ -459,7 +459,7 @@ def ics_proxy():
         return jsonify(error=f"failed to fetch: {err}"), 502
 
 
-@app.route("/api/ics-publish", methods=["POST", "DELETE"])
+@app.route("/ics-publish", methods=["POST", "DELETE"])
 def ics_publish():
     # 日/週カレンダーの内容を、外部のカレンダークライアントが購読できる
     # ICSとして公開する機能。ここは意図的にE2E暗号化の対象外(平文保存)。
@@ -523,7 +523,7 @@ def ics_publish():
         conn.close()
 
 
-@app.route("/api/ics/<publish_id>", methods=["GET"])
+@app.route("/ics/<publish_id>", methods=["GET"])
 def ics_serve(publish_id):
     if publish_id.endswith(".ics"):
         publish_id = publish_id[: -len(".ics")]
@@ -568,7 +568,7 @@ def ics_serve(publish_id):
         conn.close()
 
 
-@app.route("/api/cleanup", methods=["GET"])
+@app.route("/cleanup", methods=["GET"])
 def cleanup():
     cron_secret = os.environ.get("CRON_SECRET")
     if not cron_secret:
@@ -618,3 +618,58 @@ def cleanup():
 
 if __name__ == "__main__":
     app.run(debug=True, port=5001)
+
+
+# Vercel Serverless Function handler
+def handler(request):
+    """Vercel Serverless Function entry point."""
+    from io import BytesIO
+    
+    # Build query string
+    query_parts = []
+    if hasattr(request, 'query') and request.query:
+        for key, values in request.query.items():
+            for value in (values if isinstance(values, list) else [values]):
+                query_parts.append(f"{key}={value}")
+    query_string = "&".join(query_parts) if query_parts else ""
+    
+    # Build WSGI environ
+    body = getattr(request, 'body', None) or b''
+    if isinstance(body, str):
+        body = body.encode('utf-8')
+    
+    environ = {
+        'REQUEST_METHOD': request.method,
+        'PATH_INFO': request.path,
+        'QUERY_STRING': query_string,
+        'SERVER_NAME': 'localhost',
+        'SERVER_PORT': '443',
+        'wsgi.url_scheme': 'https',
+        'wsgi.input': BytesIO(body),
+    }
+    
+    # Add headers
+    for key, value in request.headers.items():
+        key_upper = key.upper().replace('-', '_')
+        if key_upper != 'HOST':
+            environ[f'HTTP_{key_upper}'] = value
+    
+    # Set content length
+    if body:
+        environ['CONTENT_LENGTH'] = str(len(body))
+        environ['CONTENT_TYPE'] = request.headers.get('Content-Type', 'application/octet-stream')
+    
+    # Dispatch to Flask
+    with app.request_context(environ):
+        try:
+            response = app.full_dispatch_request()
+            return {
+                'statusCode': response.status_code,
+                'headers': dict(response.headers),
+                'body': response.get_data(as_text=True),
+            }
+        except Exception as e:
+            return {
+                'statusCode': 500,
+                'body': str(e),
+            }
