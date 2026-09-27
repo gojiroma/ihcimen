@@ -632,10 +632,12 @@ def handler(request):
 
         # Strip /api prefix to match Flask routes
         if path.startswith("/api/"):
-            path = path[5:]  # Remove '/api/' prefix (5 chars: /api/)
+            path = "/" + path[5:]  # Remove '/api/' prefix and keep leading slash
+        elif path == "/api":
+            path = "/"
         
         # Handle legacy /index.py requests that should be mapped to proper endpoints
-        if path == "/index.py":
+        if path == "/index.py" or path == "/api/index.py":
             # Try to infer the route from method and query parameters
             query_params = request.query or {}
             if method == "GET" and "sync_id" in query_params:
