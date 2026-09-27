@@ -1,8 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "runtimes": {
-    "python": "python3.11"
-  },
   "git": {
     "deploymentEnabled": {
       "*": false,
@@ -20,5 +17,8 @@
         { "key": "Service-Worker-Allowed", "value": "/" }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "api/index.py" }
   ]
 }
