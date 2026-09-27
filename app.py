@@ -14,7 +14,7 @@ from functools import wraps
 from io import BytesIO
 
 import psycopg2
-import psycopg2.extras
+
 from flask import Flask, Response, jsonify, redirect, request, render_template, send_from_directory
 from werkzeug.test import EnvironBuilder
 from werkzeug.wrappers import Response as WerkzeugResponse
@@ -763,7 +763,7 @@ def list_memos():
     limit = min(int(request.args.get("limit", 200)), 5000)
 
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             if qdate:
                 cur.execute("SELECT * FROM memos WHERE date = %s", (qdate,))
             else:
@@ -785,7 +785,7 @@ def upsert_memo():
     content = data.get("content")
 
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute("SELECT * FROM memos WHERE date = %s FOR UPDATE", (memo_date,))
             existing = cur.fetchone()
 
@@ -829,7 +829,7 @@ def upsert_memo():
 def get_memo_history(memo_id):
     limit = min(int(request.args.get("limit", 50)), 200)
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT id, memo_id, date, summary, content, archived_at
@@ -859,7 +859,7 @@ def get_memo_history(memo_id):
 @require_access()
 def get_memo(memo_id):
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute("SELECT * FROM memos WHERE id = %s", (memo_id,))
             row = cur.fetchone()
 
@@ -889,7 +889,7 @@ def update_memo(memo_id):
     values.append(memo_id)
 
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute(
                 f"UPDATE memos SET {', '.join(fields)} WHERE id = %s RETURNING *",
                 values,
@@ -935,7 +935,7 @@ def row_to_guest_link(row):
 @require_access(admin_only=True)
 def list_guest_links():
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute("SELECT * FROM guest_links ORDER BY created_at DESC LIMIT 100")
             rows = cur.fetchall()
     return jsonify([row_to_guest_link(r) for r in rows])
@@ -955,7 +955,7 @@ def create_guest_link():
     token = secrets.token_urlsafe(24)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=hours)
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO guest_links (token, expires_at) VALUES (%s, %s) RETURNING *",
                 (token, expires_at),
@@ -990,7 +990,7 @@ def revoke_guest_link(link_id):
 def list_search_history():
     limit = min(int(request.args.get("limit", 20)), 100)
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute(
                 "SELECT query FROM memo_search_history ORDER BY searched_at DESC LIMIT %s",
                 (limit,),
@@ -1031,7 +1031,7 @@ def get_vitals():
     where = "WHERE date BETWEEN %s AND %s"
     params = (start, end)
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor() as cur:
             cur.execute(f"SELECT date, duration, score FROM sleep_data {where} ORDER BY date", params)
             sleep_rows = cur.fetchall()
             cur.execute(f"SELECT date, steps FROM steps_data {where} ORDER BY date", params)
@@ -1077,14 +1077,14 @@ def manual_steps():
         return jsonify({"ok": False, "errors": errors}), 400
     with get_conn() as conn:
         with conn.cursor() as cur:
-            psycopg2.extras.execute_values(
-                cur,
-                """
-                INSERT INTO steps_data (date, steps) VALUES %s
-                ON CONFLICT (date) DO UPDATE SET steps = EXCLUDED.steps
-                """,
-                rows,
-            )
+            for row in rows:
+                cur.execute(
+                    """
+                    INSERT INTO steps_data (date, steps) VALUES (%s, %s)
+                    ON CONFLICT (date) DO UPDATE SET steps = EXCLUDED.steps
+                    """,
+                    row,
+                )
         conn.commit()
     return jsonify({"ok": True, "imported": len(rows), "errors": errors, "message": "歩数データを保存しました"})
 
@@ -1132,23 +1132,23 @@ def manual_sleep():
     with get_conn() as conn:
         with conn.cursor() as cur:
             if rows_duration:
-                psycopg2.extras.execute_values(
-                    cur,
-                    """
-                    INSERT INTO sleep_data (date, duration) VALUES %s
-                    ON CONFLICT (date) DO UPDATE SET duration = EXCLUDED.duration
-                    """,
-                    rows_duration,
-                )
+                for row in rows_duration:
+                    cur.execute(
+                        """
+                        INSERT INTO sleep_data (date, duration) VALUES (%s, %s)
+                        ON CONFLICT (date) DO UPDATE SET duration = EXCLUDED.duration
+                        """,
+                        row,
+                    )
             if rows_score:
-                psycopg2.extras.execute_values(
-                    cur,
-                    """
-                    INSERT INTO sleep_data (date, score) VALUES %s
-                    ON CONFLICT (date) DO UPDATE SET score = EXCLUDED.score
-                    """,
-                    rows_score,
-                )
+                for row in rows_score:
+                    cur.execute(
+                        """
+                        INSERT INTO sleep_data (date, score) VALUES (%s, %s)
+                        ON CONFLICT (date) DO UPDATE SET score = EXCLUDED.score
+                        """,
+                        row,
+                    )
         conn.commit()
     return jsonify({
         "ok": True,
