@@ -132,7 +132,7 @@ def is_fetchable_url(url):
         return False
 
 
-@app.route("/api/push", methods=["POST", "DELETE"])
+@app.route("/push", methods=["POST", "DELETE"])
 def push():
     if request.method == "DELETE":
         sync_id = request.args.get("sync_id", "")
@@ -220,7 +220,7 @@ def push():
         conn.close()
 
 
-@app.route("/api/pull", methods=["GET"])
+@app.route("/pull", methods=["GET"])
 def pull():
     sync_id = request.args.get("sync_id", "")
     if not SYNC_ID_RE.match(sync_id):
@@ -259,7 +259,7 @@ def pull():
         conn.close()
 
 
-@app.route("/api/export-flag", methods=["POST"])
+@app.route("/export-flag", methods=["POST"])
 def export_flag():
     # その日(JST)最初にページを開いた端末だけが自動エクスポートを実行できる
     # ように、sync_idごとに「最後に自動エクスポートを行った日付」を排他的に
@@ -304,7 +304,7 @@ def export_flag():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["POST"])
+@app.route("/handoff", methods=["POST"])
 def handoff_push():
     # カメラのない端末同士でシードを引き継ぐための、時間限定コードの発行。
     # 「私の日誌」の一時共有リンクもこのエンドポイントを流用しており、その
@@ -371,7 +371,7 @@ def handoff_push():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["GET"])
+@app.route("/handoff", methods=["GET"])
 def handoff_pull():
     code_hash = request.args.get("code_hash", "")
     if not CODE_HASH_RE.match(code_hash):
@@ -406,7 +406,7 @@ def handoff_pull():
         conn.close()
 
 
-@app.route("/api/handoff", methods=["DELETE"])
+@app.route("/handoff", methods=["DELETE"])
 def handoff_delete():
     # 新しい共有リンク/コードを発行したときに、まだ引き換えられていない
     # 古いものを明示的に無効化するための取り消し。
@@ -432,7 +432,7 @@ def handoff_delete():
         conn.close()
 
 
-@app.route("/api/ics-proxy", methods=["GET"])
+@app.route("/ics-proxy", methods=["GET"])
 def ics_proxy():
     # ICSはブラウザから直接fetchするとCORSで弾かれるホストが多いため、
     # サーバー側で代わりに取得してテキストをそのまま返す(自ドメインなので
@@ -462,7 +462,7 @@ def ics_proxy():
         return jsonify(error=f"failed to fetch: {err}"), 502
 
 
-@app.route("/api/ics-publish", methods=["POST", "DELETE"])
+@app.route("/ics-publish", methods=["POST", "DELETE"])
 def ics_publish():
     # 日/週カレンダーの内容を、外部のカレンダークライアントが購読できる
     # ICSとして公開する機能。ここは意図的にE2E暗号化の対象外(平文保存)。
@@ -526,7 +526,7 @@ def ics_publish():
         conn.close()
 
 
-@app.route("/api/ics/<publish_id>", methods=["GET"])
+@app.route("/ics/<publish_id>", methods=["GET"])
 def ics_serve(publish_id):
     if publish_id.endswith(".ics"):
         publish_id = publish_id[: -len(".ics")]
@@ -571,7 +571,7 @@ def ics_serve(publish_id):
         conn.close()
 
 
-@app.route("/api/cleanup", methods=["GET"])
+@app.route("/cleanup", methods=["GET"])
 def cleanup():
     cron_secret = os.environ.get("CRON_SECRET")
     if not cron_secret:
@@ -630,16 +630,20 @@ def handler(request):
         path = request.path or "/"
         method = request.method or "GET"
 
+        # Strip /api prefix to match Flask routes
+        if path.startswith("/api/"):
+            path = path[5:]  # Remove '/api/' prefix (5 chars: /api/)
+        
         # Handle legacy /index.py requests that should be mapped to proper endpoints
-        if path == "/api/index.py" or path == "/index.py":
+        if path == "/index.py":
             # Try to infer the route from method and query parameters
             query_params = request.query or {}
             if method == "GET" and "sync_id" in query_params:
-                path = "/api/pull"
+                path = "/pull"
             elif method == "DELETE" and "sync_id" in query_params:
-                path = "/api/push"
+                path = "/push"
             elif method == "POST":
-                path = "/api/push"
+                path = "/push"
             else:
                 return WerkzeugResponse(
                     b'{"error":"Unknown legacy endpoint"}',
