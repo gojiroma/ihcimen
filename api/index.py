@@ -6,9 +6,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 
 import psycopg2
 from flask import Flask, Response, jsonify, request
+from werkzeug.test import EnvironBuilder
+from werkzeug.wrappers import Response as WerkzeugResponse
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB request body cap
@@ -622,80 +625,123 @@ if __name__ == "__main__":
 
 def handler(request):
     """Vercel Serverless Function entry point."""
-    from io import BytesIO
-    from werkzeug.test import EnvironBuilder
-    from werkzeug.wrappers import Response as WerkzeugResponse
-    
-    # Get query string from Vercel request
-    query_string = request.query_string if hasattr(request, 'query_string') else ''
-    if hasattr(request, 'query') and request.query:
-        query_parts = []
-        for key, values in request.query.items():
-            if isinstance(values, list):
-                for value in values:
-                    query_parts.append(f"{key}={value}")
+    try:
+        # Parse request path and method
+        path = request.path or "/"
+        method = request.method or "GET"
+
+        # Strip /api prefix to match Flask routes
+        if path.startswith("/api/"):
+            path = path[4:]  # Remove '/api' prefix
+        
+        # Handle legacy /index.py requests that should be mapped to proper endpoints
+        if path == "/index.py":
+            # Try to infer the route from method and query parameters
+            query_params = request.query or {}
+            if method == "GET" and "sync_id" in query_params:
+                path = "/pull"
+            elif method == "DELETE" and "sync_id" in query_params:
+                path = "/push"
+            elif method == "POST":
+                path = "/push"
             else:
-                query_parts.append(f"{key}={values}")
-        query_string = "&".join(query_parts)
-    
-    # Get body
-    body = getattr(request, 'body', None) or b''
-    if isinstance(body, str):
-        body = body.encode('utf-8')
-    
-    # Strip /api prefix from path to match Flask routes
-    path = request.path
-    if path.startswith('/api/'):
-        path = path[5:]  # Remove '/api' prefix
-
-    # Handle legacy /index.py requests from clients that incorrectly
-    # target /api/index.py instead of /api/pull, /api/push, etc.
-    if path == '/index.py':
-        # Map based on HTTP method and query params
-        query_params = request.query if hasattr(request, 'query') else {}
-        if request.method == 'GET' and 'sync_id' in query_params:
-            path = '/pull'
-        elif request.method == 'DELETE' and 'sync_id' in query_params:
-            path = '/push'
-        elif request.method == 'POST':
-            # POST to /index.py without sync_id -> likely /push
-            path = '/push'
-
-    # Build WSGI environ
-    environ = {
-        'REQUEST_METHOD': request.method,
-        'PATH_INFO': path,
-        'QUERY_STRING': query_string,
-        'SERVER_NAME': 'localhost',
-        'SERVER_PORT': '443',
-        'wsgi.url_scheme': 'https',
-        'wsgi.input': BytesIO(body),
-    }
-    
-    # Add headers
-    for key, value in request.headers.items():
-        key_upper = key.upper().replace('-', '_')
-        if key_upper != 'HOST':
-            environ[f'HTTP_{key_upper}'] = value
-    
-    # Set content info
-    if body:
-        environ['CONTENT_LENGTH'] = str(len(body))
-        content_type = request.headers.get('Content-Type', 'application/octet-stream')
-        environ['CONTENT_TYPE'] = content_type
-    
-    # Dispatch to Flask
-    with app.request_context(environ):
+                return WerkzeugResponse(
+                    b'{"error":"Unknown legacy endpoint"}',
+                    status=400,
+                    headers=[("Content-Type", "application/json")]
+                )
+        
+        # Reconstruct query string
+        query_string = ""
+        if request.query:
+            query_parts = []
+            for key, values in request.query.items():
+                if isinstance(values, list):
+                    for value in values:
+                        query_parts.append(f"{key}={value}")
+                else:
+                    query_parts.append(f"{key}={values}")
+            query_string = "&".join(query_parts)
+        
+        # Get request body
+        body = request.body if hasattr(request, "body") else b""
+        if isinstance(body, str):
+            body = body.encode("utf-8")
+        
+        # Build WSGI environ
+        environ = {
+            "REQUEST_METHOD": method,
+            "PATH_INFO": path,
+            "QUERY_STRING": query_string,
+            "SERVER_NAME": request.headers.get("Host", "localhost").split(":")[0],
+            "SERVER_PORT": "443",
+            "wsgi.url_scheme": "https",
+            "wsgi.input": BytesIO(body),
+            "wsgi.errors": BytesIO(),
+        }
+        
+        # Add headers to environ
+        for key, value in request.headers.items():
+            key_upper = key.upper().replace("-", "_")
+            if key_upper not in ("HOST", "CONTENT_LENGTH", "CONTENT_TYPE"):
+                environ[f"HTTP_{key_upper}"] = value
+        
+        # Set content headers
+        if body:
+            environ["CONTENT_LENGTH"] = str(len(body))
+            content_type = request.headers.get("Content-Type", "application/octet-stream")
+            environ["CONTENT_TYPE"] = content_type
+        else:
+            environ["CONTENT_LENGTH"] = "0"
+        
+        # Dispatch to Flask app
+        response = app(environ, lambda status, headers: None)
+        
+        # Collect response data
+        response_data = b""
+        for chunk in response:
+            response_data += chunk
+        
+        # Build status code and headers
+        status_code = 200
+        headers = []
+        
+        # Try to extract headers from Flask response if available
         try:
-            response = app.full_dispatch_request()
-            return WerkzeugResponse(
-                response.get_data(),
-                status=response.status_code,
-                headers=list(response.headers.items())
-            )
-        except Exception as e:
-            return WerkzeugResponse(
-                str(e).encode('utf-8'),
-                status=500,
-                headers=[('Content-Type', 'text/plain')]
-            )
+            with app.test_client() as client:
+                # Make the request through Flask test client to get proper response
+                if method == "GET":
+                    resp = client.get(path + ("?" + query_string if query_string else ""), headers=dict(request.headers))
+                elif method == "POST":
+                    resp = client.post(path + ("?" + query_string if query_string else ""), 
+                                     data=body if body else None,
+                                     headers=dict(request.headers))
+                elif method == "DELETE":
+                    resp = client.delete(path + ("?" + query_string if query_string else ""), 
+                                       headers=dict(request.headers))
+                else:
+                    resp = client.open(path + ("?" + query_string if query_string else ""),
+                                      method=method, data=body if body else None,
+                                      headers=dict(request.headers))
+                
+                status_code = resp.status_code
+                headers = list(resp.headers.items())
+                response_data = resp.get_data()
+        except Exception:
+            # Fallback: return raw response
+            status_code = 200
+            headers = [("Content-Type", "application/json")]
+        
+        return WerkzeugResponse(
+            response_data,
+            status=status_code,
+            headers=headers
+        )
+    except Exception as e:
+        import traceback
+        error_msg = f"Internal error: {str(e)}\n{traceback.format_exc()}"
+        return WerkzeugResponse(
+            error_msg.encode("utf-8"),
+            status=500,
+            headers=[("Content-Type", "text/plain")]
+        )
