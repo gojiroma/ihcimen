@@ -647,7 +647,20 @@ def handler(request):
     path = request.path
     if path.startswith('/api/'):
         path = path[5:]  # Remove '/api' prefix
-    
+
+    # Handle legacy /index.py requests from clients that incorrectly
+    # target /api/index.py instead of /api/pull, /api/push, etc.
+    if path == '/index.py':
+        # Map based on HTTP method and query params
+        query_params = request.query if hasattr(request, 'query') else {}
+        if request.method == 'GET' and 'sync_id' in query_params:
+            path = '/pull'
+        elif request.method == 'DELETE' and 'sync_id' in query_params:
+            path = '/push'
+        elif request.method == 'POST':
+            # POST to /index.py without sync_id -> likely /push
+            path = '/push'
+
     # Build WSGI environ
     environ = {
         'REQUEST_METHOD': request.method,
