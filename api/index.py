@@ -630,20 +630,16 @@ def handler(request):
         path = request.path or "/"
         method = request.method or "GET"
 
-        # Strip /api prefix to match Flask routes
-        if path.startswith("/api/"):
-            path = path[4:]  # Remove '/api' prefix
-        
         # Handle legacy /index.py requests that should be mapped to proper endpoints
-        if path == "/index.py":
+        if path == "/api/index.py" or path == "/index.py":
             # Try to infer the route from method and query parameters
             query_params = request.query or {}
             if method == "GET" and "sync_id" in query_params:
-                path = "/pull"
+                path = "/api/pull"
             elif method == "DELETE" and "sync_id" in query_params:
-                path = "/push"
+                path = "/api/push"
             elif method == "POST":
-                path = "/push"
+                path = "/api/push"
             else:
                 return WerkzeugResponse(
                     b'{"error":"Unknown legacy endpoint"}',
