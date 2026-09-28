@@ -262,6 +262,11 @@ def service_worker():
     return send_from_directory(app.static_folder, "sw.js", mimetype="application/javascript")
 
 
+@app.route("/manifest.json")
+def manifest():
+    return send_from_directory(app.static_folder, "manifest.json", mimetype="application/manifest+json")
+
+
 @app.route("/manual")
 @require_access(admin_only=True)
 def manual_page():
