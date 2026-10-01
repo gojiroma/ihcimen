@@ -2943,15 +2943,18 @@
           };
           resize();
           editor.addEventListener("input", () => {
-            saveBlockText(
-              block,
-              editor._lastSavedValue,
-              editor.value,
-              editor.dataset.historySaved ? null : sourceText
-            );
-            editor._lastSavedValue = editor.value;
-            editor.dataset.historySaved = "1";
-            resize();
+            clearTimeout(L);
+            L = setTimeout(() => {
+              saveBlockText(
+                block,
+                editor._lastSavedValue,
+                editor.value,
+                editor.dataset.historySaved ? null : sourceText
+              );
+              editor._lastSavedValue = editor.value;
+              editor.dataset.historySaved = "1";
+              resize();
+            }, 500);
           });
           editor.addEventListener("keydown", (e) => {
             if (
@@ -3103,32 +3106,36 @@
             map && (saveDailyForecastCache(map), renderScheduleBar());
           });
         },
-        fetchMarketQuote = (symbol) =>
-          fetch(
-            `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`
-          )
-            .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
-            .then((data) => {
-              const meta =
-                data &&
-                data.chart &&
-                data.chart.result &&
-                data.chart.result[0] &&
-                data.chart.result[0].meta;
-              if (!meta || "number" != typeof meta.regularMarketPrice)
-                return null;
-              const price = meta.regularMarketPrice,
-                prevClose =
-                  "number" == typeof meta.chartPreviousClose
-                    ? meta.chartPreviousClose
-                    : meta.previousClose,
-                changePercent =
-                  "number" == typeof prevClose && prevClose
-                    ? ((price - prevClose) / prevClose) * 100
-                    : null;
-              return { price, changePercent, updatedAt: Date.now() };
-            })
-            .catch(() => null),
+        fetchMarketQuote = (symbol) => {
+          try {
+            return fetch(
+              `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`
+            )
+              .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+              .then((data) => {
+                const meta =
+                  data &&
+                  data.chart &&
+                  data.chart.result &&
+                  data.chart.result[0] &&
+                  data.chart.result[0].meta;
+                if (!meta || "number" != typeof meta.regularMarketPrice)
+                  return null;
+                const price = meta.regularMarketPrice,
+                  prevClose =
+                    "number" == typeof meta.chartPreviousClose
+                      ? meta.chartPreviousClose
+                      : meta.previousClose,
+                  changePercent =
+                    "number" == typeof prevClose && prevClose
+                      ? ((price - prevClose) / prevClose) * 100
+                      : null;
+                return { price, changePercent, updatedAt: Date.now() };
+              });
+          } catch (err) {
+            return Promise.resolve(null);
+          }
+        },
         renderInfoWidget = () => {
           const cache = loadInfoWidgetCache();
           infoWidgetEl.innerHTML = "";
@@ -4865,10 +4872,15 @@
         setSyncSeed = (seed) => storage.setItem("syncSeed", seed),
         clearSyncSeed = () => storage.removeItem("syncSeed"),
         renderSyncQr = (seed) => {
-          window.QRCode &&
-            QRCode.toCanvas(syncQrCanvasEl, seed, { width: 200 }, (err) => {
-              err && console.error(err);
-            });
+          if (window.QRCode) {
+            try {
+              QRCode.toCanvas(syncQrCanvasEl, seed, { width: 200 }, (err) => {
+                err && console.error(err);
+              });
+            } catch (e) {
+              console.error("QRCode error:", e);
+            }
+          }
         },
         renderSyncPanel = () => {
           const seed = getSyncSeed(),
@@ -4928,9 +4940,15 @@
                 const w = syncScanCanvasEl.width,
                   h = syncScanCanvasEl.height;
                 ctx.drawImage(syncScanVideoEl, 0, 0, w, h);
-                const imageData = ctx.getImageData(0, 0, w, h),
-                  code =
-                    window.jsQR && jsQR(imageData.data, w, h);
+                let code = null;
+                try {
+                  const imageData = ctx.getImageData(0, 0, w, h);
+                  if (window.jsQR) {
+                    code = jsQR(imageData.data, w, h);
+                  }
+                } catch (e) {
+                  console.error("jsQR error:", e);
+                }
                 if (code && code.data) {
                   stopQrScan(), importSyncSeed(code.data);
                   return;
@@ -5688,11 +5706,14 @@
             (noteInput.placeholder = "予定を入力"),
             (noteInput.value = storage.getItem(`note:${key}`) || "");
           noteInput.addEventListener("input", () => {
-            const v = noteInput.value;
-            v
-              ? storage.setItem(`note:${key}`, v)
-              : storage.removeItem(`note:${key}`);
-            maybeSyncPushChannel("calendar");
+            clearTimeout(L);
+            L = setTimeout(() => {
+              const v = noteInput.value;
+              v
+                ? storage.setItem(`note:${key}`, v)
+                : storage.removeItem(`note:${key}`);
+              maybeSyncPushChannel("calendar");
+            }, 500);
           }),
             cell.appendChild(dateLabel);
           const forecast = dailyForecastCache[key];
