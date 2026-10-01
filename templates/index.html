@@ -2935,7 +2935,7 @@
               block.headingText ? `${block.headingText} を編集` : "メモを編集"
             ));
           const resize = () => {
-            editor.style.height = "0px";
+            editor.style.height = "auto";
             editor.style.height = Math.max(editor.scrollHeight, 80) + "px";
           };
           resize();
