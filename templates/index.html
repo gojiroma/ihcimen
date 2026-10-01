@@ -2009,7 +2009,6 @@
         <strong>?</strong> またはメニューから。
         <button id="privacyBannerDismiss" type="button">閉じる</button>
       </p>
-      <textarea class="text-box" id="textBox" placeholder="新しいメモ..."></textarea>
       <div class="markdown-viewer" id="markdownViewer"></div>
     </div>
   </div>
@@ -2288,7 +2287,7 @@
       let storage = window.localStorage,
         isSharedSession = !1;
       // h1見出し("# ")・箇条書き("- ")の自動補完/継続、Tabでのインデント、
-      // Alt+↑/↓での行入れ替えを行う。通常の編集(textBox)と新規メモ欄
+      // Alt+↑/↓での行入れ替えを行う。新規メモ欄
       // (new-block-box)の両方から呼び出せるよう、対象の textarea/input
       // 要素(el)を引数に取る形で共通化している。
       const applyMarkdownEditorKeydown = (el, e) => {
@@ -2411,7 +2410,6 @@
         "yearDisplay",
         "monthDayDisplay",
         "weekdayDisplay",
-        "textBox",
         "markdownViewer",
         "fileInput",
         "shortcutModal",
@@ -2425,7 +2423,6 @@
           yearDisplay: t,
           monthDayDisplay: a,
           weekdayDisplay: l,
-          textBox: s,
           markdownViewer: o,
           fileInput: r,
           shortcutModal: p,
