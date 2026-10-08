@@ -1160,6 +1160,7 @@
       resize: none;
       overflow: hidden;
       word-break: break-all;
+      field-sizing: content;
     }
 
     .new-block-box {
@@ -2922,6 +2923,16 @@
             editor.style.height = Math.max(editor.scrollHeight, 80) + "px";
           };
           resize();
+          // 生成時はDOM未接続でscrollHeightが0になるため、接続後や幅の変化
+          // (折り返し位置の変化)でも高さを再計算する。
+          if ("undefined" != typeof ResizeObserver) {
+            let lastWidth = 0;
+            new ResizeObserver(() => {
+              editor.clientWidth !== lastWidth &&
+                ((lastWidth = editor.clientWidth), resize());
+            }).observe(editor);
+          }
+          editor.addEventListener("focus", resize);
           editor.addEventListener("input", () => {
             resize();
             clearTimeout(L);
