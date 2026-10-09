@@ -114,13 +114,6 @@
       user-select: none;
     }
 
-    /* タッチデバイスで編集中は、周辺UIを隠して本文に集中できるようにする */
-    body.touch-editing .search-pane,
-    body.touch-editing .edge-swipe-zone,
-    body.touch-editing .h1-shortcut-bar {
-      display: none;
-    }
-
     body.touch-editing .date-display {
       position: fixed;
       top: 10px;
@@ -555,47 +548,6 @@
       padding: 0;
     }
 
-    .content-block {
-      position: relative;
-      width: 700px;
-      max-width: 100%;
-      margin: 0 auto;
-      padding-left: 30px;
-      box-sizing: border-box;
-    }
-
-    /* 横幅に余裕がある画面では、縦に長くなりがちなブロック一覧を
-       段組みにして無駄な余白を使う。段数は画面幅に応じて2→3→4と増やす
-       (目安: FullHDで2段、WQHDで3段、4Kで4段)。 */
-    @media (min-width: 1600px) {
-      #markdownViewer {
-        column-count: 2;
-        column-gap: 80px;
-        max-width: 1520px;
-        margin: 0 auto;
-      }
-
-      .content-block {
-        break-inside: avoid;
-      }
-    }
-
-    @media (min-width: 2400px) {
-      #markdownViewer {
-        column-count: 3;
-        column-gap: 64px;
-        max-width: 2280px;
-      }
-    }
-
-    @media (min-width: 3200px) {
-      #markdownViewer {
-        column-count: 4;
-        column-gap: 56px;
-        max-width: 2968px;
-      }
-    }
-
     /* 本文は常に編集可能なtextareaとして表示する。ブロックごとに高さを
        内容へ合わせるため、本文全体は .content-area だけをスクロールする。 */
     .block-editor {
@@ -610,34 +562,6 @@
       overflow: hidden;
       word-break: break-all;
       field-sizing: content;
-    }
-
-    .new-block-box {
-      display: block;
-      width: 700px;
-      max-width: 100%;
-      min-width: 0;
-      margin: 0 auto 20px;
-      border: none;
-      border-bottom: 1px dashed #ccc;
-      padding: 5px 5px 10px;
-      font-size: large;
-      line-height: 200%;
-      word-break: break-all;
-      flex-shrink: 0;
-      box-sizing: border-box;
-      resize: none;
-      outline: 0;
-      color: inherit;
-      background-color: transparent;
-    }
-
-    /* プレースホルダー("新しいメモ...")はブラウザ既定色だと暗色固定の
-       ことがあり、ダークモードで背景と同化して見えなくなるため、
-       テーマの文字色を基準に明示指定する。 */
-    .new-block-box::placeholder {
-      color: var(--text-color);
-      opacity: 0.35;
     }
 
     /* 新規記入欄の編集中は、文字色を明暗モードに合わせ、
@@ -898,21 +822,6 @@
       }
     }
 
-    /* h1へのジャンプ時にジャンプ先を一瞬ハイライトする */
-    .jump-highlight {
-      animation: jumpHighlightFade 1.3s ease;
-    }
-
-    @keyframes jumpHighlightFade {
-      0% {
-        background-color: rgba(59, 130, 196, 0.35);
-      }
-
-      100% {
-        background-color: transparent;
-      }
-    }
-
     .history-modal-content {
       margin: 4vh auto;
       height: 92vh;
@@ -969,119 +878,9 @@
       padding: 4px 110px 4px 4px;
     }
 
-    .history-block-insert {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      font: inherit;
-      font-size: 11px;
-      white-space: nowrap;
-      padding: 4px 8px;
-      border: 1px solid rgba(128, 128, 128, 0.4);
-      border-radius: 6px;
-      background: none;
-      color: inherit;
-      cursor: pointer;
-      opacity: 0.65;
-    }
-
-    .history-block-insert:hover {
-      opacity: 1;
-    }
-
-    /* h1ショートカット */
-    .h1-shortcut-bar {
-      position: fixed;
-      top: 10px;
-      right: 176px;
-      z-index: 450;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      max-width: 260px;
-      justify-content: flex-end;
-    }
-
-    .h1-shortcut-chip {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 12px;
-      padding: 4px 8px;
-      border: 1px solid rgba(128, 128, 128, 0.4);
-      border-radius: 12px;
-      background-color: var(--bg-color);
-      color: inherit;
-      opacity: 0.6;
-      max-width: 160px;
-    }
-
-    .h1-shortcut-chip:hover {
-      opacity: 1;
-    }
-
-    .h1-shortcut-chip .chip-label {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .h1-shortcut-chip .chip-remove {
-      flex-shrink: 0;
-      font: inherit;
-      font-size: 12px;
-      line-height: 1;
-      background: none;
-      border: none;
-      color: inherit;
-      opacity: 0.5;
-      cursor: pointer;
-      padding: 0;
-    }
-
-    .h1-shortcut-chip .chip-remove:hover {
-      opacity: 1;
-    }
-
     /* 検索パネル(左側) */
     .container {
       padding-left: 240px;
-    }
-
-    body.search-pane-collapsed .container {
-      padding-left: 0;
-    }
-
-    .search-pane {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 240px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      border-right: 1px solid #ddd;
-      background-color: var(--bg-color);
-      z-index: 400;
-      transition: transform 0.25s ease;
-    }
-
-    body.search-pane-collapsed .search-pane {
-      transform: translateX(-100%);
-      pointer-events: none;
-    }
-
-    #searchPaneOpenZone {
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 80px;
-    }
-
-    body.search-pane-collapsed #searchPaneOpenZone {
-      pointer-events: auto;
     }
 
     .search-input-wrap {
@@ -1099,134 +898,6 @@
       opacity: 0.6;
     }
 
-    #searchPaneInput {
-      flex: 1;
-      min-width: 0;
-      border: 1px solid rgba(128, 128, 128, 0.4);
-      border-radius: 14px;
-      padding: 6px 12px;
-      font: inherit;
-      font-size: 14px;
-      background-color: var(--bg-color);
-      color: inherit;
-      outline: none;
-      box-sizing: border-box;
-    }
-
-    #searchPaneInput:focus {
-      border-color: rgba(80, 80, 80, 0.8);
-    }
-
-    #searchPaneResults {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      overflow-y: auto;
-      /* .schedule-noteと同じ理由: 縦スクロール領域を持つこの要素はtouch-action
-         を明示しないと、閉じるフリック(左方向)の途中でブラウザに縦スクロール
-         ジェスチャーと誤認されpointercancelで中断されてしまう。 */
-      touch-action: pan-y;
-      flex: 1;
-    }
-
-    .search-pane-result {
-      box-sizing: border-box;
-      padding: 10px;
-      border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-      border-left: 4px solid transparent;
-      cursor: pointer;
-      font-size: 13px;
-    }
-
-    .search-pane-result:hover {
-      background-color: rgba(128, 128, 128, 0.1);
-    }
-
-    .search-result-date {
-      font-weight: 700;
-      font-size: 11px;
-      opacity: 0.7;
-      margin-bottom: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .search-result-snippet {
-      line-height: 1.4;
-      word-break: break-all;
-    }
-
-    .search-result-snippet u {
-      text-decoration: underline;
-    }
-
-    .search-pane-empty {
-      padding: 10px;
-      font-size: 13px;
-      opacity: 0.6;
-    }
-
-    .search-pane-history {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 8px 10px;
-      border-bottom: 1px solid rgba(128, 128, 128, 0.15);
-      flex-shrink: 0;
-      box-sizing: border-box;
-    }
-
-    .search-pane-history:empty {
-      display: none;
-      padding: 0;
-      border-bottom: none;
-    }
-
-    .search-history-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font: inherit;
-      font-size: 12px;
-      line-height: 1.3;
-      max-width: 100%;
-      padding: 3px 4px 3px 10px;
-      border: 1px solid rgba(128, 128, 128, 0.35);
-      border-radius: 12px;
-      background-color: rgba(128, 128, 128, 0.08);
-      color: inherit;
-      cursor: pointer;
-    }
-
-    .search-history-chip:hover {
-      background-color: rgba(128, 128, 128, 0.18);
-    }
-
-    .search-history-chip-label {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 110px;
-    }
-
-    .search-history-chip-remove {
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      opacity: 0.55;
-      font-size: 12px;
-      line-height: 1;
-    }
-
-    .search-history-chip-remove:hover {
-      opacity: 1;
-      background-color: rgba(128, 128, 128, 0.25);
-    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1/dist/jsQR.js"></script>
@@ -1237,20 +908,6 @@
     <div class="initial-load-spinner"></div>
     <div class="initial-load-text">同期データを取得中...</div>
   </div>
-  <div id="h1ShortcutBar" class="h1-shortcut-bar"></div>
-  <div id="searchPane" class="search-pane">
-    <div class="search-input-wrap">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="10" cy="10" r="7" />
-        <line x1="21" y1="21" x2="15.5" y2="15.5" />
-      </svg>
-      <input type="text" id="searchPaneInput" placeholder="検索 (fキー)" />
-    </div>
-    <div id="searchPaneHistory" class="search-pane-history"></div>
-    <ul id="searchPaneResults"></ul>
-  </div>
-  <div id="searchPaneOpenZone" class="edge-swipe-zone" aria-hidden="true"></div>
   <div class="container">
     <div class="date-display" id="dateDisplay" title="クリック:今日に移動(今日を表示中は本文をコピー) / 長押し:バージョン履歴 / ダブルクリック:メニュー">
       <span class="year" id="yearDisplay">YYYY</span>
@@ -1396,7 +1053,7 @@
         isSharedSession = !1;
       // h1見出し("# ")・箇条書き("- ")の自動補完/継続、Tabでのインデント、
       // Alt+↑/↓での行入れ替えを行う。新規メモ欄
-      // (new-block-box)の両方から呼び出せるよう、対象の textarea/input
+      // から呼び出せるよう、対象の textarea/input
       // 要素(el)を引数に取る形で共通化している。
       const applyMarkdownEditorKeydown = (el, e) => {
         if (e.isComposing || 229 === e.keyCode) return;
@@ -1584,10 +1241,6 @@
         historyMetaEl = document.getElementById("historyMeta"),
         historyPreviewEl = document.getElementById("historyPreview"),
         historyRestoreBtnEl = document.getElementById("historyRestoreBtn"),
-        h1ShortcutBarEl = document.getElementById("h1ShortcutBar"),
-        searchPaneInputEl = document.getElementById("searchPaneInput"),
-        searchPaneResultsEl = document.getElementById("searchPaneResults"),
-        searchPaneHistoryEl = document.getElementById("searchPaneHistory"),
         v = {
           selectedDate: new Date(),
           saveTimer: void 0,
@@ -1598,12 +1251,7 @@
       } = v,
         sDirty = !1,
         editBaseline = "",
-        sessionSnapshotDone = !1,
-        activeBlockKey = null,
-        activeBlockPrefix = "",
-        activeBlockSuffix = "",
-        activeBlockEl = null,
-        newBlockBoxEl = null,
+        dayEditorEl = null,
         syncPushTimers = { entries: null },
         syncScanStream = null,
         syncHealthy = !0;
@@ -1652,297 +1300,11 @@
           const t = e.trim();
           return "" !== t && "#" !== t;
         },
-        // 本文欄の高さをコンテンツ量に合わせて伸縮させる。空/短い日でも
-        // ある程度の高さ(クリックしやすい余白)は確保しつつ、長い日は
-        // それに合わせて伸ばすことで、.content-area 側のスクロールだけで
-        // 全体に届くようにする(テキストエリア自身の内部スクロールを
-        // 発生させない)。
-        resizeTextBox = () => {
-          (s.style.height = "0px"),
-            (s.style.height = Math.max(s.scrollHeight, 80) + "px");
-        },
         A = (e) => {
-          renderDayBlocks(e);
+          renderDay(e);
         },
         O = (e, t) => {
           e.style.display = t ? "block" : "none";
-        },
-        normalizeForSearch = (e) =>
-          e
-            .normalize("NFKC")
-            .toLowerCase()
-            .replace(/[ァ-ヶ]/g, (c) =>
-              String.fromCharCode(c.charCodeAt(0) - 0x60)
-            ),
-        escapeHtml = (str) =>
-          str
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;"),
-        // 本文中の見出し(h1: "# " で始まる行)を、開始/終了位置つきで列挙する
-        getHeadings = (text) => {
-          const re = /^#\s(.+)$/gm,
-            headings = [];
-          let m;
-          for (; null !== (m = re.exec(text));)
-            headings.push({
-              text: m[1],
-              start: m.index,
-              end: m.index + m[0].length,
-            });
-          return headings;
-        },
-        // ジャンプ元・ジャンプ先の要素を一瞬ハイライトして、どこへ移動したか
-        // 分かりやすくする(h1ショートカット・検索パネルのジャンプで使用)。
-        flashHighlight = (el) => {
-          if (!el) return;
-          el.classList.remove("jump-highlight"),
-            void el.offsetWidth,
-            el.classList.add("jump-highlight");
-        },
-        // --- h1ブロック分割・日またぎ参照 ---
-        // 生テキストを、見出し行(あれば)+本文からなるブロックの配列に分割する。
-        // 見出しより前に本文がある場合(過去データ等)は見出し無しブロックとして扱う。
-        getLocalHeadingBlocks = (text) => {
-          const headings = getHeadings(text),
-            blocks = [];
-          if (!headings.length)
-            return Z(text)
-              ? [{ headingText: null, headStart: 0, headEnd: 0, bodyStart: 0, bodyEnd: text.length }]
-              : [];
-          if (headings[0].start > 0) {
-            const pre = text.slice(0, headings[0].start);
-            Z(pre) &&
-              blocks.push({
-                headingText: null,
-                headStart: 0,
-                headEnd: 0,
-                bodyStart: 0,
-                bodyEnd: headings[0].start,
-              });
-          }
-          return (
-            headings.forEach((h, i) => {
-              const bodyEnd =
-                i + 1 < headings.length ? headings[i + 1].start : text.length;
-              blocks.push({
-                headingText: h.text,
-                headStart: h.start,
-                headEnd: h.end,
-                bodyStart: h.end,
-                bodyEnd,
-              });
-            }),
-            blocks
-          );
-        },
-        // 完全一致する見出し(本文あり)を、指定日以外の全日程から探す。
-        findExternalHeadingBlock = (headingText, excludeKey) => {
-          for (let i = 0; i < storage.length; i++) {
-            const key = storage.key(i);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key === excludeKey) continue;
-            const text = storage.getItem(key),
-              match = getLocalHeadingBlocks(text).find(
-                (b) =>
-                  b.headingText === headingText &&
-                  Z(text.slice(b.bodyStart, b.bodyEnd))
-              );
-            if (match) return { dateKey: key, rawText: text, ...match };
-          }
-          return null;
-        },
-        // 指定日のテキストを、日またぎ参照も解決した表示用ブロック配列にする。
-        buildDayBlocks = (date) => {
-          const dateKey = toDateKey(date),
-            rawText = storage.getItem(dateKey) || "# ";
-          return getLocalHeadingBlocks(rawText).map((b) => {
-            const localBody = rawText.slice(b.bodyStart, b.bodyEnd),
-              headingLine = rawText.slice(b.headStart, b.headEnd);
-            if (b.headingText !== null && !Z(localBody)) {
-              const origin = findExternalHeadingBlock(b.headingText, dateKey);
-              if (origin) {
-                const originBody = origin.rawText.slice(
-                  origin.bodyStart,
-                  origin.bodyEnd
-                );
-                return {
-                  headingText: b.headingText,
-                  isReference: !0,
-                  boundDateKey: origin.dateKey,
-                  localStart: b.headStart,
-                  localEnd: b.bodyEnd,
-                  editStart: origin.headStart,
-                  editEnd: origin.bodyEnd,
-                  headingLine,
-                  bodyText: originBody,
-                  fullText: headingLine + originBody,
-                };
-              }
-            }
-            return {
-              headingText: b.headingText,
-              isReference: !1,
-              boundDateKey: dateKey,
-              localStart: b.headStart,
-              localEnd: b.bodyEnd,
-              editStart: b.headStart,
-              editEnd: b.bodyEnd,
-              headingLine,
-              bodyText: localBody,
-              fullText: rawText.slice(b.headStart, b.bodyEnd),
-            };
-          });
-        },
-        // 本文は常にtextareaで表示されるため、旧来の「閲覧→編集」切替は不要。
-        flushActiveBlock = () => null,
-        activateBlock = (blockEl, caretPos) => {
-          const editor = blockEl && blockEl.querySelector(".block-editor");
-          if (!editor) return;
-          editor.focus();
-          const pos = "number" == typeof caretPos ? caretPos : editor.value.length;
-          editor.selectionStart = editor.selectionEnd = Math.min(pos, editor.value.length);
-        },
-        // ブロックを直接保存する。閲覧用HTMLを介さず、各textareaの内容を
-        // 対応する日付の生テキストへ反映する。
-        saveBlockText = (block, previousValue, value, baseline) => {
-          const current = storage.getItem(block.boundDateKey) || "# ",
-            start = current.indexOf(previousValue);
-          // 他のtextareaで先に編集された内容を上書きしないよう、描画時の
-          // 固定オフセットではなく、このtextareaが最後に保存したブロックを
-          // 現在の本文から探して差し替える。
-          if (-1 === start) return;
-          const next = current.slice(0, start) + value + current.slice(start + previousValue.length);
-          if (next === current) return;
-          baseline && snapshotHistory(block.boundDateKey, baseline);
-          try {
-            storage.setItem(block.boundDateKey, next);
-            hideSaveStatus();
-            H();
-            maybeSyncPushChannel("entries");
-          } catch (err) {
-            showSaveStatus("error", "保存に失敗しました");
-            console.error("Save error:", err);
-          }
-        },
-        deleteBlock = (blockEl) => {
-          const block = blockEl._block,
-            dateKey = toDateKey(f),
-            text = storage.getItem(dateKey) || "# ",
-            currentBlock = getLocalHeadingBlocks(text).find(
-              (candidate) => candidate.headingText === block.headingText
-            );
-          if (!currentBlock) return;
-          const next =
-            text.slice(0, currentBlock.headStart) + text.slice(currentBlock.bodyEnd);
-          snapshotHistory(dateKey, text),
-            Z(next) ? storage.setItem(dateKey, next) : storage.removeItem(dateKey),
-            H(),
-            maybeSyncPushChannel("entries"),
-            renderDayBlocks(f),
-            renderSearchPaneResults(searchPaneInputEl.value);
-        },
-        buildBlockElement = (block) => {
-          const blockEl = document.createElement("div"),
-            editor = document.createElement("textarea"),
-            sourceText = storage.getItem(block.boundDateKey) || "# ";
-          blockEl.className = "content-block";
-          blockEl._block = block;
-          (editor.className = "block-editor"),
-            (editor.value = block.fullText),
-            (editor.rows = 1),
-            (editor._lastSavedValue = block.fullText),
-            (editor.setAttribute(
-              "aria-label",
-              block.headingText ? `${block.headingText} を編集` : "メモを編集"
-            ));
-          const resize = () => {
-            editor.style.height = "auto";
-            editor.style.height = Math.max(editor.scrollHeight, 80) + "px";
-          };
-          resize();
-          // 生成時はDOM未接続でscrollHeightが0になるため、接続後や幅の変化
-          // (折り返し位置の変化)でも高さを再計算する。
-          if ("undefined" != typeof ResizeObserver) {
-            let lastWidth = 0;
-            new ResizeObserver(() => {
-              editor.clientWidth !== lastWidth &&
-                ((lastWidth = editor.clientWidth), resize());
-            }).observe(editor);
-          }
-          editor.addEventListener("focus", resize);
-          editor.addEventListener("input", () => {
-            resize();
-            clearTimeout(L);
-            L = setTimeout(() => {
-              saveBlockText(
-                block,
-                editor._lastSavedValue,
-                editor.value,
-                editor.dataset.historySaved ? null : sourceText
-              );
-              editor._lastSavedValue = editor.value;
-              editor.dataset.historySaved = "1";
-              resize();
-            }, 500);
-          });
-          editor.addEventListener("keydown", (e) => {
-            if (
-              !e.isComposing &&
-              229 !== e.keyCode &&
-              "Enter" === e.key &&
-              (e.metaKey || e.ctrlKey)
-            ) {
-              e.preventDefault();
-              newBlockBoxEl && newBlockBoxEl.focus();
-              return;
-            }
-            applyMarkdownEditorKeydown(editor, e);
-          });
-          editor.addEventListener("focus", () => {
-            isTouchDevice && document.body.classList.add("touch-editing");
-          });
-          editor.addEventListener("blur", () => {
-            document.body.classList.remove("touch-editing");
-          });
-          // 削除ボタンは出さず、右クリックまたは長押しで削除を確認する。
-          let lastAsk = 0;
-          const askDelete = () => {
-            if (Date.now() - lastAsk < 800) return;
-            lastAsk = Date.now();
-            confirm("このブロックを削除しますか?") && deleteBlock(blockEl);
-          };
-          blockEl.addEventListener("contextmenu", (e) => {
-            e.preventDefault();
-            askDelete();
-          });
-          let pressTimer = null,
-            pressX = 0,
-            pressY = 0;
-          const cancelPress = () => {
-            clearTimeout(pressTimer);
-            pressTimer = null;
-          };
-          blockEl.addEventListener(
-            "touchstart",
-            (e) => {
-              if (e.touches.length !== 1) return cancelPress();
-              pressX = e.touches[0].clientX;
-              pressY = e.touches[0].clientY;
-              cancelPress();
-              pressTimer = setTimeout(askDelete, 700);
-            },
-            { passive: true }
-          );
-          blockEl.addEventListener(
-            "touchmove",
-            (e) => {
-              const t = e.touches[0];
-              Math.hypot(t.clientX - pressX, t.clientY - pressY) > 10 && cancelPress();
-            },
-            { passive: true }
-          );
-          ["touchend", "touchcancel"].forEach((n) => blockEl.addEventListener(n, cancelPress));
-          return blockEl.append(editor), blockEl;
         },
         // --- 日経平均・ドル円のミニウィジェット ---
         // 取得に失敗した項目はそのまま表示しない
@@ -2046,51 +1408,6 @@
             setInterval(refreshInfoWidget, INFO_WIDGET_REFRESH_MS),
             infoWidgetEl.addEventListener("click", refreshInfoWidget);
         },
-        // 起動時に1回だけ実行する後始末: 本文ありの同名見出しが複数日に
-        // またがって存在する場合、日付が古い方を残し、それ以外の見出しに
-        // ランダム2文字のサフィックスを付けて重複を解消する。以降は新規
-        // ブロック作成時の「完全一致なら呼び出す」ルールにより、新たな
-        // 重複は基本的に発生しない想定。
-        dedupeDuplicateHeadings = () => {
-          const owners = {};
-          for (let i = 0; i < storage.length; i++) {
-            const key = storage.key(i);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = storage.getItem(key);
-            getLocalHeadingBlocks(text).forEach((b) => {
-              null === b.headingText ||
-                !Z(text.slice(b.bodyStart, b.bodyEnd)) ||
-                ((owners[b.headingText] = owners[b.headingText] || []),
-                  owners[b.headingText].push(key));
-            });
-          }
-          let renamed = 0;
-          Object.keys(owners).forEach((headingText) => {
-            const keys = Array.from(new Set(owners[headingText])).sort();
-            if (keys.length < 2) return;
-            keys.slice(1).forEach((key) => {
-              const original = storage.getItem(key);
-              let text = original,
-                shift = 0;
-              getLocalHeadingBlocks(original)
-                .filter(
-                  (b) =>
-                    b.headingText === headingText &&
-                    Z(original.slice(b.bodyStart, b.bodyEnd))
-                )
-                .forEach((b) => {
-                  const suffix = `_${key.slice(2).replace(/-/g, "")}`,
-                    insertPos = b.headEnd + shift;
-                  (text =
-                    text.slice(0, insertPos) + suffix + text.slice(insertPos)),
-                    (shift += suffix.length);
-                });
-              text !== original &&
-                (storage.setItem(key, text), renamed++);
-            });
-          });
-          return renamed;
-        },
         // 中身が実質空("# "だけ、など)の日付キーをstorageから取り除く。
         // 以前はブロックを全削除すると"# "だけが残ってしまっていたため、
         // 既に溜まっている分の一括クリーンアップも兼ねる。storage.lengthが
@@ -2105,85 +1422,83 @@
           }
           return removed;
         },
-        // 新規ブロック用の常設textarea(末尾固定)を初期化する。
-        setupNewBlockBox = () => {
-          const box = document.createElement("textarea"),
-            // 本文の記入欄(resizeTextBox)と同じ最低高さに揃える。以前は
-            // フォーカス中(=実際にタイプしている間)だけ自動伸縮を止めて
-            // しまっていたため、新規メモ欄が常に1行分の高さのままにしか
-            // ならず、書いた内容が内部スクロールに隠れて「小さすぎる」
-            // 状態になっていた。
-            resizeNewBlockBox = () => {
-              box.style.height = "0px";
-              box.style.height = Math.max(box.scrollHeight, 80) + "px";
-            };
-          return (
-            (box.className = "new-block-box"),
-            (box.placeholder = "新しいメモ..."),
-            (box.rows = 1),
-            box.addEventListener("input", resizeNewBlockBox),
-            box.addEventListener("keydown", (e) => {
-              if (
-                !e.isComposing &&
-                229 !== e.keyCode &&
-                "Enter" === e.key &&
-                (e.metaKey || e.ctrlKey)
-              ) {
-                // Cmd/Ctrl+Enter: 今書いている話題を確定保存し、
-                // 続けて別の新しい話題を書き始められるようにする。
-                e.preventDefault();
-                commitNewBlockBox(box);
-                box.focus();
-                return;
-              }
-              applyMarkdownEditorKeydown(box, e);
-            }),
-            box.addEventListener("focus", () => {
-              box.value ||
-                ((box.value = "# "),
-                  (box.selectionStart = box.selectionEnd = 2));
-              resizeNewBlockBox();
-              document.body.classList.add("new-entry-focus");
-            }),
-            box.addEventListener("blur", () => {
-              document.body.classList.remove("new-entry-focus"),
-                commitNewBlockBox(box);
-            }),
-            box
-          );
+        // 前回のカーソル位置(日付と文字位置)を1つだけ覚えておく。
+        CARET_KEY = "lastCaret",
+        saveCaret = () => {
+          if (!dayEditorEl) return;
+          try {
+            storage.setItem(
+              CARET_KEY,
+              JSON.stringify({
+                date: dayEditorEl._dateKey,
+                pos: dayEditorEl.selectionStart,
+              })
+            );
+          } catch (err) { }
         },
-        commitNewBlockBox = (box) => {
-          const raw = box.value;
-          if (!Z(raw)) return void (box.value = "");
-          const lines = raw.split("\n"),
-            // 1行目で "#" を入力すると applyMarkdownEditorKeydown が
-            // 見出し記号 "# " を補完するため、そのまま使うと下で "# " が
-            // 二重に付いてしまう。ここで補完済みの "# " を取り除いておく。
-            headingText = lines[0].trim().replace(/^#\s+/, ""),
-            rest = lines.slice(1).join("\n"),
-            dateKey = toDateKey(f),
-            dayText = storage.getItem(dateKey) || "# ",
-            base = Z(dayText) ? dayText : "",
-            newBlock = `# ${headingText}${rest ? "\n" + rest : ""}`,
-            next = base ? newBlock + "\n" + base : newBlock;
-          snapshotHistory(dateKey, dayText),
-            storage.setItem(dateKey, next),
-            (box.value = ""),
-            (box.style.height = ""),
-            H(),
-            maybeSyncPushChannel("entries"),
-            renderDayBlocks(f);
+        restoreCaret = () => {
+          if (!dayEditorEl) return;
+          let saved = null;
+          try {
+            saved = JSON.parse(storage.getItem(CARET_KEY) || "null");
+          } catch (err) { }
+          const pos =
+            saved && saved.date === dayEditorEl._dateKey && "number" == typeof saved.pos
+              ? Math.min(saved.pos, dayEditorEl.value.length)
+              : dayEditorEl.value.length;
+          dayEditorEl.focus({ preventScroll: !0 });
+          dayEditorEl.selectionStart = dayEditorEl.selectionEnd = pos;
         },
-        // 指定日をブロック単位で描画する(旧A()相当)。
-        renderDayBlocks = (date) => {
-          // 各ブロックは独立したtextareaで即時保存されるため、切替前の
-          // 編集モード確定処理は不要。
-          const blocks = buildDayBlocks(date);
-          newBlockBoxEl || (newBlockBoxEl = setupNewBlockBox());
+        resizeDayEditor = () => {
+          dayEditorEl.style.height = "auto";
+          dayEditorEl.style.height = Math.max(dayEditorEl.scrollHeight, 80) + "px";
+        },
+        // 日全体を1つのtextareaで描画する。textareaは使い回し、日付が
+        // 変わったときは中身と対象日だけ差し替える。
+        renderDay = (date) => {
+          if (!dayEditorEl) {
+            const editor = document.createElement("textarea");
+            (editor.className = "block-editor"),
+              (editor.rows = 1),
+              editor.setAttribute("aria-label", "メモを編集"),
+              editor.addEventListener("input", () => {
+                resizeDayEditor();
+                sDirty = !0;
+                clearTimeout(L);
+                L = setTimeout(saveCurrentMemo, 500);
+              }),
+              editor.addEventListener("keydown", (e) =>
+                applyMarkdownEditorKeydown(editor, e)
+              ),
+              editor.addEventListener("keyup", saveCaret),
+              editor.addEventListener("click", saveCaret),
+              editor.addEventListener("focus", () => {
+                resizeDayEditor();
+                isTouchDevice && document.body.classList.add("touch-editing");
+              }),
+              editor.addEventListener("blur", () => {
+                saveCaret();
+                saveCurrentMemo();
+                document.body.classList.remove("touch-editing");
+              }),
+              "undefined" != typeof ResizeObserver &&
+                (() => {
+                  let lastWidth = 0;
+                  new ResizeObserver(() => {
+                    editor.clientWidth !== lastWidth &&
+                      ((lastWidth = editor.clientWidth), resizeDayEditor());
+                  }).observe(editor);
+                })();
+            dayEditorEl = editor;
+          }
+          const dateKey = toDateKey(date);
+          dayEditorEl._dateKey = dateKey;
+          dayEditorEl.value = storage.getItem(dateKey) || "";
+          sDirty = !1;
+          editBaseline = "";
           o.innerHTML = "";
-          o.appendChild(newBlockBoxEl),
-            (newBlockBoxEl.style.height = "");
-          blocks.forEach((block) => o.appendChild(buildBlockElement(block)));
+          o.appendChild(dayEditorEl);
+          resizeDayEditor();
         },
         // --- バージョン履歴(storageのみ、日付ごと) ---
         MAX_HISTORY_VERSIONS = 30,
@@ -2217,28 +1532,6 @@
             O(historyModalEl, !0),
             renderHistoryPreview();
         },
-        // 履歴中の1バージョンのテキストを、h1見出し単位のブロック配列にする
-        // (buildDayBlocksと違い、日またぎ参照の解決は行わない単純な分割)。
-        buildHistoryBlocks = (content) =>
-          getLocalHeadingBlocks(content).map((b) => ({
-            headingText: b.headingText,
-            bodyText: content.slice(b.bodyStart, b.bodyEnd),
-            fullText: content.slice(b.headStart, b.bodyEnd),
-          })),
-        // 履歴で選んだ1ブロックの内容を、その日の「今のバージョン」の先頭に挿入する。
-        // (全体上書きのrestoreHistoryVersionと違い、他のブロックには触れない)
-        insertHistoryBlockIntoCurrent = (blockText) => {
-          const dateKey = toDateKey(f),
-            current = storage.getItem(dateKey) || "# ";
-          snapshotHistory(dateKey, current);
-          const base = Z(current) ? current : "",
-            next = base ? `${blockText}\n${base}` : blockText;
-          storage.setItem(dateKey, next),
-            A(f),
-            H(),
-            maybeSyncPushChannel("entries"),
-            showToast("今のバージョンに挿入しました", "success");
-        },
         renderHistoryPreview = () => {
           const dateKey = toDateKey(f),
             hist = loadHistory(dateKey),
@@ -2248,38 +1541,11 @@
           historyMetaEl.textContent = `${idx + 1} / ${hist.length}  ${new Date(
             entry.ts
           ).toLocaleString("ja-JP")}  (${entry.content.length} 文字)`;
-          const prevContent = idx > 0 ? hist[idx - 1].content : "",
-            // 履歴も生テキストのまま比較・表示する。
-            prevTexts = new Set(
-              buildHistoryBlocks(prevContent).map((b) => b.fullText)
-            ),
-            blocks = buildHistoryBlocks(entry.content);
           historyPreviewEl.innerHTML = "";
-          let firstChanged = null;
-          blocks.forEach((block) => {
-            const wrap = document.createElement("div");
-            wrap.className = "history-block";
-            prevTexts.has(block.fullText) ||
-              (wrap.classList.add("history-diff-changed"),
-                firstChanged || (firstChanged = wrap));
-            const viewEl = document.createElement("pre");
-            (viewEl.className = "history-preview-text"),
-              (viewEl.textContent = block.fullText);
-            const insertBtn = document.createElement("button");
-            (insertBtn.type = "button"),
-              (insertBtn.className = "history-block-insert"),
-              (insertBtn.textContent = "今のバージョンに挿入"),
-              (insertBtn.title = "このブロックを今のバージョンに挿入"),
-              insertBtn.addEventListener("click", (e) => {
-                e.stopPropagation(),
-                  insertHistoryBlockIntoCurrent(block.fullText);
-              }),
-              wrap.appendChild(viewEl),
-              wrap.appendChild(insertBtn),
-              historyPreviewEl.appendChild(wrap);
-          });
-          firstChanged &&
-            firstChanged.scrollIntoView({ block: "center", behavior: "auto" });
+          const viewEl = document.createElement("pre");
+          (viewEl.className = "history-preview-text"),
+            (viewEl.textContent = entry.content),
+            historyPreviewEl.appendChild(viewEl);
         },
         restoreHistoryVersion = () => {
           const dateKey = toDateKey(f),
@@ -2295,307 +1561,6 @@
             O(historyModalEl, !1),
             showToast("このバージョンで上書きしました", "success"),
             maybeSyncPushChannel("entries");
-        },
-        // --- h1ショートカット(見出しブロックを右クリックして追加) ---
-        loadH1Shortcuts = () => {
-          try {
-            return JSON.parse(storage.getItem("h1Shortcuts") || "[]");
-          } catch (err) {
-            return [];
-          }
-        },
-        saveH1Shortcuts = (list) =>
-          storage.setItem("h1Shortcuts", JSON.stringify(list)),
-        addH1Shortcut = (date, headingIdx, text) => {
-          const list = loadH1Shortcuts();
-          if (
-            list.some((sc) => sc.date === date && sc.headingIdx === headingIdx)
-          )
-            return void showToast("すでに追加されています", "info");
-          list.push({ date, headingIdx, text }),
-            saveH1Shortcuts(list),
-            renderH1ShortcutBar(),
-            showToast("ショートカットを追加しました", "success");
-        },
-        removeH1Shortcut = (date, headingIdx) => {
-          saveH1Shortcuts(
-            loadH1Shortcuts().filter(
-              (sc) => !(sc.date === date && sc.headingIdx === headingIdx)
-            )
-          ),
-            renderH1ShortcutBar();
-        },
-        jumpToH1Shortcut = (sc, chipEl) => {
-          if (document.activeElement === s) return;
-          const d = new Date(sc.date);
-          T(d);
-          // headingIdxは他の見出しの追加/削除でずれるため、まず本文を
-          // テキストで探し、見つからない場合だけ保存時のindexにフォールバック
-          // する。
-          const blocks = Array.from(o.querySelectorAll(".content-block")),
-            byText = blocks.find((block) => block._block.headingText === sc.text),
-            el = byText || blocks[sc.headingIdx];
-          el
-            ? (el.scrollIntoView({ behavior: "smooth", block: "center" }),
-              flashHighlight(el))
-            : showToast("この見出しが見つかりませんでした", "info");
-          flashHighlight(chipEl);
-        },
-        renderH1ShortcutBar = () => {
-          h1ShortcutBarEl.innerHTML = "";
-          loadH1Shortcuts().forEach((sc) => {
-            const chip = document.createElement("span"),
-              label = document.createElement("span"),
-              removeBtn = document.createElement("button");
-            (chip.className = "h1-shortcut-chip"), (chip.title = sc.text);
-            (label.className = "chip-label"), (label.textContent = sc.text);
-            (removeBtn.type = "button"),
-              (removeBtn.className = "chip-remove"),
-              (removeBtn.textContent = "×"),
-              (removeBtn.title = "削除"),
-              removeBtn.addEventListener("click", (e) => {
-                e.stopPropagation(), removeH1Shortcut(sc.date, sc.headingIdx);
-              });
-            chip.appendChild(label),
-              chip.appendChild(removeBtn),
-              chip.addEventListener("mouseenter", () =>
-                jumpToH1Shortcut(sc, chip)
-              ),
-              h1ShortcutBarEl.appendChild(chip);
-          });
-        },
-        // --- 左側の検索パネル(見出し単位で該当箇所を表示) ---
-        buildSnippet = (sourceText, query, contextChars = 15) => {
-          const nq = normalizeForSearch(query),
-            nt = normalizeForSearch(sourceText),
-            idx = nt.indexOf(nq);
-          if (-1 === idx) return escapeHtml(sourceText.slice(0, 40));
-          const start = Math.max(0, idx - contextChars),
-            end = Math.min(sourceText.length, idx + nq.length + contextChars),
-            before = sourceText.slice(start, idx),
-            match = sourceText.slice(idx, idx + nq.length),
-            after = sourceText.slice(idx + nq.length, end),
-            prefix = start > 0 ? "…" : "",
-            suffix = end < sourceText.length ? "…" : "";
-          return (
-            prefix +
-            escapeHtml(before) +
-            "<u>" +
-            escapeHtml(match) +
-            "</u>" +
-            escapeHtml(after) +
-            suffix
-          );
-        },
-        searchAcrossDays = (query) => {
-          const nq = normalizeForSearch(query);
-          if (!nq) return [];
-          const results = [];
-          for (let idx = 0; idx < storage.length; idx++) {
-            const key = storage.key(idx);
-            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-              // 見出し単位のブロックだけでなく、見出しより前にある本文
-              // (過去データ等)も取りこぼさないよう、getLocalHeadingBlocks
-              // で作った全ブロックを対象に全文検索する。
-              const text = storage.getItem(key),
-                blocks = getLocalHeadingBlocks(text);
-              let hIdx = -1;
-              blocks.forEach((b) => {
-                const isHeaded = null !== b.headingText;
-                isHeaded && hIdx++;
-                const sectionBody = text.slice(b.bodyStart, b.bodyEnd),
-                  fullSection = (b.headingText || "") + sectionBody;
-                normalizeForSearch(fullSection).includes(nq) &&
-                  results.push({
-                    date: key,
-                    headingIdx: isHeaded ? hIdx : null,
-                    headingText: b.headingText,
-                    jumpPos: b.headEnd,
-                    snippet: buildSnippet(fullSection, query),
-                  });
-              });
-            }
-          }
-          return results;
-        },
-        // 検索ワード未入力時に表示する、全期間のh1見出し一覧(辞書順)を作る
-        buildDictionaryH1List = () => {
-          const entries = [];
-          for (let idx = 0; idx < storage.length; idx++) {
-            const key = storage.key(idx);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) continue;
-            const text = storage.getItem(key);
-            getHeadings(text).forEach((h, hIdx) => {
-              entries.push({
-                date: key,
-                headingIdx: hIdx,
-                headingText: h.text,
-                jumpPos: h.end,
-              });
-            });
-          }
-          return entries.sort((a, b) =>
-            a.headingText.localeCompare(b.headingText, "ja")
-          );
-        },
-        renderH1DictionaryList = () => {
-          searchPaneResultsEl.innerHTML = "";
-          const entries = buildDictionaryH1List();
-          if (!entries.length) {
-            const empty = document.createElement("li");
-            (empty.className = "search-pane-empty"),
-              (empty.textContent = "見出し(h1)がありません"),
-              searchPaneResultsEl.appendChild(empty);
-            return;
-          }
-          entries.forEach((r) => {
-            const li = document.createElement("li"),
-              headingLine = document.createElement("div");
-            (li.className = "search-pane-result"),
-              (headingLine.className = "search-result-snippet"),
-              (headingLine.textContent = r.headingText),
-              li.appendChild(headingLine),
-              li.addEventListener("mouseenter", () =>
-                previewSearchResult(r, li)
-              ),
-              li.addEventListener("click", () => commitSearchResult(r, li)),
-              searchPaneResultsEl.appendChild(li);
-          });
-        },
-        renderSearchPaneResults = (query) => {
-          searchPaneResultsEl.innerHTML = "";
-          if (!query) return void renderH1DictionaryList();
-          const results = searchAcrossDays(query);
-          if (!results.length) {
-            const empty = document.createElement("li");
-            (empty.className = "search-pane-empty"),
-              (empty.textContent = "該当する結果がありません"),
-              searchPaneResultsEl.appendChild(empty);
-            return;
-          }
-          results.forEach((r) => {
-            const li = document.createElement("li"),
-              dateLine = document.createElement("div"),
-              snippetLine = document.createElement("div");
-            (li.className = "search-pane-result"),
-              (dateLine.className = "search-result-date"),
-              (dateLine.textContent =
-                new Date(r.date).toLocaleDateString("ja-JP", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  weekday: "short",
-                }) + (r.headingText ? ` / ${r.headingText}` : "")),
-              (snippetLine.className = "search-result-snippet"),
-              (snippetLine.innerHTML = r.snippet),
-              li.appendChild(dateLine),
-              li.appendChild(snippetLine);
-            li.addEventListener("mouseenter", () =>
-                previewSearchResult(r, li)
-              ),
-              li.addEventListener("click", () => commitSearchResult(r, li)),
-              searchPaneResultsEl.appendChild(li);
-          });
-        },
-        previewSearchResult = (r, liEl) => {
-          if (document.activeElement === s) return;
-          const d = new Date(r.date);
-          T(d);
-          if (null === r.headingIdx) {
-            contentAreaEl.scrollTo({ top: 0, behavior: "smooth" });
-          } else {
-            // headingIdxは検索時点のもので、その後の編集でずれている
-            // 可能性があるため、まずテキストで探す。
-            const blocks = Array.from(o.querySelectorAll(".content-block")),
-              el =
-                blocks.find((block) => block._block.headingText === r.headingText) ||
-                blocks[r.headingIdx];
-            el &&
-              (el.scrollIntoView({ behavior: "smooth", block: "center" }),
-                flashHighlight(el));
-          }
-          flashHighlight(liEl);
-        },
-        commitSearchResult = (r, liEl) => {
-          const q = searchPaneInputEl.value.trim();
-          q && addSearchHistory(q);
-          activeBlockEl && s.blur();
-          saveCurrentMemo(),
-            (f = new Date(r.date)),
-            T(f);
-          if (null !== r.headingIdx) {
-            const blockEl = Array.from(
-              o.querySelectorAll(".content-block")
-            ).find((el) => el._block.headingText === r.headingText);
-            blockEl &&
-              activateBlock(blockEl, blockEl._block.headingLine.length);
-          }
-          pullAndMergeAll(), flashHighlight(liEl);
-        },
-        SEARCH_HISTORY_KEY = "searchHistory",
-        SEARCH_HISTORY_MAX = 15,
-        getSearchHistory = () => {
-          try {
-            const list = JSON.parse(
-              storage.getItem(SEARCH_HISTORY_KEY) || "[]"
-            );
-            return Array.isArray(list) ? list.filter((e) => "string" == typeof e) : [];
-          } catch (e) {
-            return [];
-          }
-        },
-        // 検索履歴の先頭に追加する(既存の同じ語は取り除いてから追加し直す
-        // ことで最近使った順に並び替える)。fキーやクリックで振り返れるよう、
-        // 絵文字を含む語もそのまま文字列として保存する。
-        addSearchHistory = (query) => {
-          const q = (query || "").trim();
-          if (!q) return;
-          const next = [q, ...getSearchHistory().filter((e) => e !== q)].slice(
-            0,
-            SEARCH_HISTORY_MAX
-          );
-          storage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
-          renderSearchHistoryChips();
-        },
-        removeSearchHistory = (query) => {
-          const next = getSearchHistory().filter((e) => e !== query);
-          storage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
-          renderSearchHistoryChips();
-        },
-        renderSearchHistoryChips = () => {
-          searchPaneHistoryEl.innerHTML = "";
-          getSearchHistory().forEach((q) => {
-            const chip = document.createElement("button"),
-              label = document.createElement("span"),
-              remove = document.createElement("span");
-            (chip.type = "button"),
-              (chip.className = "search-history-chip"),
-              (chip.title = q),
-              (label.className = "search-history-chip-label"),
-              (label.textContent = q),
-              (remove.className = "search-history-chip-remove"),
-              (remove.textContent = "×"),
-              (remove.title = "履歴から削除"),
-              remove.addEventListener("click", (e) => {
-                e.stopPropagation(), removeSearchHistory(q);
-              }),
-              chip.addEventListener("click", () => {
-                (searchPaneInputEl.value = q),
-                  renderSearchPaneResults(q),
-                  addSearchHistory(q),
-                  searchPaneInputEl.focus();
-              }),
-              chip.appendChild(label),
-              chip.appendChild(remove),
-              searchPaneHistoryEl.appendChild(chip);
-          });
-        },
-        openSearchPane = () => {
-          document.body.classList.remove("search-pane-collapsed"),
-            storage.setItem("searchPaneCollapsed", "0"),
-            renderSearchPaneResults(searchPaneInputEl.value),
-            renderSearchHistoryChips(),
-            searchPaneInputEl.focus();
         },
         STORAGE_QUOTA_KB = 5120,
         getStorageUsageKb = () =>
@@ -2709,22 +1674,26 @@
             drawer.classList.remove("open"), setTimeout(() => O(p, !1), 200);
           }
         },
+        // 入力中の内容を、debounce待ちを待たずに今すぐ保存する。
         saveCurrentMemo = () => {
-          // 実際の編集がなければ、保存もサーバーへの同期アクセスも不要。
-          if (!sDirty || !activeBlockKey) return;
-          const e = activeBlockPrefix + s.value + activeBlockSuffix;
-          const t = activeBlockKey;
-
-          // Show saving indicator
-          showSaveStatus("saving", "保存中...");
-
+          clearTimeout(L);
+          if (!sDirty || !dayEditorEl) return;
+          const dateKey = dayEditorEl._dateKey,
+            value = dayEditorEl.value,
+            previous = storage.getItem(dateKey) || "";
+          sDirty = !1;
+          if (value === previous) return;
           try {
-            storage.setItem(t, e);
-            sDirty = !1;
+            !editBaseline && Z(previous) && snapshotHistory(dateKey, previous),
+              (editBaseline = "x");
+            Z(value)
+              ? storage.setItem(dateKey, value)
+              : storage.removeItem(dateKey);
             hideSaveStatus();
             H();
             maybeSyncPushChannel("entries");
           } catch (err) {
+            sDirty = !0;
             showSaveStatus("error", "保存に失敗しました");
             console.error("Save error:", err);
           }
@@ -2774,8 +1743,7 @@
             "}";
         },
         refreshUIAfterSync = () => {
-          !sDirty && A(f);
-          renderH1ShortcutBar();
+          sDirty || A(f);
         },
         pullAndMergeChannel = async (channel) => {
           const cfg = SYNC_CHANNELS[channel],
@@ -3454,17 +2422,12 @@
             /^\d{4}-\d{2}-\d{2}$/.test(key) &&
               (entries[key] = storage.getItem(key));
           }
-          return {
-            entries,
-            h1Shortcuts: storage.getItem("h1Shortcuts") || "[]",
-          };
+          return { entries };
         },
         applyEntriesData = (data) => {
           Object.entries(data.entries || {}).forEach(([k, v]) =>
             storage.setItem(k, v)
-          ),
-            "string" == typeof data.h1Shortcuts &&
-            storage.setItem("h1Shortcuts", data.h1Shortcuts);
+          );
         },
         SYNC_CHANNELS = {
           entries: {
@@ -3595,10 +2558,9 @@
           const { shiftKey: a, key: l, target: n } = e,
             tag = (n.tagName || "").toLowerCase();
           if ("textarea" !== tag && "input" !== tag && !n.isContentEditable) {
-            ["?", "t", "f", "[", "]"].includes(l) && e.preventDefault(),
+            ["?", "t", "[", "]"].includes(l) && e.preventDefault(),
               "?" === l && U(!0),
               "t" === l && ((f = new Date()), T(f)),
-              "f" === l && openSearchPane(),
               "[" === l && K(0, 0, -1),
               "]" === l && K(0, 0, 1);
             if (a) "ArrowUp" === l && K(-28), "ArrowDown" === l && K(28);
@@ -3611,18 +2573,8 @@
               (U(!1),
                 O(historyModalEl, !1),
                 stopQrScan(),
-                activeBlockEl && s.blur());
+                dayEditorEl && dayEditorEl.blur());
           }
-        }),
-        searchPaneInputEl.addEventListener("input", () => {
-          renderSearchPaneResults(searchPaneInputEl.value);
-        }),
-        searchPaneInputEl.addEventListener("keydown", (e) => {
-          "Escape" === e.key &&
-            (searchPaneInputEl.blur(),
-              document.body.classList.add("search-pane-collapsed"),
-              storage.setItem("searchPaneCollapsed", "1")),
-            "Enter" === e.key && addSearchHistory(searchPaneInputEl.value);
         }),
         syncToggleBtnEl.addEventListener("click", () => {
           disableSync();
@@ -3781,9 +2733,8 @@
           setupDaySwipe(dd, {
             onTap: async () => {
               if (toDateKey(f) === toDateKey(new Date())) {
-                const text = buildDayBlocks(f)
-                  .map((b) => b.fullText)
-                  .join("\n\n");
+                saveCurrentMemo();
+                const text = storage.getItem(toDateKey(f)) || "";
                 try {
                   await navigator.clipboard.writeText(text);
                   showToast("本文をコピーしました", "success");
@@ -3798,157 +2749,8 @@
             onDoubleTap: () => U(!0),
           });
         })(),
-        (() => {
-          // ノブ(縁から出っ張るタブ)は廃止。開いているパネルは
-          // パネル自体をフリックして閉じ、閉じているパネルは画面端の
-          // 見えない領域(edge-swipe-zone)をフリックして開く。
-          const SWIPE_THRESHOLD = 15;
-          // ドラッグ中にPCのテキスト選択が始まってしまったり、全画面
-          // カレンダーの出入りでDOM構造が入れ替わった拍子に新しく
-          // カーソル下に来た文字が選択されてしまうことがあるため、
-          // ジェスチャー中は選択そのものを止めておく。終了時には取り
-          // こぼした選択も念のため解除する(通常表示に戻った後まで
-          // 選択状態が残ってしまう不具合への対策)。
-          const suppressTextSelection = () => {
-            document.body.classList.add("gesture-drag-active");
-          };
-          const restoreTextSelection = () => {
-            document.body.classList.remove("gesture-drag-active");
-            // textarea/inputにフォーカスが入っている間にremoveAllRangesを
-            // 呼ぶと、SafariではそのフォーカスごとBlurしてしまう(クリック
-            // した瞬間だけフォーカスされ、pointerup直後に外れて入力できなく
-            // なる不具合の原因だった)。地の文選択の解除が目的なので、
-            // フォーム要素にフォーカスがある間は何もしない。
-            const active = document.activeElement;
-            if (
-              active &&
-              ("TEXTAREA" === active.tagName || "INPUT" === active.tagName)
-            )
-              return;
-            const sel = window.getSelection();
-            sel && sel.removeAllRanges();
-          };
-          // パネル本体のほとんどはメモ欄(textarea)が占めているため、
-          // 通常のテキスト選択ドラッグと閉じるフリックを区別できるよう、
-          // こちらは一回り大きいしきい値を使う。
-          const CLOSE_SWIPE_THRESHOLD = 60;
-          // 開いているパネルを自身へのフリックで閉じる。axis:"x"|"y"、
-          // sign:閉じる向き(負=左/上、正=右/下)。逆軸方向の動きが
-          // 優位なとき(パネル内の縦/横スクロールなど)は無視する。
-          const setupPaneCloseSwipe = (paneEl, axis, sign, onClose) => {
-            let startX = null, startY = null;
-            paneEl.addEventListener("pointerdown", (e) => {
-              // メモ欄(textarea/input)上では、user-select:noneを適用する
-              // suppressTextSelection自体がSafariでフォーカスを妨げてしまう
-              // (mousedownの既定のフォーカス処理より先にuser-select:noneが
-              // 効いてしまい、クリックしてもフォーカスが入らなくなる)ため、
-              // ここではジェスチャー追跡を始めない。
-              if (e.target.closest("textarea, input")) return;
-              (startX = e.clientX),
-                (startY = e.clientY),
-                suppressTextSelection();
-            }),
-              paneEl.addEventListener("pointermove", (e) => {
-                if (null === startX) return;
-                const dx = e.clientX - startX,
-                  dy = e.clientY - startY,
-                  main = "x" === axis ? dx : dy,
-                  cross = "x" === axis ? dy : dx;
-                if (
-                  Math.abs(main) < CLOSE_SWIPE_THRESHOLD ||
-                  Math.abs(cross) > Math.abs(main)
-                )
-                  return;
-                (sign < 0
-                  ? main < -CLOSE_SWIPE_THRESHOLD
-                  : main > CLOSE_SWIPE_THRESHOLD) &&
-                  (onClose(), (startX = null), (startY = null));
-              });
-            const reset = () => {
-              (startX = null), (startY = null), restoreTextSelection();
-            };
-            paneEl.addEventListener("pointerup", reset),
-              paneEl.addEventListener("pointercancel", reset),
-              paneEl.addEventListener("pointerleave", reset);
-          };
-          // 閉じている間、画面端の見えない領域(edge-swipe-zone)への
-          // フリックで開く。Androidでは画面端からのスワイプが「戻る」
-          // 「ホーム画面」ジェスチャーとぶつかりOSに奪われてしまうため、
-          // 動きの小さいタップでも開けるようにしておく(タップはOSの
-          // ジェスチャー認識と衝突しない)。
-          const TAP_MAX_MOVE = 10;
-          const setupZoneOpenSwipe = (zoneEl, axis, sign, onOpen) => {
-            let startX = null, startY = null;
-            zoneEl.addEventListener("pointerdown", (e) => {
-              (startX = e.clientX),
-                (startY = e.clientY),
-                zoneEl.setPointerCapture(e.pointerId),
-                suppressTextSelection();
-            }),
-              zoneEl.addEventListener("pointermove", (e) => {
-                if (null === startX) return;
-                const main =
-                  "x" === axis ? e.clientX - startX : e.clientY - startY;
-                (sign < 0 ? main < -SWIPE_THRESHOLD : main > SWIPE_THRESHOLD) &&
-                  (onOpen(e), (startX = null), (startY = null));
-              });
-            const finish = (e) => {
-              null === startX ||
-                (Math.abs(e.clientX - startX) <= TAP_MAX_MOVE &&
-                  Math.abs(e.clientY - startY) <= TAP_MAX_MOVE &&
-                  onOpen(e)),
-                (startX = null),
-                (startY = null),
-                zoneEl.hasPointerCapture(e.pointerId) &&
-                zoneEl.releasePointerCapture(e.pointerId),
-                restoreTextSelection();
-            };
-            const cancel = (e) => {
-              (startX = null),
-                (startY = null),
-                zoneEl.hasPointerCapture(e.pointerId) &&
-                zoneEl.releasePointerCapture(e.pointerId),
-                restoreTextSelection();
-            };
-            zoneEl.addEventListener("pointerup", finish),
-              zoneEl.addEventListener("pointercancel", cancel);
-          };
-
-          // 検索パネル(左): 端を右へフリックまたはタップで開く、パネル
-          // 自体を左へフリックして閉じる。
-          const closeSearchPane = () => {
-            document.body.classList.add("search-pane-collapsed"),
-              storage.setItem("searchPaneCollapsed", "1");
-          };
-          setupZoneOpenSwipe(
-            document.getElementById("searchPaneOpenZone"),
-            "x",
-            1,
-            () => {
-              document.body.classList.remove("search-pane-collapsed"),
-                storage.setItem("searchPaneCollapsed", "0"),
-                renderSearchPaneResults(searchPaneInputEl.value),
-                renderSearchHistoryChips();
-            }
-          ),
-            setupPaneCloseSwipe(
-              document.getElementById("searchPane"),
-              "x",
-              -1,
-              closeSearchPane
-            );
-
-        })(),
         historySliderEl.addEventListener("input", renderHistoryPreview),
         historyRestoreBtnEl.addEventListener("click", restoreHistoryVersion),
-        o.addEventListener("contextmenu", (e) => {
-          const block = e.target.closest(".content-block");
-          if (!block || !o.contains(block) || null === block._block.headingText) return;
-          e.preventDefault();
-          const blocks = Array.from(o.querySelectorAll(".content-block")),
-            idx = blocks.indexOf(block);
-          addH1Shortcut(toDateKey(f), idx, block._block.headingText);
-        }),
         document
           .getElementById("backupExportBtn")
           .addEventListener("click", (e) => {
@@ -4028,13 +2830,7 @@
             !e.target.isContentEditable &&
             "block" !== p.style.display &&
             "block" !== historyModalEl.style.display &&
-            (e.preventDefault(),
-              (() => {
-                const first = o.querySelector(".content-block");
-                first
-                  ? activateBlock(first, first._block.fullText.length)
-                  : newBlockBoxEl && newBlockBoxEl.focus();
-              })());
+            (e.preventDefault(), dayEditorEl && dayEditorEl.focus());
         }),
         document.addEventListener("DOMContentLoaded", async () => {
           // 共有URL(#share=...)で開かれた場合はまずここでシードを引き換え、
@@ -4044,7 +2840,7 @@
           // まずローカルに保存済みのデータ(前回同期時点の内容)でただちに
           // 描画する。リモートの取得を待ってから描画すると、オンラインでも
           // ネットワーク往復の間ずっとロードスピナーが表示されてしまうため、
-          // 同期は裏で行い、取得できた分だけrefreshUIAfterSync/dedupeで
+          // 同期は裏で行い、取得できた分だけrefreshUIAfterSyncで
           // 差分反映する(pullAndMergeChannel内で新データ取得時は自動的に
           // refreshUIAfterSyncが呼ばれる)。
           T(f);
@@ -4058,19 +2854,11 @@
               (initialLoadOverlayEl.classList.add("hidden"),
                 setTimeout(() => initialLoadOverlayEl.remove(), 300));
           }
-          renderH1ShortcutBar();
-          // 検索パネルの初期折りたたみ状態(保存済みの設定がなければ常に折りたたみ)
-          document.body.classList.toggle(
-            "search-pane-collapsed",
-            "0" !== storage.getItem("searchPaneCollapsed")
-          );
-          renderSearchPaneResults(searchPaneInputEl.value);
-          renderSearchHistoryChips();
           initInfoWidget();
-          // ページを開いたとき、その日にブロックが0個なら新規作成用の
-          // textareaへフォーカスする(ページを開いた直後だけ。日付を
-          // 切り替えるたびに毎回フォーカスを奪うと閲覧の邪魔になるため)。
-          o.querySelector(".content-block") || (newBlockBoxEl && newBlockBoxEl.focus());
+          // ページを開いたとき、前回のカーソル位置にフォーカスする
+          // (ページを開いた直後だけ。日付を切り替えるたびに毎回
+          // フォーカスを奪うと閲覧の邪魔になるため)。
+          restoreCaret();
           // 初回設定
           H();
           renderSyncPanel();
@@ -4087,8 +2875,7 @@
           // リモートのデータをバックグラウンドで取得・反映する。同期未設定/
           // オフラインの場合はpullAndMergeChannel内で即falseが返る。新データを
           // 取り込めた場合はpullAndMergeChannel内でrefreshUIAfterSyncが呼ばれ
-          // 画面に反映される。取り込み後に重複見出しが生じていないかもここで
-          // 確認する。自動エクスポートも(同期後の最新内容を書き出すため)
+          // 画面に反映される。自動エクスポートも(同期後の最新内容を書き出すため)
           // ここで行う。
           pullAndMergeAll()
             .catch((err) => {
@@ -4096,12 +2883,6 @@
             })
             .then(() => {
               cleanupEmptyDayEntries();
-              const renamedCount = dedupeDuplicateHeadings();
-              renamedCount &&
-                showToast(
-                  `重複していた見出し名を${renamedCount}件リネームしました`,
-                  "info"
-                );
               // その日(JST)最初にページを開いたときの自動エクスポート
               maybeRunDailyAutoExport().catch((err) =>
                 console.warn("[auto-export] failed:", err)
