@@ -1,14 +1,9 @@
 import csv
 import hmac
 import io
-import ipaddress
 import os
 import re
 import secrets
-import socket
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from io import BytesIO
@@ -30,14 +25,9 @@ CRON_SECRET = os.environ.get("CRON_SECRET")
 # Constants for ihcimen (sync/calendar functionality)
 SYNC_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 CODE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
-PUBLISH_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 HANDOFF_TTL_SECONDS = 600
 HANDOFF_MIN_TTL_SECONDS = 60
 HANDOFF_MAX_TTL_SECONDS = 24 * 60 * 60
-ICS_FETCH_TIMEOUT_SECONDS = 10
-ICS_MAX_BYTES = 5 * 1024 * 1024
-ICS_PUBLISH_MAX_BYTES = 1 * 1024 * 1024
-ICS_PUBLISH_TTL_SECONDS = 3 * 60 * 60
 JST = timezone(timedelta(hours=9))
 
 # Constants for memo/vitals functionality
@@ -66,13 +56,8 @@ CREATE TABLE IF NOT EXISTS seed_handoff (
 );
 ALTER TABLE seed_handoff ADD COLUMN IF NOT EXISTS ttl_seconds INTEGER NOT NULL DEFAULT 600;
 
-CREATE TABLE IF NOT EXISTS published_ics (
-    publish_id     TEXT PRIMARY KEY,
-    ics_text       TEXT NOT NULL,
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
+-- ICS公開機能の廃止に伴い、平文で保存していた公開データを削除する。
+DROP TABLE IF EXISTS published_ics;
 
 CREATE TABLE IF NOT EXISTS export_flags (
     sync_id           TEXT PRIMARY KEY,
@@ -219,28 +204,6 @@ def parse_iso8601(value):
 
 def to_utc_iso8601(dt):
     return dt.astimezone(timezone.utc).isoformat()
-
-
-def is_fetchable_url(url):
-    try:
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme not in ("http", "https"):
-            return False
-        if not parsed.hostname:
-            return False
-        for family, _, _, _, sockaddr in socket.getaddrinfo(parsed.hostname, None):
-            ip = ipaddress.ip_address(sockaddr[0])
-            if (
-                ip.is_private
-                or ip.is_loopback
-                or ip.is_link_local
-                or ip.is_reserved
-                or ip.is_multicast
-            ):
-                return False
-        return True
-    except Exception:
-        return False
 
 
 # ============================================================================
@@ -566,134 +529,6 @@ def handoff_delete():
         conn.close()
 
 
-@app.route("/api/ics-proxy", methods=["GET"])
-def ics_proxy():
-    url = request.args.get("url", "")
-    if not url:
-        return jsonify(error="url is required"), 400
-    if not is_fetchable_url(url):
-        return jsonify(error="url is not fetchable"), 400
-
-    try:
-        req = urllib.request.Request(
-            url, headers={"User-Agent": "ihcimen-ics-proxy/1.0"}
-        )
-        with urllib.request.urlopen(
-            req, timeout=ICS_FETCH_TIMEOUT_SECONDS
-        ) as resp:
-            body = resp.read(ICS_MAX_BYTES + 1)
-        if len(body) > ICS_MAX_BYTES:
-            return jsonify(error="ICS file too large"), 413
-        text = body.decode("utf-8", errors="replace")
-        return jsonify(ics=text)
-    except urllib.error.URLError as err:
-        return jsonify(error=f"failed to fetch: {err}"), 502
-    except Exception as err:
-        return jsonify(error=f"failed to fetch: {err}"), 502
-
-
-@app.route("/api/ics-publish", methods=["POST", "DELETE"])
-def ics_publish():
-    if request.method == "DELETE":
-        publish_id = request.args.get("publish_id", "")
-        if not PUBLISH_ID_RE.match(publish_id):
-            return jsonify(error="publish_id must be a 64-character hex string"), 400
-        try:
-            conn = get_conn()
-        except RuntimeError as err:
-            return jsonify(error=str(err)), 500
-        try:
-            ensure_ihcimen_schema(conn)
-            with conn.cursor() as cur:
-                cur.execute(
-                    "DELETE FROM published_ics WHERE publish_id = %s", (publish_id,)
-                )
-                deleted = cur.rowcount
-            conn.commit()
-            return jsonify(deleted=deleted)
-        finally:
-            conn.close()
-
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
-        return jsonify(error="invalid JSON body"), 400
-
-    publish_id = body.get("publish_id")
-    ics_text = body.get("ics_text")
-
-    if not (isinstance(publish_id, str) and PUBLISH_ID_RE.match(publish_id)):
-        return jsonify(error="publish_id must be a 64-character hex string"), 400
-    if not (isinstance(ics_text, str) and ics_text):
-        return jsonify(error="ics_text is required"), 400
-    if len(ics_text.encode("utf-8")) > ICS_PUBLISH_MAX_BYTES:
-        return jsonify(error="ics_text too large"), 413
-
-    try:
-        conn = get_conn()
-    except RuntimeError as err:
-        return jsonify(error=str(err)), 500
-
-    try:
-        ensure_ihcimen_schema(conn)
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                INSERT INTO published_ics (publish_id, ics_text, updated_at, last_synced_at)
-                VALUES (%s, %s, now(), now())
-                ON CONFLICT (publish_id) DO UPDATE SET
-                    ics_text = EXCLUDED.ics_text,
-                    updated_at = now(),
-                    last_synced_at = now()
-                """,
-                (publish_id, ics_text),
-            )
-        conn.commit()
-        return jsonify(ok=True)
-    finally:
-        conn.close()
-
-
-@app.route("/api/ics/<publish_id>", methods=["GET"])
-def ics_serve(publish_id):
-    if publish_id.endswith(".ics"):
-        publish_id = publish_id[: -len(".ics")]
-    if not PUBLISH_ID_RE.match(publish_id):
-        return jsonify(error="publish_id must be a 64-character hex string"), 400
-
-    try:
-        conn = get_conn()
-    except RuntimeError as err:
-        return jsonify(error=str(err)), 500
-
-    try:
-        ensure_ihcimen_schema(conn)
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT ics_text, updated_at FROM published_ics WHERE publish_id = %s",
-                (publish_id,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                conn.commit()
-                return jsonify(error="not found"), 404
-            ics_text, updated_at = row
-            age = datetime.now(timezone.utc) - updated_at
-            if age.total_seconds() > ICS_PUBLISH_TTL_SECONDS:
-                cur.execute(
-                    "DELETE FROM published_ics WHERE publish_id = %s", (publish_id,)
-                )
-                conn.commit()
-                return jsonify(error="this share link has expired"), 410
-            cur.execute(
-                "UPDATE published_ics SET last_synced_at = now() WHERE publish_id = %s",
-                (publish_id,),
-            )
-        conn.commit()
-        return Response(ics_text, mimetype="text/calendar")
-    finally:
-        conn.close()
-
-
 @app.route("/api/cleanup", methods=["GET"])
 def cleanup():
     if not CRON_SECRET:
@@ -720,11 +555,6 @@ def cleanup():
             )
             deleted_handoffs = cur.rowcount
             cur.execute(
-                "DELETE FROM published_ics WHERE last_synced_at < now() - interval '7 days'"
-                f" OR updated_at < now() - interval '{ICS_PUBLISH_TTL_SECONDS} seconds'"
-            )
-            deleted_published_ics = cur.rowcount
-            cur.execute(
                 "DELETE FROM export_flags WHERE last_synced_at < now() - interval '7 days'"
             )
             deleted_export_flags = cur.rowcount
@@ -732,7 +562,6 @@ def cleanup():
         return jsonify(
             deleted=deleted,
             deleted_handoffs=deleted_handoffs,
-            deleted_published_ics=deleted_published_ics,
             deleted_export_flags=deleted_export_flags,
         )
     finally:

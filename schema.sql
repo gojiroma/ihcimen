@@ -31,21 +31,8 @@ CREATE TABLE IF NOT EXISTS seed_handoff (
     ttl_seconds INTEGER NOT NULL DEFAULT 600
 );
 
--- Backs the "publish an ICS URL" feature for the day/week calendars. Unlike
--- every other table here, this one is intentionally plaintext: standard
--- calendar clients (Apple/Google Calendar, etc.) fetch the URL with a plain
--- HTTP GET and expect readable iCalendar text, so there is no way to keep
--- this data end-to-end encrypted and still have it work as a subscribable
--- feed. publish_id is a random client-generated 64-hex ID, unrelated to any
--- sync_id, created only when the user explicitly enables publishing.
-CREATE TABLE IF NOT EXISTS published_ics (
-    publish_id     TEXT PRIMARY KEY,
-    ics_text       TEXT NOT NULL,
-    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now() -- bumped on every publish or client fetch; drives the 7-day inactivity cleanup
-);
-
-CREATE INDEX IF NOT EXISTS idx_published_ics_last_synced_at ON published_ics (last_synced_at);
+-- ICS公開機能の廃止に伴い、平文で保存していた公開データを削除する。
+DROP TABLE IF EXISTS published_ics;
 
 -- Backs the "first open of the day (JST) triggers an automatic export"
 -- feature. sync_id here is derived from a dedicated info string, unrelated

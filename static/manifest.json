@@ -1,7 +1,7 @@
 {
   "name": "Daily Notes",
   "short_name": "Daily Notes",
-  "description": "日々のメモとカレンダーを一体化した日誌アプリ",
+  "description": "日々のメモを書き溜める日誌アプリ",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
