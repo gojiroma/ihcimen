@@ -40,33 +40,6 @@
       align-items: center;
       height: 100%;
       box-sizing: border-box;
-      padding-right: 160px;
-      transition: padding-right 0.25s ease, padding-left 0.25s ease;
-    }
-
-    /* ノブ(縁から出っ張るタブ)は廃止し、パネル自体または画面端の
-       見えない領域をフリックして開閉する。閉じているときだけ、対応する
-       端でポインタ操作を受け付ける(開いている間は中のセルのクリック等を
-       邪魔しないようpointer-events:noneにしておく)。 */
-    .edge-swipe-zone {
-      position: fixed;
-      z-index: 460;
-      pointer-events: none;
-      touch-action: none;
-      /* PCでドラッグ操作すると、地の文字が選択状態になってしまう
-         (マウスドラッグ = テキスト選択、というブラウザの既定動作と衝突する)
-         ため、常に選択不可にしておく。 */
-      user-select: none;
-    }
-
-    /* 各種フリック/ドラッグ操作中(suppressTextSelection〜
-       restoreTextSelection)は、ページ全体で文字選択を止めておく。
-       全画面カレンダーの出入りのようにドラッグ中にDOM構造ごと
-       入れ替わる操作では、この見えない領域自身をuser-select:noneに
-       するだけでは、入れ替わった後にカーソル下へ来た本文が選択されて
-       しまうのを防げないため。 */
-    body.gesture-drag-active {
-      user-select: none;
     }
 
     /* 画面中央にうっすらと現在時刻を表示する */
@@ -539,12 +512,13 @@
       overflow-x: auto;
     }
 
-    /* h1見出し単位のブロック表示。各ブロックは自分の.markdown-viewer(閲覧)と
-       アクティブ時だけ差し込まれる共有textareaを持つ。 */
+    /* 本文のtextareaを置く領域。画面中央に配置する。 */
     #markdownViewer {
       display: block;
       width: 100%;
-      margin-top: 0;
+      max-width: 700px;
+      /* flex列内のautoマージンで縦中央に置く(溢れたときは上端から普通にスクロール) */
+      margin: auto 0;
       padding: 0;
     }
 
@@ -876,26 +850,6 @@
       position: relative;
       margin-bottom: 16px;
       padding: 4px 110px 4px 4px;
-    }
-
-    /* 検索パネル(左側) */
-    .container {
-      padding-left: 240px;
-    }
-
-    .search-input-wrap {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 10px;
-      border-bottom: 1px solid rgba(128, 128, 128, 0.3);
-      flex-shrink: 0;
-      box-sizing: border-box;
-    }
-
-    .search-input-wrap svg {
-      flex-shrink: 0;
-      opacity: 0.6;
     }
 
   </style>
