@@ -264,43 +264,6 @@
       margin-top: 10px;
     }
 
-    .sync-toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-    }
-
-    .sync-toggle {
-      position: relative;
-      flex-shrink: 0;
-      width: 44px;
-      height: 24px;
-      box-sizing: border-box;
-      border-radius: 12px;
-      border: 1px solid #ccc;
-      background: none;
-      padding: 0;
-      cursor: pointer;
-    }
-
-    .sync-toggle-knob {
-      position: absolute;
-      top: 2px;
-      left: 2px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background-color: currentColor;
-      opacity: 0.5;
-      transition: left 0.15s ease, opacity 0.15s ease;
-    }
-
-    .sync-toggle[aria-checked="true"] .sync-toggle-knob {
-      left: 22px;
-      opacity: 1;
-    }
-
     .sync-note {
       font-size: 13px;
       opacity: 0.75;
@@ -666,12 +629,7 @@
       resize: none;
       outline: 0;
       color: inherit;
-      background-color: var(--bg-color);
-      opacity: 0.7;
-    }
-
-    .new-block-box:focus {
-      opacity: 1;
+      background-color: transparent;
     }
 
     /* プレースホルダー("新しいメモ...")はブラウザ既定色だと暗色固定の
@@ -684,10 +642,6 @@
 
     /* 新規記入欄の編集中は、文字色を明暗モードに合わせ、
        背景色をvar(--bg-color)に設定することで、新規ブロックは既存アイテムと同じの表示になります。 */
-    body.new-entry-focus .new-block-box {
-      opacity: 1;
-    }
-
     /* Save Status Indicator */
     .save-status {
       position: fixed;
@@ -1318,65 +1272,27 @@
   <div id="shortcutModal" class="search-modal close-on-click-outside">
     <div class="search-modal-content menu-drawer">
       <h2>メニュー</h2>
-      <section>
-        <h3>キーボードショートカット</h3>
-        <p>
-          以下は本文の入力中や検索窓の入力中には反応しません。それ以外の場面でキーを押すと動作します。
-        </p>
-        <h4>基本操作</h4>
-        <ul>
-          <li><strong>? :</strong> このメニューを表示</li>
-          <li><strong>t :</strong> 今日の日付に移動</li>
-          <li><strong>f :</strong> 検索パネルを開く</li>
-        </ul>
-        <h4>日付移動</h4>
-        <ul>
-          <li><strong>← :</strong> 前の日に移動</li>
-          <li><strong>→ :</strong> 次の日に移動</li>
-          <li><strong>↑ :</strong> 1週間前に移動</li>
-          <li><strong>↓ :</strong> 1週間後に移動</li>
-          <li><strong>Shift + ↑ :</strong> 4週間前に移動</li>
-          <li><strong>Shift + ↓ :</strong> 4週間後に移動</li>
-          <li><strong>[ :</strong> 前の年に移動</li>
-          <li><strong>] :</strong> 次の年に移動</li>
-        </ul>
-        <h4>その他</h4>
-        <ul>
-          <li><strong>Esc :</strong> このウィンドウを閉じる</li>
-          <li><strong>Cmd/Ctrl + Enter :</strong> 編集中のメモ(新規・既存とも)を保存して、続けて別の話題を書き始める</li>
-        </ul>
-      </section>
       <section id="backupDetailsSection">
-        <h3>データのバックアップと復元</h3>
         <div class="menu-inline-actions">
-          <button id="backupExportBtn" type="button" class="menu-inline-btn">
-            エクスポート
-          </button>
           <button id="backupImportBtn" type="button" class="menu-inline-btn">
             インポート
           </button>
-        </div>
-        <div class="menu-inline-actions">
+          <button id="backupExportBtn" type="button" class="menu-inline-btn">
+            エクスポート
+          </button>
           <button id="resetAllBtn" type="button" class="menu-inline-btn menu-danger-btn">
             すべてリセット
           </button>
         </div>
       </section>
       <section id="syncDetailsSection">
-        <h3>同期とプライバシー</h3>
         <div class="sync-panel">
-          <div class="sync-toggle-row">
-            <span>同期</span>
-            <button id="syncToggleBtn" class="sync-toggle" type="button" role="switch" aria-checked="false">
-              <span class="sync-toggle-knob"></span>
-            </button>
-          </div>
           <div id="syncStartChoice" class="menu-inline-actions">
-            <button id="syncStartFreshBtn" type="button" class="menu-inline-btn">
-              はじめから
-            </button>
             <button id="syncStartContinueBtn" type="button" class="menu-inline-btn">
-              つづきから
+              すでに使っています
+            </button>
+            <button id="syncStartFreshBtn" type="button" class="menu-inline-btn">
+              初めて同期する
             </button>
           </div>
           <div id="syncOnPanel">
@@ -1386,6 +1302,9 @@
               </button>
               <button id="syncShareRevealBtn" type="button" class="menu-inline-btn">
                 一時共有
+              </button>
+              <button id="syncToggleBtn" type="button" class="menu-inline-btn">
+                同期をやめる
               </button>
             </div>
             <div id="syncHandoffPanel" class="sync-reveal-panel">
@@ -3575,8 +3494,7 @@
         renderSyncPanel = () => {
           const seed = getSyncSeed(),
             on = !!seed;
-          syncToggleBtnEl.setAttribute("aria-checked", on ? "true" : "false"),
-            O(syncStartChoiceEl, !1),
+          O(syncStartChoiceEl, !on),
             O(syncOnPanelEl, on),
             O(syncContinuePanelEl, !1),
             on && ((syncSeedTextEl.value = seed), renderSyncQr(seed));
@@ -3584,7 +3502,7 @@
         enableSync = () => {
           getSyncSeed() || setSyncSeed(generateSeed()),
             renderSyncPanel(),
-            showToast("同期を有効にしました", "success");
+            location.reload();
         },
         disableSync = () => {
           clearSyncSeed(),
@@ -3595,8 +3513,7 @@
           (seed = (seed || "").trim()),
             seed &&
             (setSyncSeed(seed),
-              renderSyncPanel(),
-              showToast("シードを読み込みました", "success"));
+              location.reload());
         },
         stopQrScan = () => {
           syncScanStream &&
@@ -3708,15 +3625,11 @@
             "Enter" === e.key && addSearchHistory(searchPaneInputEl.value);
         }),
         syncToggleBtnEl.addEventListener("click", () => {
-          getSyncSeed()
-            ? disableSync()
-            : O(syncStartChoiceEl, !0);
+          disableSync();
         }),
         syncStartFreshBtnEl.addEventListener("click", enableSync),
         syncStartContinueBtnEl.addEventListener("click", () => {
-          O(syncStartChoiceEl, !1),
-            O(syncContinuePanelEl, !0),
-            startQrScan();
+          O(syncContinuePanelEl, !0), startQrScan();
         }),
         // 「引き継ぐ」「一時共有」は押すと必要な要素が表示されるだけで、
         // 折り畳み(閉じる)には戻さない。
