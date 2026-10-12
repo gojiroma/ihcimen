@@ -43,6 +43,11 @@
     }
 
     /* 画面中央にうっすらと現在時刻を表示する */
+    .idle-clock-watermark .wm-date {
+      display: block;
+      font-size: 0.35em;
+    }
+
     .idle-clock-watermark {
       display: block;
       position: fixed;
@@ -51,6 +56,8 @@
       transform: translate(-50%, -50%);
       z-index: 503;
       font-size: clamp(80px, 20vw, 260px);
+      line-height: 1.05;
+      text-align: center;
       font-weight: 700;
       color: var(--text-color);
       opacity: 0.06;
@@ -73,52 +80,34 @@
       box-sizing: border-box;
     }
 
+    /* 日付はウォーターマークに統合済み。操作(タップ/スワイプ/長押し/
+       ダブルタップ)用に上端の透明な帯だけを残す。入力中も位置は動かさない */
     .date-display {
-      display: flex;
-      align-items: center;
-      flex-shrink: 0;
-      margin-top: 20px;
-      margin-bottom: 20px;
+      position: fixed;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(100%, 320px);
+      height: 44px;
+      z-index: 504;
       cursor: pointer;
       touch-action: pan-y;
-      opacity: 1;
-      transition: opacity 0.15s ease;
-      /* 長押し/ダブルクリック時にテキスト選択されてしまうのを防ぐ */
       user-select: none;
+      font-size: 0;
+      color: transparent;
     }
 
-    body.touch-editing .date-display {
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      left: auto;
-      margin: 0;
-      z-index: 450;
-    }
-
-    body.touch-editing .content-area {
-      padding-top: 50px;
-    }
-
-    .date-display:hover {
-      opacity: 0.7;
-    }
-
-    .date-display .year {
-      font-size: 24px;
-      margin-right: 10px;
-    }
-
-    .date-display .month-day {
-      font-size: 36px;
-      margin-right: 10px;
+    .date-display .year,
+    .date-display .month-day,
+    .date-display .weekday {
+      font-size: 0;
     }
 
     .info-widget {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      margin-top: -10px;
+      margin-top: 20px;
       margin-bottom: 16px;
       font-size: 12px;
       opacity: 0.65;
@@ -155,11 +144,6 @@
 
     body.touch-editing .info-widget {
       display: none;
-    }
-
-    .date-display .weekday {
-      font-size: 18px;
-      line-height: 1.2;
     }
 
     /* 折り畳みはせず、常に全項目を一望できるようにする */
@@ -1229,6 +1213,7 @@
           l.textContent = e.toLocaleDateString("ja-JP", { weekday: "long" });
           A(e);
           updateFavicon(e);
+          updateIdleClockWatermark();
         },
         updateFavicon = (e) => {
           const day = e.getDate(),
@@ -1448,6 +1433,10 @@
           const dateKey = toDateKey(date);
           dayEditorEl._dateKey = dateKey;
           dayEditorEl.value = storage.getItem(dateKey) || "";
+          // 空欄の日は「- 」から始める(過去日は対象外)。未編集なら保存しない。
+          !dayEditorEl.value &&
+            dateKey >= toDateKey(new Date()) &&
+            (dayEditorEl.value = "- ");
           sDirty = !1;
           editBaseline = "";
           o.innerHTML = "";
@@ -2483,10 +2472,21 @@
           requestAnimationFrame(scanFrame);
         },
         updateIdleClockWatermark = () => {
-          idleClockWatermarkEl.textContent = new Date().toLocaleTimeString(
-            "ja-JP",
-            { hour: "2-digit", minute: "2-digit" }
-          );
+          const d = f,
+            dateText = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(
+              2,
+              "0"
+            )}/${String(d.getDate()).padStart(2, "0")} ${d.toLocaleDateString(
+              "ja-JP",
+              { weekday: "short" }
+            )}`,
+            timeText = new Date().toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+          idleClockWatermarkEl.innerHTML = `<span class="wm-date"></span><span class="wm-time"></span>`;
+          idleClockWatermarkEl.firstChild.textContent = dateText;
+          idleClockWatermarkEl.lastChild.textContent = timeText;
         },
         K = (e, t = 0, a = 0) => {
           saveCurrentMemo(),
